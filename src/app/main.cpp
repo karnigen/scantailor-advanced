@@ -16,6 +16,7 @@
 #include <QFileInfo>
 #include <QSettings>
 #include <QStringList>
+#include <QTextStream>
 
 #include "MainWindow.h"
 
@@ -46,9 +47,8 @@ int main(int argc, char* argv[]) {
   QString projectFileToOpen;
   const QStringList positionalArgs = parser.positionalArguments();
   if (positionalArgs.size() > 1) {
-    parser.showMessageAndExit(QCommandLineParser::MessageType::Error,
-                              QObject::tr("Specify at most one project file or directory."),
-                              2);
+    QTextStream(stderr) << QObject::tr("Specify at most one project file or directory.") << '\n';
+    return 2;
   }
   if (positionalArgs.size() == 1) {
     const QString path = positionalArgs.at(0);
@@ -63,10 +63,8 @@ int main(int argc, char* argv[]) {
           initialDirectory = absoluteInfo.absolutePath();
         }
       } else {
-        parser.showMessageAndExit(
-            QCommandLineParser::MessageType::Error,
-            QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()),
-            2);
+        QTextStream(stderr) << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
+        return 2;
       }
     } else if (info.exists()) {
       if (info.isDir()) {
@@ -76,10 +74,8 @@ int main(int argc, char* argv[]) {
         initialDirectory = info.absolutePath();
       }
     } else {
-      parser.showMessageAndExit(
-          QCommandLineParser::MessageType::Error,
-          QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()),
-          2);
+      QTextStream(stderr) << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
+      return 2;
     }
   }
 

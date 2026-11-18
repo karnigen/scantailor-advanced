@@ -523,3 +523,4 @@ This shows the cross-build plan and asks for confirmation before compiling. Use 
 #### Building on Windows (native)
 
 Go to [this repository](https://github.com/4lex4/scantailor-libs-build) and follow the instructions given there.
+Qt 6.4 is the minimum supported Qt version for Linux system packages. Qt 6.9 or newer is recommended for full Qt6 API and toolchain compatibility.

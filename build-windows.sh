@@ -72,7 +72,7 @@ while (($#)); do
       exit 2
       ;;
     *)
-      if [[ "$SUFFIX" != "static" || -n "${TARGET_SET:-}" ]]; then
+      if [[ "$TARGET_SET" == "ON" || "$SUFFIX" != "static" ]]; then
         echo "Error: expected at most one target: static or shared." >&2
         exit 2
       fi

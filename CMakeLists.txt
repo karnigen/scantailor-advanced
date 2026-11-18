@@ -218,7 +218,7 @@ endif()
 #=================================== Qt ===================================#
 
 find_package(
-    Qt6 6.9
+    Qt6 6.4
     COMPONENTS Core Gui Widgets Xml Network LinguistTools OpenGL Svg OpenGLWidgets Test
     CONFIG REQUIRED)
 set(QT_BINDIR "${QT6_INSTALL_PREFIX}/bin")
