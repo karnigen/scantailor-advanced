@@ -64,8 +64,9 @@ void OutOfMemoryDialog::saveProjectAs() {
     }
   }
 
-  QString projectFile(
-      QFileDialog::getSaveFileName(this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)"));
+  QString projectFile(QFileDialog::getSaveFileName(
+      this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)",
+      nullptr, QFileDialog::DontUseNativeDialog));
   if (projectFile.isEmpty()) {
     return;
   }

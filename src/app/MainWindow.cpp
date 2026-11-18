@@ -1428,8 +1428,9 @@ void MainWindow::saveProjectAsTriggered() {
     }
   }
 
-  QString projectFile(
-      QFileDialog::getSaveFileName(this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)"));
+  QString projectFile(QFileDialog::getSaveFileName(
+      this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)",
+      nullptr, QFileDialog::DontUseNativeDialog));
   if (projectFile.isEmpty()) {
     return;
   }
@@ -1476,8 +1477,14 @@ void MainWindow::openProject() {
   if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
     projectDir = QSettings().value("project/lastDir").toString();
   }
-  const QString projectFile(QFileDialog::getOpenFileName(this, tr("Open Project"), projectDir,
-                                                         tr("Scan Tailor Projects") + " (*.ScanTailor)"));
+  QFileDialog dialog(this, tr("Open Project"), projectDir,
+                     tr("Scan Tailor Projects") + " (*.ScanTailor)");
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  const QString projectFile(dialog.selectedFiles().value(0));
   if (projectFile.isEmpty()) {
     // Cancelled by user.
     return;
@@ -1875,6 +1882,7 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
   }
   auto dialog = std::make_unique<QFileDialog>(this, tr("Files to insert"), dialogDir);
   dialog->setFileMode(QFileDialog::ExistingFiles);
+  dialog->setOption(QFileDialog::DontUseNativeDialog, true);
   dialog->setProxyModel(new ProxyModel(*m_pages));
   dialog->setNameFilter(tr("Images not in project (%1)").arg("*.png *.tiff *.tif *.jpeg *.jpg"));
   // XXX: Adding individual pages from a multi-page TIFF where

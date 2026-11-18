@@ -20,6 +20,12 @@
 #include "MainWindow.h"
 
 int main(int argc, char* argv[]) {
+  // Qt 6.12 can load GTK3's platform theme plugin even for Qt-owned dialogs.
+  // With mismatched libpng builds this crashes in gdk_pixbuf/png_destroy_read_struct.
+  // Keep the process on Qt's generic theme unless the user explicitly overrides it.
+  if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORMTHEME")) {
+    qputenv("QT_QPA_PLATFORMTHEME", QByteArrayLiteral("generic"));
+  }
 #if QT_VERSION_MAJOR == 5
   // Issue #97: Qt5 on Wayland can corrupt dialogs; use X11 unless opted out.
   if (!qEnvironmentVariableIsSet("SCANTAILOR_NO_XCB_FALLBACK")) {
