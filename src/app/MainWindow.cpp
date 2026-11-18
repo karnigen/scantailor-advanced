@@ -1327,7 +1327,8 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task, const FilterResultP
         if (cmd.isEmpty()) {
           QApplication::beep();
         } else {
-          Q_UNUSED(std::system(cmd.toStdString().c_str()));
+          const int result = std::system(cmd.toStdString().c_str());
+          Q_UNUSED(result);
         }
       }
 
@@ -2229,12 +2230,12 @@ void MainWindow::execGotoPageDialog() {
 
   bool ok;
   const PageSequence pageSequence = m_thumbSequence->toPageSequence();
-  const PageId& selectionLeader = m_thumbSequence->selectionLeader().id();
+  const PageId selectionLeader = m_thumbSequence->selectionLeader().id();
   int pageNumber
       = QInputDialog::getInt(this, tr("Go To Page"), tr("Enter the page number:"),
                              pageSequence.pageNo(selectionLeader) + 1, 1, (int) (pageSequence.numPages()), 1, &ok);
   if (ok) {
-    const PageId& newSelectionLeader = pageSequence.pageAt(pageNumber - 1).id();
+    const PageId newSelectionLeader = pageSequence.pageAt(pageNumber - 1).id();
     if (selectionLeader != newSelectionLeader) {
       goToPage(newSelectionLeader);
     }
