@@ -473,7 +473,7 @@ To build a `.deb` package (with application icon and menu entry):
 ./build-deb.sh
 ```
 
-This compiles the project and produces `scantailor-advanced_<version>_<arch>.deb` in the project root. Install with `sudo dpkg -i scantailor-advanced_*.deb`.
+This shows the build plan and asks for confirmation before compiling. Use `./build-deb.sh -y` for non-interactive builds. It produces `scantailor-advanced_<version>_<arch>.deb` in the project root. Install with `sudo dpkg -i scantailor-advanced_*.deb`.
 
 #### Building a Windows .exe from Linux (cross-compile)
 
@@ -491,7 +491,7 @@ Then from the ScanTailor Advanced source directory:
 ./build-windows.sh
 ```
 
-This produces `build-win-static/scantailor.exe`. Use `./build-windows.sh shared` for a smaller build that requires shipping DLLs from MXE’s `usr/x86_64-w64-mingw32.shared/bin/` alongside the .exe.
+This shows the cross-build plan and asks for confirmation before compiling. Use `./build-windows.sh -y` for non-interactive builds. It produces `build-win-static/scantailor.exe`. Use `./build-windows.sh shared` for a smaller build that requires shipping DLLs from MXE’s `usr/x86_64-w64-mingw32.shared/bin/` alongside the .exe.
 
 #### Building on Windows (native)
 

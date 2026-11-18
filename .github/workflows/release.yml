@@ -31,7 +31,7 @@ jobs:
             libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 
       - name: Build .deb
-        run: ./build-deb.sh build
+        run: ./build-deb.sh -y build
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v5
