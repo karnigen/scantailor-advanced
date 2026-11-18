@@ -10,7 +10,8 @@
 #include "FixDpiDialog.h"
 #include "ProjectFilesDialog.h"
 
-ProjectCreationContext::ProjectCreationContext(QWidget* parent) : m_layoutDirection(Qt::LeftToRight), m_parent(parent) {
+ProjectCreationContext::ProjectCreationContext(QWidget* parent, const QString& initialDirectory)
+    : m_layoutDirection(Qt::LeftToRight), m_initialDirectory(initialDirectory), m_parent(parent) {
   showProjectFilesDialog();
 }
 
@@ -60,7 +61,7 @@ void ProjectCreationContext::fixDpiDialogDestroyed() {
 
 void ProjectCreationContext::showProjectFilesDialog() {
   assert(!m_projectFilesDialog);
-  m_projectFilesDialog = new ProjectFilesDialog(m_parent);
+  m_projectFilesDialog = new ProjectFilesDialog(m_parent, m_initialDirectory);
   m_projectFilesDialog->setAttribute(Qt::WA_DeleteOnClose);
   m_projectFilesDialog->setAttribute(Qt::WA_QuitOnClose, false);
   if (m_parent) {

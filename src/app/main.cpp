@@ -11,6 +11,9 @@
 #include <core/StyledIconPack.h>
 
 #include <QGuiApplication>
+#include <QCommandLineParser>
+#include <QDir>
+#include <QFileInfo>
 #include <QSettings>
 #include <QStringList>
 
@@ -32,17 +35,64 @@ int main(int argc, char* argv[]) {
 #endif
 #endif
   Application app(argc, argv);
+  Application::setApplicationName(APPLICATION_NAME);
+  Application::setOrganizationName(ORGANIZATION_NAME);
+
+  QCommandLineParser parser;
+  parser.setApplicationDescription(QObject::tr(
+      "ScanTailor Advanced. Specify a project file to open it, or an existing directory "
+      "to use as the initial input/output location."));
+  parser.addHelpOption();
+  parser.addPositionalArgument(
+      "path",
+      QObject::tr("Optional project file (.ScanTailor) or initial directory."));
+  parser.process(app);
+
+  QString initialDirectory;
+  QString projectFileToOpen;
+  const QStringList positionalArgs = parser.positionalArguments();
+  if (positionalArgs.size() > 1) {
+    parser.showMessageAndExit(QCommandLineParser::MessageType::Error,
+                              QObject::tr("Specify at most one project file or directory."),
+                              2);
+  }
+  if (positionalArgs.size() == 1) {
+    const QString path = positionalArgs.at(0);
+    const QFileInfo info(QDir::cleanPath(path));
+    if (info.isRelative()) {
+      const QFileInfo absoluteInfo(QDir(QDir::currentPath()).absoluteFilePath(info.filePath()));
+      if (absoluteInfo.exists()) {
+        if (absoluteInfo.isDir()) {
+          initialDirectory = absoluteInfo.absoluteFilePath();
+        } else {
+          projectFileToOpen = absoluteInfo.absoluteFilePath();
+          initialDirectory = absoluteInfo.absolutePath();
+        }
+      } else {
+        parser.showMessageAndExit(
+            QCommandLineParser::MessageType::Error,
+            QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()),
+            2);
+      }
+    } else if (info.exists()) {
+      if (info.isDir()) {
+        initialDirectory = info.absoluteFilePath();
+      } else {
+        projectFileToOpen = info.absoluteFilePath();
+        initialDirectory = info.absolutePath();
+      }
+    } else {
+      parser.showMessageAndExit(
+          QCommandLineParser::MessageType::Error,
+          QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()),
+          2);
+    }
+  }
 
 #ifdef _WIN32
   // Get rid of all references to Qt's installation directory.
   Application::setLibraryPaths(QStringList(Application::applicationDirPath()));
 #endif
-
-  QStringList args = Application::arguments();
-
-  // This information is used by QSettings.
-  Application::setApplicationName(APPLICATION_NAME);
-  Application::setOrganizationName(ORGANIZATION_NAME);
 
   QSettings::setDefaultFormat(QSettings::IniFormat);
   if (app.isPortableVersion()) {
@@ -59,7 +109,7 @@ int main(int argc, char* argv[]) {
   }
   IconProvider::getInstance().setIconPack(StyledIconPack::createDefault());
 
-  auto* mainWnd = new MainWindow();
+  auto* mainWnd = new MainWindow(initialDirectory);
   mainWnd->setAttribute(Qt::WA_DeleteOnClose);
   if (settings.value("mainWindow/maximized") == false) {
     mainWnd->show();
@@ -68,8 +118,8 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(0, mainWnd, &QMainWindow::showMaximized);
   }
 
-  if (args.size() > 1) {
-    mainWnd->openProject(args.at(1));
+  if (!projectFileToOpen.isEmpty()) {
+    mainWnd->openProject(projectFileToOpen);
   }
   return Application::exec();
 }  // main

@@ -65,7 +65,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   Q_OBJECT
  public:
-  MainWindow();
+  explicit MainWindow(const QString& initialDirectory = QString());
 
   ~MainWindow() override;
 
@@ -337,6 +337,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QObjectCleanupHandler m_optionsWidgetCleanup;
   QObjectCleanupHandler m_imageWidgetCleanup;
   std::unique_ptr<OutOfMemoryDialog> m_outOfMemoryDialog;
+  QString m_initialDirectory;
   int m_curFilter;
   SavedMainAreaViewState m_savedMainAreaViewState;
   int m_ignoreSelectionChanges;

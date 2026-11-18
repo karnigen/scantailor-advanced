@@ -20,7 +20,8 @@ class QString;
 class RelinkingDialog : public QDialog {
   Q_OBJECT
  public:
-  explicit RelinkingDialog(const QString& projectFilePath, QWidget* parent = nullptr);
+  explicit RelinkingDialog(
+      const QString& projectFilePath, QWidget* parent = nullptr, const QString& initialDirectory = QString());
 
   ProxyFunction<RelinkingModel&, void, const RelinkablePath&> pathCollector() {
     return ProxyFunction<RelinkingModel&, void, const RelinkablePath&>(m_model);

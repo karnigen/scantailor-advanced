@@ -11,8 +11,17 @@
 
 #include "RelinkingSortingModel.h"
 
-RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent)
-    : QDialog(parent), m_sortingModel(new RelinkingSortingModel), m_projectFileDir(QFileInfo(projectFilePath).path()) {
+RelinkingDialog::RelinkingDialog(
+    const QString& projectFilePath, QWidget* parent, const QString& initialDirectory)
+    : QDialog(parent),
+      m_sortingModel(new RelinkingSortingModel),
+      m_projectFileDir(QFileInfo(projectFilePath).path()) {
+  if (m_projectFileDir.isEmpty() || !QDir(m_projectFileDir).exists()) {
+    m_projectFileDir = initialDirectory;
+  }
+  if (m_projectFileDir.isEmpty() || !QDir(m_projectFileDir).exists()) {
+    m_projectFileDir = QDir::homePath();
+  }
   ui.setupUi(this);
   ui.undoButton->setIcon(IconProvider::getInstance().getIcon("undo"));
   m_sortingModel->setSourceModel(&m_model);

@@ -16,7 +16,7 @@
 class ProjectFilesDialog : public QDialog, private Ui::ProjectFilesDialog {
   Q_OBJECT
  public:
-  explicit ProjectFilesDialog(QWidget* parent = nullptr);
+  explicit ProjectFilesDialog(QWidget* parent = nullptr, const QString& initialDirectory = QString());
 
   ~ProjectFilesDialog() override;
 
@@ -74,6 +74,7 @@ class ProjectFilesDialog : public QDialog, private Ui::ProjectFilesDialog {
   int m_loadTimerId;
   bool m_metadataLoadFailed;
   bool m_autoOutDir;
+  QString m_initialDirectory;
 };
 
 

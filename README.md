@@ -463,6 +463,18 @@ cmake ..
 make -j$(nproc)
 ```
 
+Command-line paths:
+
+```bash
+scantailor-advanced [path]
+scantailor-advanced .
+scantailor-advanced /data/scans
+scantailor-advanced /data/project.ScanTailor
+scantailor-advanced -h
+```
+
+One existing directory starts Open/New Project workflows at that directory. One existing project file opens it directly. A missing path is rejected. Without a path, existing project/input settings and the desktop environment retain their normal behavior.
+
 For **offline or minimal chroot** builds where unit tests cannot be built (issue #61), use `cmake -DBUILD_TESTS=OFF ..` to skip the test targets.
 
 The executable will be in the `build` directory. To install system-wide: `sudo make install`.
