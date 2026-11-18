@@ -325,6 +325,20 @@ if [[ "$CLEAN" == "ON" && -d "$BUILD_DIR" ]]; then
 fi
 
 if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
+  OLD_CONFIG_SIGNATURE=""
+  if [[ -f "$VCPKG_SIGNATURE_FILE" ]]; then
+    OLD_CONFIG_SIGNATURE="$(cat "$VCPKG_SIGNATURE_FILE")"
+  fi
+  OLD_QT_SIGNATURE="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^qt_signature=//p')"
+  NEW_QT_SIGNATURE="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^qt_signature=//p')"
+  if [[ -n "$OLD_QT_SIGNATURE" && "$OLD_QT_SIGNATURE" != "$NEW_QT_SIGNATURE" ]]; then
+    rm -f "$BUILD_DIR/CMakeCache.txt"
+    if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
+      cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
+    fi
+  fi
+  rm -f "$VCPKG_SIGNATURE_FILE"
+
   VCPKG_MANIFEST_OPTIONS=()
   VCPKG_FEATURES=()
   CMAKE_PREFIX_OPTIONS=()
@@ -351,7 +365,7 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   save_build_config "$BUILD_DIR"
 fi
 
-cmake --build "$BUILD_DIR" --parallel "$JOBS"
+cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --parallel "$JOBS"
 save_build_config "$BUILD_DIR"
 
 if [[ "$BUILD_TESTS" == "ON" ]]; then

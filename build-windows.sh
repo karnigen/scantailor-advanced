@@ -5,8 +5,7 @@
 #   1. Install MXE (M Cross Environment): https://mxe.cc/
 #   2. Build the required packages (one-time, can take 1–2 hours):
 #      cd /path/to/mxe
-#      make MXE_TARGETS=x86_64-w64-mingw32.static \
-#        qt5 jpeg libpng tiff zlib boost
+#      Configure MXE with Qt 6 packages for x86_64-w64-mingw32.
 #
 # Usage:
 #   MXE_DIR=/path/to/mxe ./build-windows.sh
@@ -39,6 +38,7 @@ cd "$SCRIPT_DIR"
 
 ASSUME_YES="OFF"
 SUFFIX="static"
+TARGET_SET="OFF"
 
 while (($#)); do
   case "$1" in
@@ -52,12 +52,17 @@ while (($#)); do
       ;;
     --)
       shift
+      if [[ "$TARGET_SET" == "ON" && $# -ge 1 ]]; then
+        echo "Error: only one target is accepted: static or shared." >&2
+        exit 2
+      fi
       if (($# > 1)); then
         echo "Error: expected at most one target: static or shared." >&2
         exit 2
       fi
       if (($# == 1)); then
         SUFFIX="$1"
+        TARGET_SET="ON"
       fi
       break
       ;;
@@ -99,7 +104,7 @@ else
   echo "" >&2
   echo "One-time setup:" >&2
   echo "  git clone https://github.com/mxe/mxe.git ~/mxe" >&2
-  echo "  cd ~/mxe && make MXE_TARGETS=${MXE_TARGET} qt5 jpeg libpng tiff zlib boost" >&2
+  echo "  Configure MXE with Qt 6 packages for MXE_TARGETS=${MXE_TARGET}" >&2
   echo "  (This can take 1–2 hours.)" >&2
   exit 1
 fi
@@ -108,7 +113,7 @@ TOOLCHAIN_FILE="${MXE_ROOT}/usr/${MXE_TARGET}/share/cmake/mxe-conf.cmake"
 if [[ ! -f "$TOOLCHAIN_FILE" ]]; then
   echo "Error: MXE toolchain not found: $TOOLCHAIN_FILE" >&2
   echo "Build the MXE target first:" >&2
-  echo "  cd $MXE_ROOT && make MXE_TARGETS=${MXE_TARGET} qt5 jpeg libpng tiff zlib boost" >&2
+  echo "  Configure MXE with Qt 6 packages for MXE_TARGETS=${MXE_TARGET}" >&2
   exit 1
 fi
 

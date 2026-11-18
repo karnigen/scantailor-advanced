@@ -1616,19 +1616,14 @@ void MainWindow::disconnectFilterOptionsWidget() {
     return;
   }
 
-  disconnect(m_optionsWidget, &FilterOptionsWidget::reloadRequested, this, &MainWindow::reloadRequested);
-  disconnect(m_optionsWidget,
-             static_cast<void (FilterOptionsWidget::*)(const PageId&)>(&FilterOptionsWidget::invalidateThumbnail),
-             this,
-             static_cast<void (MainWindow::*)(const PageId&)>(&MainWindow::invalidateThumbnail));
-  disconnect(m_optionsWidget,
-             static_cast<void (FilterOptionsWidget::*)(const PageInfo&)>(&FilterOptionsWidget::invalidateThumbnail),
-             this,
-             static_cast<void (MainWindow::*)(const PageInfo&)>(&MainWindow::invalidateThumbnail));
-  disconnect(m_optionsWidget, &FilterOptionsWidget::invalidateAllThumbnails, this,
-             &MainWindow::invalidateAllThumbnails);
+  disconnect(m_optionsWidget, SIGNAL(reloadRequested()), this, SLOT(reloadRequested()));
+  disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageId&)), this,
+             SLOT(invalidateThumbnail(const PageId&)));
+  disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageInfo&)), this,
+             SLOT(invalidateThumbnail(const PageInfo&)));
+  disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
   disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this, nullptr);
-  disconnect(m_optionsWidget, &FilterOptionsWidget::fixDpiRequested, this, &MainWindow::fixDpiDialogRequested);
+  disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }
 
 void MainWindow::updateProjectActions() {

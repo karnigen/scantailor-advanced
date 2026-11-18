@@ -74,7 +74,6 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 
 **Windows – supported OS versions (issue #101):** Release builds follow upstream **Qt** and **toolchain** support policies; **legacy Windows** (for example Windows 7) is **not** exercised in this project’s CI and is **best-effort only**. You may need an **older tagged release** or a **self-built** binary against an older Qt/MSVC stack. Community reports (including compatibility tips) are welcome in the issue tracker.
 
-**Linux – Wayland (issue #97):** On Qt5 builds, if `XDG_SESSION_TYPE` is `wayland` and `QT_QPA_PLATFORM` is not set, the application defaults to the X11 (`xcb`) platform plugin to avoid broken dialogs and painting. Set **`SCANTAILOR_NO_XCB_FALLBACK=1`** in the environment to keep native Wayland and, if needed, set `QT_QPA_PLATFORM=wayland` or `QT_QPA_PLATFORM=xcb` yourself.
 
 **Linux – Flatpak / Flathub ([issue #105](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105)):**
 
@@ -450,7 +449,7 @@ Install the required dependencies:
 
 ```bash
 sudo apt install build-essential cmake \
-  qt5-qmake qtbase5-dev libqt5svg5-dev qttools5-dev \
+  qt6-base-dev qt6-svg-dev qt6-tools-dev \
   libboost-test-dev libboost-dev \
   libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 ```
@@ -505,12 +504,12 @@ This shows the build plan and asks for confirmation before compiling. Use `./bui
 
 #### Building a Windows .exe from Linux (cross-compile)
 
-You can cross-compile the Windows executable from Linux using [MXE](https://mxe.cc/) (M Cross Environment). One-time MXE setup (builds Qt5 and dependencies; can take 1–2 hours):
+You can cross-compile the Windows executable from Linux using [MXE](https://mxe.cc/) (M Cross Environment). Configure MXE with Qt 6 and the required image/dependency packages for the selected target:
 
 ```bash
 git clone https://github.com/mxe/mxe.git ~/mxe
 cd ~/mxe
-make MXE_TARGETS=x86_64-w64-mingw32.static qt5 jpeg libpng tiff zlib boost
+# Configure and build the Qt 6 MXE packages for this target.
 ```
 
 Then from the ScanTailor Advanced source directory:
