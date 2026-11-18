@@ -15,7 +15,6 @@ class SafeDeletingQObjectPtr {
 
   ~SafeDeletingQObjectPtr() {
     if (m_obj) {
-      m_obj->disconnect();
       m_obj->deleteLater();
     }
   }

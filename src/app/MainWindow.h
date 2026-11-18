@@ -196,6 +196,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   using FilterPtr = std::shared_ptr<AbstractFilter>;
 
   static void removeWidgetsFromLayout(QLayout* layout);
+  void disconnectFilterOptionsWidget();
 
   struct SavedMainAreaViewState {
     double zoom = 1.0;
