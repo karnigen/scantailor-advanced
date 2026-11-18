@@ -11,6 +11,7 @@ Build ScanTailor Advanced with project-local vcpkg dependencies.
 Options:
   --clean             Recreate the build directory before building.
   --sync              Synchronize CMake and vcpkg even if inputs are unchanged.
+  --qt-root PATH      Use Qt kit prefix ending in <version>/gcc_64.
   --tests             Build and run the unit tests.
   --build-type TYPE   Set CMake build type (default: Release).
   -j, --jobs N        Set parallel build jobs (default: available CPUs).
@@ -20,13 +21,13 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build-vcpkg"
 BUILD_TYPE="Release"
 BUILD_TESTS="OFF"
 JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
 CLEAN="OFF"
 ASSUME_YES="OFF"
 FORCE_CONFIGURE="OFF"
+QT_ROOT=""
 
 while (($#)); do
   case "$1" in
@@ -37,6 +38,14 @@ while (($#)); do
     --sync)
       FORCE_CONFIGURE="ON"
       shift
+      ;;
+    --qt-root)
+      if (($# < 2)); then
+        echo "Error: --qt-root requires a path." >&2
+        exit 2
+      fi
+      QT_ROOT="$2"
+      shift 2
       ;;
     --tests)
       BUILD_TESTS="ON"
@@ -76,6 +85,30 @@ done
 
 VCPKG_ROOT="${VCPKG_ROOT:-${HOME}/vcpkg}"
 VCPKG_TOOLCHAIN="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+QT_SIGNATURE="vcpkg"
+
+if [[ -n "$QT_ROOT" ]]; then
+  QT_ROOT="$(cd "$QT_ROOT" 2>/dev/null && pwd)" || {
+    echo "Error: Qt root does not exist: $QT_ROOT" >&2
+    exit 1
+  }
+  if [[ "$QT_ROOT" == */bin ]]; then
+    QT_ROOT="$(dirname "$QT_ROOT")"
+  fi
+  if [[ ! -f "$QT_ROOT/lib/cmake/Qt6/Qt6Config.cmake" ]]; then
+    echo "Error: invalid Qt kit prefix: $QT_ROOT" >&2
+    echo "Expected <Qt-install>/<version>/gcc_64 or its bin directory." >&2
+    echo "Required: $QT_ROOT/lib/cmake/Qt6/Qt6Config.cmake" >&2
+    exit 1
+  fi
+  QT_SIGNATURE="$(sha256sum "$QT_ROOT/lib/cmake/Qt6/Qt6Config.cmake" | cut -d' ' -f1)"
+  BUILD_DIR="${SCRIPT_DIR}/build-local-qt"
+  QT_SOURCE="$QT_ROOT"
+else
+  BUILD_DIR="${SCRIPT_DIR}/build-vcpkg"
+  QT_SOURCE="vcpkg"
+fi
+
 VCPKG_SIGNATURE_FILE="${BUILD_DIR}/.vcpkg-config-signature"
 
 if [[ ! -f "$VCPKG_TOOLCHAIN" ]]; then
@@ -93,6 +126,8 @@ CONFIG_SIGNATURE="$(
 build_type=$BUILD_TYPE
 build_tests=$BUILD_TESTS
 vcpkg_root=$VCPKG_ROOT
+qt_root=$QT_ROOT
+qt_signature=$QT_SIGNATURE
 vcpkg_json=$(hash_file "$SCRIPT_DIR/vcpkg.json")
 vcpkg_configuration_json=$(hash_file "$SCRIPT_DIR/vcpkg-configuration.json")
 toolchain=$(hash_file "$VCPKG_TOOLCHAIN")
@@ -113,6 +148,7 @@ ScanTailor Advanced vcpkg build plan:
   Build directory:       $BUILD_DIR
   vcpkg root:            $VCPKG_ROOT
   vcpkg install:         $BUILD_DIR/vcpkg_installed
+  Qt source:             $QT_SOURCE
   Build type:            $BUILD_TYPE
   Build tests:           $BUILD_TESTS
   Run tests after build: $BUILD_TESTS
@@ -125,7 +161,7 @@ EOF
 if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   cat <<'EOF'
   - Configure CMake with the vcpkg toolchain
-  - Synchronize project dependencies under build-vcpkg
+  - Synchronize project dependencies in the selected build directory
   - Build ScanTailor Advanced
 EOF
 else
@@ -156,7 +192,13 @@ if [[ "$CLEAN" == "ON" && -d "$BUILD_DIR" ]]; then
 fi
 
 if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
+  VCPKG_MANIFEST_OPTIONS=()
   VCPKG_FEATURES=()
+  CMAKE_PREFIX_OPTIONS=()
+  if [[ -n "$QT_ROOT" ]]; then
+    VCPKG_MANIFEST_OPTIONS=(-DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON)
+    CMAKE_PREFIX_OPTIONS=(-DCMAKE_PREFIX_PATH="$QT_ROOT")
+  fi
   if [[ "$BUILD_TESTS" == "ON" ]]; then
     VCPKG_FEATURES=(-DVCPKG_MANIFEST_FEATURES=tests)
   fi
@@ -168,6 +210,8 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
     -DBUILD_TESTS="$BUILD_TESTS" \
     -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
     -DVCPKG_INSTALLED_DIR="$BUILD_DIR/vcpkg_installed" \
+    "${CMAKE_PREFIX_OPTIONS[@]}" \
+    "${VCPKG_MANIFEST_OPTIONS[@]}" \
     "${VCPKG_FEATURES[@]}"
 
   printf '%s\n' "$CONFIG_SIGNATURE" > "$VCPKG_SIGNATURE_FILE"

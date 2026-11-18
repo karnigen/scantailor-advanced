@@ -467,6 +467,20 @@ For **offline or minimal chroot** builds where unit tests cannot be built (issue
 
 The executable will be in the `build` directory. To install system-wide: `sudo make install`.
 
+For isolated dependencies, build through vcpkg:
+
+```bash
+./build-vcpkg.sh
+```
+
+This uses project-local vcpkg dependencies and keeps the build in `build-vcpkg/`. To reuse an existing Qt 6 installation instead of building Qt through vcpkg, pass its kit prefix ending in `<version>/gcc_64` (the `bin` directory is also accepted):
+
+```bash
+./build-vcpkg.sh --qt-root "$HOME/local/Qt/6.12.0/gcc_64"
+```
+
+The local-Qt build is kept separately in `build-local-qt/`; vcpkg still supplies the remaining project dependencies. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
+
 To build a `.deb` package (with application icon and menu entry):
 
 ```bash

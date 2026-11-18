@@ -18,37 +18,45 @@
       "default-features": false
     },
     "libpng",
-    {
-      "name": "qtbase",
-      "default-features": false,
-      "features": [
-        "fontconfig",
-        "freetype",
-        "gui",
-        "harfbuzz",
-        "network",
-        "opengl",
-        "testlib",
-        "widgets",
-        "xcb"
-      ]
-    },
-    "qtsvg",
-    {
-      "name": "qttools",
-      "default-features": false,
-      "features": [
-        "linguist"
-      ]
-    },
     "tiff",
     "zlib"
+  ],
+  "default-features": [
+    "vcpkg-qt"
   ],
   "features": {
     "tests": {
       "description": "Build the Boost unit tests",
       "dependencies": [
         "boost-test"
+      ]
+    },
+    "vcpkg-qt": {
+      "description": "Build and use Qt from vcpkg",
+      "dependencies": [
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "fontconfig",
+            "freetype",
+            "gui",
+            "harfbuzz",
+            "network",
+            "opengl",
+            "testlib",
+            "widgets",
+            "xcb"
+          ]
+        },
+        "qtsvg",
+        {
+          "name": "qttools",
+          "default-features": false,
+          "features": [
+            "linguist"
+          ]
+        }
       ]
     }
   }
