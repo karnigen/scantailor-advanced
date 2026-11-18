@@ -493,6 +493,8 @@ This uses project-local vcpkg dependencies and keeps the build in `build-vcpkg/`
 
 The local-Qt build is kept separately in `build-vcpkg-qt<version>/`; vcpkg still supplies the remaining project dependencies. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
 
+Running `./build-vcpkg.sh` without arguments in an interactive terminal shows the available build configurations and stored options. Each build directory stores its selection in `.build-vcpkg-config`; build directories remain ignored by Git.
+
 To build a `.deb` package (with application icon and menu entry):
 
 ```bash
