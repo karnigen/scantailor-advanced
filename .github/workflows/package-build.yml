@@ -1,0 +1,92 @@
+name: Manual Package Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to build"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - deb
+          - appimage
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  build-package:
+    name: Build ${{ inputs.package }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --fix-missing \
+            build-essential cmake file \
+            libjpeg-dev libpng-dev \
+            libtiff-dev zlib1g-dev \
+            libboost-test-dev libboost-dev \
+            qt6-base-dev qt6-svg-dev \
+            qt6-tools-dev qt6-tools-dev-tools \
+            qt6-base-private-dev \
+            libpthread-stubs0-dev \
+            rpm libfuse2t64
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release --parallel "$(nproc)"
+
+      - name: Build DEB package
+        if: ${{ inputs.package == 'deb' || inputs.package == 'all' }}
+        run: |
+          cd build
+          cpack -G "DEB"
+          mv scantailor*.deb scantailor-advanced.deb
+
+      - name: Upload DEB artifact
+        if: ${{ inputs.package == 'deb' || inputs.package == 'all' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-linux-deb
+          path: build/scantailor-advanced.deb
+          if-no-files-found: error
+
+      - name: Download linuxdeploy
+        if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Build AppImage
+        if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
+        run: |
+          rm -rf build-appimage
+          mkdir build-appimage
+          cd build-appimage
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
+          cmake --build . --config Release --parallel "$(nproc)"
+          make install DESTDIR=AppDir
+          export QMAKE=/usr/bin/qmake
+          ../linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --plugin qt \
+            -e AppDir/usr/bin/scantailor-advanced \
+            --output appimage
+          OUT=$(ls -1 *.AppImage 2>/dev/null | head -1)
+          mv "$OUT" "../scantailor-advanced-manual-${{ github.sha }}-x86_64.AppImage"
+
+      - name: Upload AppImage artifact
+        if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-linux-appimage
+          path: scantailor-advanced-*-x86_64.AppImage
+          if-no-files-found: error
