@@ -479,7 +479,7 @@ This uses project-local vcpkg dependencies and keeps the build in `build-vcpkg/`
 ./build-vcpkg.sh --qt-root "$HOME/local/Qt/6.12.0/gcc_64"
 ```
 
-The local-Qt build is kept separately in `build-local-qt/`; vcpkg still supplies the remaining project dependencies. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
+The local-Qt build is kept separately in `build-vcpkg-qt<version>/`; vcpkg still supplies the remaining project dependencies. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
 
 To build a `.deb` package (with application icon and menu entry):
 

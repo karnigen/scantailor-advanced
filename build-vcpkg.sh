@@ -102,7 +102,14 @@ if [[ -n "$QT_ROOT" ]]; then
     exit 1
   fi
   QT_SIGNATURE="$(sha256sum "$QT_ROOT/lib/cmake/Qt6/Qt6Config.cmake" | cut -d' ' -f1)"
-  BUILD_DIR="${SCRIPT_DIR}/build-local-qt"
+  if ! QT_VERSION="$("$QT_ROOT/bin/qmake6" -query QT_VERSION)"; then
+    QT_VERSION=""
+  fi
+  if [[ -z "$QT_VERSION" || ! "$QT_VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+    echo "Error: could not determine Qt version from: $QT_ROOT" >&2
+    exit 1
+  fi
+  BUILD_DIR="${SCRIPT_DIR}/build-vcpkg-qt${QT_VERSION}"
   QT_SOURCE="$QT_ROOT"
 else
   BUILD_DIR="${SCRIPT_DIR}/build-vcpkg"
