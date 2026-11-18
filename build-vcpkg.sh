@@ -11,7 +11,8 @@ Build ScanTailor Advanced with project-local vcpkg dependencies.
 Options:
   --clean             Recreate the build directory before building.
   --sync              Synchronize CMake and vcpkg even if inputs are unchanged.
-  --qt-root PATH      Use Qt kit prefix ending in <version>/gcc_64.
+  --qt-root PATH      Use a local Qt kit ending in <version>/gcc_64;
+                      other dependencies still come from vcpkg.
   --tests             Build and run the unit tests.
   --build-type TYPE   Set CMake build type (default: Release).
   -j, --jobs N        Set parallel build jobs (default: available CPUs).
