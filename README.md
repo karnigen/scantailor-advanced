@@ -437,6 +437,11 @@ has't been moved due to dirty realization. Their functionality is fully covered 
       Hold **`Shift+Ctrl`** to attach that to both the nearest vertical and horizontal guides.  
     * Use the **context menu** to enable/disable showing the hard margins rectangle.  
 
+## Documentation
+
+- [Project format and architecture documentation overview](docs/project-format-and-architecture-overview.md)
+- [ScanTailor project XML keys: format 3 vs. format 4](docs/scan-tailor-project-keys.md)
+
 ## License
 
 This software is licensed under GNU GPLv3, you can read more about it on our [LICENSE](/LICENSE) file.
