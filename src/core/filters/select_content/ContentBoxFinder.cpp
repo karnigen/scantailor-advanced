@@ -25,6 +25,7 @@
 #include <QPainterPath>
 #include <cmath>
 #include <queue>
+#include <utility>
 
 #include "DebugImages.h"
 #include "Despeckle.h"
@@ -768,7 +769,7 @@ imageproc::BinaryImage ContentBoxFinder::estimateTextMask(const imageproc::Binar
       }
     }
 
-    for (const Range& range : qAsConst(ranges)) {
+    for (const Range& range : std::as_const(ranges)) {
       const auto first = static_cast<int>(range.first - &hist[0]);
       const auto last = static_cast<int>(range.second - &hist[0]);
       if (last - first < minTextHeight - 1) {
