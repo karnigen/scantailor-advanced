@@ -19,7 +19,7 @@ permissions:
 jobs:
   build-package:
     name: Build ${{ inputs.package }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -37,9 +37,10 @@ jobs:
             libpthread-stubs0-dev \
             rpm libfuse2t64
 
-      - name: Configure and build
+      - name: Configure and build for AppImage
+        if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
           cmake --build build --config Release --parallel "$(nproc)"
 
       - name: Build DEB package
@@ -66,11 +67,8 @@ jobs:
       - name: Build AppImage
         if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
         run: |
-          rm -rf build-appimage
-          mkdir build-appimage
-          cd build-appimage
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
-          cmake --build . --config Release --parallel "$(nproc)"
+          cd build
+          rm -rf AppDir
           make install DESTDIR=AppDir
           export QMAKE=/usr/bin/qmake6
           ../linuxdeploy-x86_64.AppImage \
