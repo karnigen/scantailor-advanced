@@ -11,38 +11,81 @@
 #include <core/StyledIconPack.h>
 
 #include <QGuiApplication>
+#include <QCommandLineParser>
+#include <QDir>
+#include <QFileInfo>
 #include <QSettings>
 #include <QStringList>
+#include <QTextStream>
 
 #include "MainWindow.h"
 
 int main(int argc, char* argv[]) {
-#if QT_VERSION_MAJOR == 5
-  // Issue #97: Qt5 on Wayland can corrupt dialogs; use X11 unless opted out.
-  if (!qEnvironmentVariableIsSet("SCANTAILOR_NO_XCB_FALLBACK")) {
-    if (qgetenv("XDG_SESSION_TYPE") == "wayland" && qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
-      qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("xcb"));
+  // Qt 6.12 can load GTK3's platform theme plugin even for Qt-owned dialogs.
+  // With mismatched libpng builds this crashes in gdk_pixbuf/png_destroy_read_struct.
+  // Keep the process on Qt's generic theme unless the user explicitly overrides it.
+  if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORMTHEME")) {
+    qputenv("QT_QPA_PLATFORMTHEME", QByteArrayLiteral("generic"));
+  }
+  QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+      Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+  Application app(argc, argv);
+  Application::setApplicationName(APPLICATION_NAME);
+  Application::setOrganizationName(ORGANIZATION_NAME);
+
+  QCommandLineParser parser;
+  parser.setApplicationDescription(QObject::tr(
+      "ScanTailor Advanced. Specify a project file to open it, or an existing directory "
+      "to use as the initial input/output location."));
+  parser.addHelpOption();
+  parser.addPositionalArgument(
+      "path",
+      QObject::tr("Optional project file (.ScanTailor) or initial directory."));
+  parser.process(app);
+
+  QString initialDirectory;
+  QString projectFileToOpen;
+  const QStringList positionalArgs = parser.positionalArguments();
+  if (positionalArgs.size() > 1) {
+    QTextStream errorStream(stderr);
+    errorStream << QObject::tr("Specify at most one project file or directory.") << '\n';
+    return 2;
+  }
+  if (positionalArgs.size() == 1) {
+    const QString path = positionalArgs.at(0);
+    const QFileInfo info(QDir::cleanPath(path));
+    if (info.isRelative()) {
+      const QFileInfo absoluteInfo(QDir(QDir::currentPath()).absoluteFilePath(info.filePath()));
+      if (absoluteInfo.exists()) {
+        if (absoluteInfo.isDir()) {
+          initialDirectory = absoluteInfo.absoluteFilePath();
+        } else {
+          projectFileToOpen = absoluteInfo.absoluteFilePath();
+          initialDirectory = absoluteInfo.absolutePath();
+        }
+      } else {
+        QTextStream errorStream(stderr);
+        errorStream << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
+        return 2;
+      }
+    } else if (info.exists()) {
+      if (info.isDir()) {
+        initialDirectory = info.absoluteFilePath();
+      } else {
+        projectFileToOpen = info.absoluteFilePath();
+        initialDirectory = info.absolutePath();
+      }
+    } else {
+      QTextStream errorStream(stderr);
+      errorStream << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
+      return 2;
     }
   }
-  QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-  QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-  // Issue #99: better quality with fractional UI scaling (125%, 150%, etc.)
-  QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-#endif
-#endif
-  Application app(argc, argv);
 
 #ifdef _WIN32
   // Get rid of all references to Qt's installation directory.
   Application::setLibraryPaths(QStringList(Application::applicationDirPath()));
 #endif
-
-  QStringList args = Application::arguments();
-
-  // This information is used by QSettings.
-  Application::setApplicationName(APPLICATION_NAME);
-  Application::setOrganizationName(ORGANIZATION_NAME);
 
   QSettings::setDefaultFormat(QSettings::IniFormat);
   if (app.isPortableVersion()) {
@@ -59,7 +102,7 @@ int main(int argc, char* argv[]) {
   }
   IconProvider::getInstance().setIconPack(StyledIconPack::createDefault());
 
-  auto* mainWnd = new MainWindow();
+  auto* mainWnd = new MainWindow(initialDirectory);
   mainWnd->setAttribute(Qt::WA_DeleteOnClose);
   if (settings.value("mainWindow/maximized") == false) {
     mainWnd->show();
@@ -68,8 +111,8 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(0, mainWnd, &QMainWindow::showMaximized);
   }
 
-  if (args.size() > 1) {
-    mainWnd->openProject(args.at(1));
+  if (!projectFileToOpen.isEmpty()) {
+    mainWnd->openProject(projectFileToOpen);
   }
   return Application::exec();
 }  // main

@@ -2,6 +2,12 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (for example 1.2.2)"
+        required: true
+        default: ""
   push:
     tags:
       - 'v*'
@@ -16,22 +22,36 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set version from tag
+      - name: Set version
+        id: version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ -n "$RELEASE_VERSION" ]; then
+            if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then
+              echo "Invalid release version: $RELEASE_VERSION" >&2
+              exit 2
+            fi
+            VERSION="$RELEASE_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION=$(sed -n 's/^#define VERSION "\([^"]*\)".*/\1/p' version.h.in)
+          fi
           sed -i "s/^#define VERSION \"[^\"]*\"/#define VERSION \"${VERSION}\"/" version.h.in
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake \
-            qt5-qmake qtbase5-dev libqt5svg5-dev qttools5-dev \
+            qt6-base-dev qt6-svg-dev qt6-tools-dev \
             libboost-test-dev libboost-dev \
             libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 
       - name: Build .deb
-        run: ./build-deb.sh build
+        run: ./build-deb.sh -y build
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v5
@@ -45,17 +65,31 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Set version from tag
+      - name: Set version
+        id: version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
+          if [ -n "$RELEASE_VERSION" ]; then
+            if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then
+              echo "Invalid release version: $RELEASE_VERSION" >&2
+              exit 2
+            fi
+            VERSION="$RELEASE_VERSION"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION=$(sed -n 's/^#define VERSION "\([^"]*\)".*/\1/p' version.h.in)
+          fi
           sed -i "s/^#define VERSION \"[^\"]*\"/#define VERSION \"${VERSION}\"/" version.h.in
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake \
-            qt5-qmake qtbase5-dev libqt5svg5-dev qttools5-dev \
+            qt6-base-dev qt6-svg-dev qt6-tools-dev \
             libboost-test-dev libboost-dev \
             libjpeg-dev libpng-dev libtiff-dev zlib1g-dev \
             file
@@ -76,15 +110,15 @@ jobs:
 
       - name: Build AppImage
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
           DISABLE_COPYRIGHT_FILES_DEPLOYMENT: 1
         run: |
           cd build-appimage
-          export QMAKE=/usr/bin/qmake
+          export QMAKE=/usr/bin/qmake6
           # Bundle Qt platform plugins (e.g. xcb) via linuxdeploy-plugin-qt; same-dir discovery.
           ../linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt -e AppDir/usr/bin/scantailor-advanced --output appimage
           OUT=$(ls -1 *.AppImage 2>/dev/null | head -1)
-          mv "$OUT" "../scantailor-advanced-${{ github.ref_name }}-x86_64.AppImage"
+          mv "$OUT" "../scantailor-advanced-${VERSION}-x86_64.AppImage"
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v5
@@ -107,6 +141,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: |
             scantailor-advanced_*_amd64.deb
             scantailor-advanced-*-x86_64.AppImage

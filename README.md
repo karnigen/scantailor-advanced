@@ -74,7 +74,6 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 
 **Windows – supported OS versions (issue #101):** Release builds follow upstream **Qt** and **toolchain** support policies; **legacy Windows** (for example Windows 7) is **not** exercised in this project’s CI and is **best-effort only**. You may need an **older tagged release** or a **self-built** binary against an older Qt/MSVC stack. Community reports (including compatibility tips) are welcome in the issue tracker.
 
-**Linux – Wayland (issue #97):** On Qt5 builds, if `XDG_SESSION_TYPE` is `wayland` and `QT_QPA_PLATFORM` is not set, the application defaults to the X11 (`xcb`) platform plugin to avoid broken dialogs and painting. Set **`SCANTAILOR_NO_XCB_FALLBACK=1`** in the environment to keep native Wayland and, if needed, set `QT_QPA_PLATFORM=wayland` or `QT_QPA_PLATFORM=xcb` yourself.
 
 **Linux – Flatpak / Flathub ([issue #105](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105)):**
 
@@ -438,6 +437,11 @@ has't been moved due to dirty realization. Their functionality is fully covered 
       Hold **`Shift+Ctrl`** to attach that to both the nearest vertical and horizontal guides.  
     * Use the **context menu** to enable/disable showing the hard margins rectangle.  
 
+## Documentation
+
+- [Project format and architecture documentation overview](docs/project-format-and-architecture-overview.md)
+- [ScanTailor project XML keys: format 3 vs. format 4](docs/scan-tailor-project-keys.md)
+
 ## License
 
 This software is licensed under GNU GPLv3, you can read more about it on our [LICENSE](/LICENSE) file.
@@ -450,7 +454,7 @@ Install the required dependencies:
 
 ```bash
 sudo apt install build-essential cmake \
-  qt5-qmake qtbase5-dev libqt5svg5-dev qttools5-dev \
+  qt6-base-dev qt6-svg-dev qt6-tools-dev \
   libboost-test-dev libboost-dev \
   libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 ```
@@ -463,9 +467,37 @@ cmake ..
 make -j$(nproc)
 ```
 
+Command-line paths:
+
+```bash
+scantailor-advanced [path]
+scantailor-advanced .
+scantailor-advanced /data/scans
+scantailor-advanced /data/project.ScanTailor
+scantailor-advanced -h
+```
+
+One existing directory starts Open/New Project workflows at that directory. One existing project file opens it directly. A missing path is rejected. Without a path, existing project/input settings and the desktop environment retain their normal behavior.
+
 For **offline or minimal chroot** builds where unit tests cannot be built (issue #61), use `cmake -DBUILD_TESTS=OFF ..` to skip the test targets.
 
 The executable will be in the `build` directory. To install system-wide: `sudo make install`.
+
+For isolated dependencies, build through vcpkg:
+
+```bash
+./build-vcpkg.sh
+```
+
+This uses project-local vcpkg dependencies and keeps the build in `build-vcpkg/`. To reuse an existing Qt 6 installation instead of building Qt through vcpkg, pass its kit prefix ending in `<version>/gcc_64` (the `bin` directory is also accepted):
+
+```bash
+./build-vcpkg.sh --qt-root "$HOME/local/Qt/6.12.0/gcc_64"
+```
+
+The local-Qt build is kept separately in `build-vcpkg-qt<version>/`; vcpkg still supplies the remaining project dependencies. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
+
+Running `./build-vcpkg.sh` without arguments in an interactive terminal shows the available build configurations and stored options. Each build directory stores its selection in `.build-vcpkg-config`; build directories remain ignored by Git.
 
 To build a `.deb` package (with application icon and menu entry):
 
@@ -473,26 +505,21 @@ To build a `.deb` package (with application icon and menu entry):
 ./build-deb.sh
 ```
 
-This compiles the project and produces `scantailor-advanced_<version>_<arch>.deb` in the project root. Install with `sudo dpkg -i scantailor-advanced_*.deb`.
+This shows the build plan and asks for confirmation before compiling. Use `./build-deb.sh -y` for non-interactive builds. It produces `scantailor-advanced_<version>_<arch>.deb` in the project root. Install with `sudo dpkg -i scantailor-advanced_*.deb`.
 
 #### Building a Windows .exe from Linux (cross-compile)
 
-You can cross-compile the Windows executable from Linux using [MXE](https://mxe.cc/) (M Cross Environment). One-time MXE setup (builds Qt5 and dependencies; can take 1–2 hours):
+The current Windows cross-build script is still a Qt5-era MXE integration and is not supported as a Qt6 build. Do not use the Qt5-only MXE package setup with this Qt6-only source tree. Qt6 Windows cross-compilation is currently provided only as a code/build target, not as a supported packaged cross-build.
 
-```bash
-git clone https://github.com/mxe/mxe.git ~/mxe
-cd ~/mxe
-make MXE_TARGETS=x86_64-w64-mingw32.static qt5 jpeg libpng tiff zlib boost
-```
-
-Then from the ScanTailor Advanced source directory:
+Do not run the Windows script against an unverified MXE Qt5 toolchain. It will produce an unsupported Qt/ABI mix.
 
 ```bash
 ./build-windows.sh
 ```
 
-This produces `build-win-static/scantailor.exe`. Use `./build-windows.sh shared` for a smaller build that requires shipping DLLs from MXE’s `usr/x86_64-w64-mingw32.shared/bin/` alongside the .exe.
+This shows the cross-build plan and asks for confirmation before compiling. Use `./build-windows.sh -y` for non-interactive builds. It produces `build-win-static/scantailor.exe`. Use `./build-windows.sh shared` for a smaller build that requires shipping DLLs from MXE’s `usr/x86_64-w64-mingw32.shared/bin/` alongside the .exe.
 
 #### Building on Windows (native)
 
 Go to [this repository](https://github.com/4lex4/scantailor-libs-build) and follow the instructions given there.
+Qt 6.4 is the minimum supported Qt version for Linux system packages. Qt 6.9 or newer is recommended for full Qt6 API and toolchain compatibility.

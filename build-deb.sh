@@ -1,15 +1,75 @@
 #!/usr/bin/env bash
 # Build ScanTailor Advanced and create a .deb package for Ubuntu/Debian.
-# Usage: ./build-deb.sh [build_dir]
+# Usage: ./build-deb.sh [options] [build_dir]
 # The .deb will be created in the project root.
 
-set -e
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: ./build-deb.sh [options] [build_dir]
+
+Build ScanTailor Advanced and create a Debian package.
+
+Options:
+  -y, --yes   Continue without confirmation.
+  -h, --help  Show this help.
+
+Arguments:
+  build_dir   CMake build directory (default: build).
+EOF
+}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Optional: custom build directory (default: build)
-BUILD_DIR="${1:-build}"
+ASSUME_YES="OFF"
+BUILD_DIR="build"
+POSITIONAL_SET="OFF"
+
+while (($#)); do
+  case "$1" in
+    -y|--yes)
+      ASSUME_YES="ON"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      if [[ "$POSITIONAL_SET" == "ON" ]]; then
+        echo "Error: only one build directory is accepted." >&2
+        exit 2
+      fi
+      if (($# > 1)); then
+        echo "Error: only one build directory is accepted." >&2
+        exit 2
+      fi
+      if (($# == 1)); then
+        BUILD_DIR="$1"
+        POSITIONAL_SET="ON"
+      fi
+      break
+      ;;
+    -*)
+      echo "Error: unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      if [[ "$POSITIONAL_SET" == "ON" ]]; then
+        echo "Error: only one build directory is accepted." >&2
+        exit 2
+      fi
+      BUILD_DIR="$1"
+      POSITIONAL_SET="ON"
+      shift
+      ;;
+  esac
+done
+
 mkdir -p "$BUILD_DIR"
 BUILD_DIR="$(cd "$BUILD_DIR" && pwd)"
 PKG_DIR="${BUILD_DIR}/debian-pkg"
@@ -22,7 +82,33 @@ if [[ -z "$VERSION" ]]; then
   exit 1
 fi
 
-echo "Building ScanTailor Advanced ${VERSION}"
+ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
+PACKAGE_PATH="${SCRIPT_DIR}/scantailor-advanced_${VERSION}_${ARCH}.deb"
+
+cat <<EOF
+ScanTailor Advanced Debian package build plan:
+  Version:           $VERSION
+  Architecture:      $ARCH
+  Build directory:   $BUILD_DIR
+  Staging directory: $PKG_DIR
+  Package output:    $PACKAGE_PATH
+
+Actions:
+  - Configure and build ScanTailor Advanced in Release mode
+  - Recreate the Debian staging directory
+  - Install the application into the staging directory
+  - Generate Debian metadata and build the .deb package
+EOF
+
+if [[ "$ASSUME_YES" == "OFF" && -t 0 ]]; then
+  read -r -p "Continue? [y/N] " REPLY
+  if [[ ! "$REPLY" =~ ^([yY]|[yY][eE][sS])$ ]]; then
+    echo "Build cancelled."
+    exit 0
+  fi
+elif [[ "$ASSUME_YES" == "OFF" ]]; then
+  echo "No interactive terminal detected; continuing without confirmation."
+fi
 
 # Configure and build
 cd "$BUILD_DIR"
@@ -35,8 +121,6 @@ make install DESTDIR="${PKG_DIR}"
 
 # Debian control file
 mkdir -p "$DEBIAN_DIR"
-ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
-
 # Generate Depends via dpkg-shlibdeps when available (more accurate)
 DEPS=""
 if command -v dpkg-shlibdeps >/dev/null 2>&1; then
@@ -48,7 +132,7 @@ fi
 if [[ -z "$DEPS" ]]; then
   # Fallback when dpkg-shlibdeps is unavailable (e.g. cross-build). Include common
   # libjpeg variants across Debian/Ubuntu (see issue #64 / Ubuntu 22.04 vs bookworm).
-  DEPS="libc6, libstdc++6, libgcc-s1, libqt5core5t64 | libqt5core5a, libqt5gui5t64 | libqt5gui5, libqt5widgets5t64 | libqt5widgets5, libqt5svg5t64 | libqt5svg5, libqt5xml5t64 | libqt5xml5, libqt5network5t64 | libqt5network5, libboost-filesystem1.83.0 | libboost-filesystem1.74.0, libjpeg62-turbo | libjpeg-turbo8 | libjpeg8, libpng16-16, libtiff6, zlib1g"
+  DEPS="libc6, libstdc++6, libgcc-s1, libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6svg6, libqt6xml6, libqt6network6, libqt6opengl6, libqt6openglwidgets6t64 | libqt6openglwidgets6, libboost-filesystem1.83.0 | libboost-filesystem1.74.0, libjpeg62-turbo | libjpeg-turbo8 | libjpeg8, libpng16-16, libtiff6, zlib1g"
 fi
 
 cat > "${DEBIAN_DIR}/control" << EOF
@@ -86,6 +170,6 @@ chmod 755 "${DEBIAN_DIR}/postinst"
 
 # Build the .deb
 cd "$SCRIPT_DIR"
-dpkg-deb --root-owner-group --build "$PKG_DIR" "scantailor-advanced_${VERSION}_${ARCH}.deb"
+dpkg-deb --root-owner-group --build "$PKG_DIR" "$PACKAGE_PATH"
 
-echo "Done: scantailor-advanced_${VERSION}_${ARCH}.deb"
+echo "Done: $PACKAGE_PATH"

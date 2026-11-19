@@ -100,7 +100,7 @@ class MainWindow::PageSelectionProviderImpl : public PageSelectionProvider {
 };
 
 
-MainWindow::MainWindow()
+MainWindow::MainWindow(const QString& initialDirectory)
     : m_pages(std::make_shared<ProjectPages>()),
       m_stages(std::make_shared<StageSequence>(m_pages, newPageSelectionAccessor())),
       m_workerThreadPool(std::make_unique<WorkerThreadPool>()),
@@ -112,6 +112,7 @@ MainWindow::MainWindow()
       m_ignorePageOrderingChanges(0),
       m_debug(false),
       m_closing(false) {
+  m_initialDirectory = initialDirectory;
   ApplicationSettings& settings = ApplicationSettings::getInstance();
 
   m_maxLogicalThumbSize = settings.getMaxLogicalThumbnailSize();
@@ -687,6 +688,9 @@ void MainWindow::setOptionsWidget(FilterOptionsWidget* widget, const Ownership o
     return;
   }
 
+  if (m_optionsWidget && m_optionsWidget != widget) {
+    disconnectFilterOptionsWidget();
+  }
   if (m_optionsWidget != widget) {
     removeWidgetsFromLayout(m_optionsFrameLayout);
   }
@@ -699,17 +703,6 @@ void MainWindow::setOptionsWidget(FilterOptionsWidget* widget, const Ownership o
 
   if (m_optionsWidget == widget) {
     return;
-  }
-
-  if (m_optionsWidget) {
-    disconnect(m_optionsWidget, SIGNAL(reloadRequested()), this, SLOT(reloadRequested()));
-    disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageId&)), this,
-               SLOT(invalidateThumbnail(const PageId&)));
-    disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageInfo&)), this,
-               SLOT(invalidateThumbnail(const PageInfo&)));
-    disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
-    disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this, SLOT(goToPage(const PageId&)));
-    disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
   }
 
   m_optionsFrameLayout->addWidget(widget);
@@ -874,7 +867,7 @@ void MainWindow::showRelinkingDialog() {
     return;
   }
 
-  auto* dialog = new RelinkingDialog(m_projectFile, this);
+  auto* dialog = new RelinkingDialog(m_projectFile, this, m_initialDirectory);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowModality(Qt::WindowModal);
 
@@ -1334,7 +1327,8 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task, const FilterResultP
         if (cmd.isEmpty()) {
           QApplication::beep();
         } else {
-          Q_UNUSED(std::system(cmd.toStdString().c_str()));
+          const int result = std::system(cmd.toStdString().c_str());
+          Q_UNUSED(result);
         }
       }
 
@@ -1421,11 +1415,15 @@ void MainWindow::saveProjectAsTriggered() {
     projectDir = QFileInfo(m_projectFile).absolutePath();
   } else {
     QSettings settings;
-    projectDir = settings.value("project/lastDir").toString();
+    projectDir = m_initialDirectory;
+    if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
+      projectDir = settings.value("project/lastDir").toString();
+    }
   }
 
-  QString projectFile(
-      QFileDialog::getSaveFileName(this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)"));
+  QString projectFile(QFileDialog::getSaveFileName(
+      this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)",
+      nullptr, QFileDialog::DontUseNativeDialog));
   if (projectFile.isEmpty()) {
     return;
   }
@@ -1454,7 +1452,7 @@ void MainWindow::newProject() {
   }
 
   // It will delete itself when it's done.
-  auto* context = new ProjectCreationContext(this);
+  auto* context = new ProjectCreationContext(this, m_initialDirectory);
   connect(context, SIGNAL(done(ProjectCreationContext*)), this, SLOT(newProjectCreated(ProjectCreationContext*)));
 }
 
@@ -1468,9 +1466,18 @@ void MainWindow::openProject() {
     return;
   }
 
-  const QString projectDir(QSettings().value("project/lastDir").toString());
-  const QString projectFile(QFileDialog::getOpenFileName(this, tr("Open Project"), projectDir,
-                                                         tr("Scan Tailor Projects") + " (*.ScanTailor)"));
+  QString projectDir(m_initialDirectory);
+  if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
+    projectDir = QSettings().value("project/lastDir").toString();
+  }
+  QFileDialog dialog(this, tr("Open Project"), projectDir,
+                     tr("Scan Tailor Projects") + " (*.ScanTailor)");
+  dialog.setFileMode(QFileDialog::ExistingFile);
+  dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  const QString projectFile(dialog.selectedFiles().value(0));
   if (projectFile.isEmpty()) {
     // Cancelled by user.
     return;
@@ -1577,7 +1584,8 @@ void MainWindow::showAboutDialog() {
 void MainWindow::handleOutOfMemorySituation() {
   deleteLater();
 
-  m_outOfMemoryDialog->setParams(m_projectFile, m_stages, m_pages, m_selectedPage, m_outFileNameGen);
+  m_outOfMemoryDialog->setParams(
+      m_projectFile, m_initialDirectory, m_stages, m_pages, m_selectedPage, m_outFileNameGen);
 
   closeProjectWithoutSaving();
 
@@ -1596,11 +1604,28 @@ void MainWindow::removeWidgetsFromLayout(QLayout* layout) {
 }
 
 void MainWindow::removeFilterOptionsWidget() {
+  disconnectFilterOptionsWidget();
   removeWidgetsFromLayout(m_optionsFrameLayout);
   // Delete the old widget we were owning, if any.
   m_optionsWidgetCleanup.clear();
 
   m_optionsWidget = nullptr;
+}
+
+void MainWindow::disconnectFilterOptionsWidget() {
+  if (!m_optionsWidget) {
+    return;
+  }
+
+  disconnect(m_optionsWidget, SIGNAL(reloadRequested()), this, SLOT(reloadRequested()));
+  disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageId&)), this,
+             SLOT(invalidateThumbnail(const PageId&)));
+  disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageInfo&)), this,
+             SLOT(invalidateThumbnail(const PageInfo&)));
+  disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
+  disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this,
+             SLOT(goToPage(const PageId&)));
+  disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }
 
 void MainWindow::updateProjectActions() {
@@ -1855,15 +1880,19 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
 
   QString dialogDir;
   if (existing.isNull()) {
-    dialogDir = m_projectFile.isEmpty() ? QDir::homePath() : QFileInfo(m_projectFile).absolutePath();
+    dialogDir = m_projectFile.isEmpty() ? m_initialDirectory : QFileInfo(m_projectFile).absolutePath();
   } else {
     dialogDir = QFileInfo(existing.filePath()).absolutePath();
     if (dialogDir.isEmpty()) {
-      dialogDir = m_projectFile.isEmpty() ? QDir::homePath() : QFileInfo(m_projectFile).absolutePath();
+      dialogDir = m_projectFile.isEmpty() ? m_initialDirectory : QFileInfo(m_projectFile).absolutePath();
     }
+  }
+  if (dialogDir.isEmpty() || !QDir(dialogDir).exists()) {
+    dialogDir = QDir::homePath();
   }
   auto dialog = std::make_unique<QFileDialog>(this, tr("Files to insert"), dialogDir);
   dialog->setFileMode(QFileDialog::ExistingFiles);
+  dialog->setOption(QFileDialog::DontUseNativeDialog, true);
   dialog->setProxyModel(new ProxyModel(*m_pages));
   dialog->setNameFilter(tr("Images not in project (%1)").arg("*.png *.tiff *.tif *.jpeg *.jpg"));
   // XXX: Adding individual pages from a multi-page TIFF where
@@ -2202,12 +2231,12 @@ void MainWindow::execGotoPageDialog() {
 
   bool ok;
   const PageSequence pageSequence = m_thumbSequence->toPageSequence();
-  const PageId& selectionLeader = m_thumbSequence->selectionLeader().id();
+  const PageId selectionLeader = m_thumbSequence->selectionLeader().id();
   int pageNumber
       = QInputDialog::getInt(this, tr("Go To Page"), tr("Enter the page number:"),
                              pageSequence.pageNo(selectionLeader) + 1, 1, (int) (pageSequence.numPages()), 1, &ok);
   if (ok) {
-    const PageId& newSelectionLeader = pageSequence.pageAt(pageNumber - 1).id();
+    const PageId newSelectionLeader = pageSequence.pageAt(pageNumber - 1).id();
     if (selectionLeader != newSelectionLeader) {
       goToPage(newSelectionLeader);
     }

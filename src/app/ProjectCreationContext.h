@@ -22,7 +22,7 @@ class ProjectCreationContext : public QObject {
   DECLARE_NON_COPYABLE(ProjectCreationContext)
 
  public:
-  explicit ProjectCreationContext(QWidget* parent);
+  explicit ProjectCreationContext(QWidget* parent, const QString& initialDirectory = QString());
 
   ~ProjectCreationContext() override;
 
@@ -56,6 +56,7 @@ class ProjectCreationContext : public QObject {
   QString m_outDir;
   std::vector<ImageFileInfo> m_files;
   Qt::LayoutDirection m_layoutDirection;
+  QString m_initialDirectory;
   QWidget* m_parent;
 };
 

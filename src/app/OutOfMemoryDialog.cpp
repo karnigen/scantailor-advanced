@@ -4,6 +4,7 @@
 #include "OutOfMemoryDialog.h"
 
 #include <QFileDialog>
+#include <QDir>
 #include <QMessageBox>
 #include <QSettings>
 #include <utility>
@@ -26,11 +27,13 @@ OutOfMemoryDialog::OutOfMemoryDialog(QWidget* parent) : QDialog(parent) {
 }
 
 void OutOfMemoryDialog::setParams(const QString& projectFile,
+                                  const QString& initialDirectory,
                                   std::shared_ptr<StageSequence> stages,
                                   std::shared_ptr<ProjectPages> pages,
                                   const SelectedPage& selectedPage,
                                   const OutputFileNameGenerator& outFileNameGen) {
   m_projectFile = projectFile;
+  m_initialDirectory = initialDirectory;
   m_stages = std::move(stages);
   m_pages = std::move(pages);
   m_selectedPage = selectedPage;
@@ -55,11 +58,15 @@ void OutOfMemoryDialog::saveProjectAs() {
     projectDir = QFileInfo(m_projectFile).absolutePath();
   } else {
     QSettings settings;
-    projectDir = settings.value("project/lastDir").toString();
+    projectDir = m_initialDirectory;
+    if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
+      projectDir = settings.value("project/lastDir").toString();
+    }
   }
 
-  QString projectFile(
-      QFileDialog::getSaveFileName(this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)"));
+  QString projectFile(QFileDialog::getSaveFileName(
+      this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)",
+      nullptr, QFileDialog::DontUseNativeDialog));
   if (projectFile.isEmpty()) {
     return;
   }

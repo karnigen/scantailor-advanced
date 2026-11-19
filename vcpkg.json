@@ -1,0 +1,63 @@
+{
+  "name": "scantailor-advanced",
+  "version-string": "0.0.0",
+  "dependencies": [
+    "boost-array",
+    "boost-bind",
+    "boost-foreach",
+    "boost-function",
+    "boost-intrusive",
+    "boost-iterator",
+    "boost-lambda",
+    "boost-mpl",
+    "boost-multi-index",
+    "boost-smart-ptr",
+    "boost-type-traits",
+    {
+      "name": "libjpeg-turbo",
+      "default-features": false
+    },
+    "libpng",
+    "tiff",
+    "zlib"
+  ],
+  "default-features": [
+    "vcpkg-qt"
+  ],
+  "features": {
+    "tests": {
+      "description": "Build the Boost unit tests",
+      "dependencies": [
+        "boost-test"
+      ]
+    },
+    "vcpkg-qt": {
+      "description": "Build and use Qt from vcpkg",
+      "dependencies": [
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "fontconfig",
+            "freetype",
+            "gui",
+            "harfbuzz",
+            "network",
+            "opengl",
+            "testlib",
+            "widgets",
+            "xcb"
+          ]
+        },
+        "qtsvg",
+        {
+          "name": "qttools",
+          "default-features": false,
+          "features": [
+            "linguist"
+          ]
+        }
+      ]
+    }
+  }
+}

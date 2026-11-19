@@ -20,6 +20,7 @@ class OutOfMemoryDialog : public QDialog {
   explicit OutOfMemoryDialog(QWidget* parent = nullptr);
 
   void setParams(const QString& projectFile,
+                 const QString& initialDirectory,
                  // may be empty
                  std::shared_ptr<StageSequence> stages,
                  std::shared_ptr<ProjectPages> pages,
@@ -39,6 +40,7 @@ class OutOfMemoryDialog : public QDialog {
 
   Ui::OutOfMemoryDialog ui;
   QString m_projectFile;
+  QString m_initialDirectory;
   std::shared_ptr<StageSequence> m_stages;
   std::shared_ptr<ProjectPages> m_pages;
   SelectedPage m_selectedPage;
