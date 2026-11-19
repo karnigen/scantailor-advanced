@@ -274,24 +274,6 @@ elif [[ ! -f "$VCPKG_SIGNATURE_FILE" ]] ||
   NEEDS_CONFIGURE="ON"
 fi
 
-if [[ "$NEEDS_CONFIGURE" == "ON" && -f "$BUILD_DIR/CMakeCache.txt" ]]; then
-  CACHED_QT_DIR="$(sed -n 's/^Qt6_DIR:.*=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
-  if [[ -n "$QT_ROOT" ]]; then
-    EXPECTED_QT_DIR="$QT_ROOT/lib/cmake/Qt6"
-    if [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != "$EXPECTED_QT_DIR" ]]; then
-      rm -f "$BUILD_DIR/CMakeCache.txt"
-      if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
-        cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
-      fi
-    fi
-  elif [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != *"/vcpkg_installed/"* ]]; then
-    rm -f "$BUILD_DIR/CMakeCache.txt"
-    if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
-      cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
-    fi
-  fi
-fi
-
 cat <<EOF
 ScanTailor Advanced vcpkg build plan:
   Source directory:      $(display_path "$SCRIPT_DIR")
@@ -343,6 +325,25 @@ if [[ "$CLEAN" == "ON" && -d "$BUILD_DIR" ]]; then
 fi
 
 if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
+  CACHED_QT_DIR=""
+  if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    CACHED_QT_DIR="$(sed -n 's/^Qt6_DIR:.*=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
+  fi
+  if [[ -n "$QT_ROOT" ]]; then
+    EXPECTED_QT_DIR="$QT_ROOT/lib/cmake/Qt6"
+    if [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != "$EXPECTED_QT_DIR" ]]; then
+      rm -f "$BUILD_DIR/CMakeCache.txt"
+      if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
+        cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
+      fi
+    fi
+  elif [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != *"/vcpkg_installed/"* ]]; then
+    rm -f "$BUILD_DIR/CMakeCache.txt"
+    if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
+      cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
+    fi
+  fi
+
   OLD_CONFIG_SIGNATURE=""
   if [[ -f "$VCPKG_SIGNATURE_FILE" ]]; then
     OLD_CONFIG_SIGNATURE="$(cat "$VCPKG_SIGNATURE_FILE")"

@@ -114,7 +114,7 @@ jobs:
           DISABLE_COPYRIGHT_FILES_DEPLOYMENT: 1
         run: |
           cd build-appimage
-          export QMAKE=/usr/bin/qmake6
+          export QMAKE=/usr/bin/qmake66
           # Bundle Qt platform plugins (e.g. xcb) via linuxdeploy-plugin-qt; same-dir discovery.
           ../linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt -e AppDir/usr/bin/scantailor-advanced --output appimage
           OUT=$(ls -1 *.AppImage 2>/dev/null | head -1)

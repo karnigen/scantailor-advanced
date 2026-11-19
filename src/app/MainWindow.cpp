@@ -1623,7 +1623,8 @@ void MainWindow::disconnectFilterOptionsWidget() {
   disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageInfo&)), this,
              SLOT(invalidateThumbnail(const PageInfo&)));
   disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
-  disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this, nullptr);
+  disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this,
+             SLOT(goToPage(const PageId&)));
   disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }
 

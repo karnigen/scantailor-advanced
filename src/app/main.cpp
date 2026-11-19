@@ -47,7 +47,8 @@ int main(int argc, char* argv[]) {
   QString projectFileToOpen;
   const QStringList positionalArgs = parser.positionalArguments();
   if (positionalArgs.size() > 1) {
-    QTextStream(stderr) << QObject::tr("Specify at most one project file or directory.") << '\n';
+    QTextStream errorStream(stderr);
+    errorStream << QObject::tr("Specify at most one project file or directory.") << '\n';
     return 2;
   }
   if (positionalArgs.size() == 1) {
@@ -63,7 +64,8 @@ int main(int argc, char* argv[]) {
           initialDirectory = absoluteInfo.absolutePath();
         }
       } else {
-        QTextStream(stderr) << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
+        QTextStream errorStream(stderr);
+        errorStream << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
         return 2;
       }
     } else if (info.exists()) {
@@ -74,7 +76,8 @@ int main(int argc, char* argv[]) {
         initialDirectory = info.absolutePath();
       }
     } else {
-      QTextStream(stderr) << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
+      QTextStream errorStream(stderr);
+      errorStream << QObject::tr("Path does not exist: %1").arg(info.absoluteFilePath()) << '\n';
       return 2;
     }
   }
