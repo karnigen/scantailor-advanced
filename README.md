@@ -504,15 +504,9 @@ This shows the build plan and asks for confirmation before compiling. Use `./bui
 
 #### Building a Windows .exe from Linux (cross-compile)
 
-You can cross-compile the Windows executable from Linux using [MXE](https://mxe.cc/) (M Cross Environment). Configure MXE with Qt 6 and the required image/dependency packages for the selected target:
+The current Windows cross-build script is still a Qt5-era MXE integration and is not supported as a Qt6 build. Do not use the Qt5-only MXE package setup with this Qt6-only source tree. Qt6 Windows cross-compilation is currently provided only as a code/build target, not as a supported packaged cross-build.
 
-```bash
-git clone https://github.com/mxe/mxe.git ~/mxe
-cd ~/mxe
-# Configure and build the Qt 6 MXE packages for this target.
-```
-
-Then from the ScanTailor Advanced source directory:
+Do not run the Windows script against an unverified MXE Qt5 toolchain. It will produce an unsupported Qt/ABI mix.
 
 ```bash
 ./build-windows.sh

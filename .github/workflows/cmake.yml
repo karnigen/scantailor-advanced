@@ -46,8 +46,8 @@ jobs:
     - name: Create DEB package
       working-directory: "${{ github.workspace }}/build"
       run: |
-        cpack -G "DEB"
-        mv scantailor*.deb scantailor-advanced.deb
+        cd "${{ github.workspace }}"
+        ./build-deb.sh -y build
       
     - name: Create RPM package
       working-directory: "${{ github.workspace }}/build"
@@ -78,7 +78,7 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: scantailor-linux-ubuntu-latest-qt6-deb
-        path: build/scantailor-advanced.deb
+        path: scantailor-advanced_*_amd64.deb
 
     - name: Upload Linux RPM
       uses: actions/upload-artifact@v6
