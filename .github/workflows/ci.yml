@@ -6,10 +6,22 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Build target for a manual run
+        type: choice
+        options:
+          - windows
+          - linux
+          - all
+        default: windows
+        required: true
 
 jobs:
   build-linux:
     name: Build (Ubuntu)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'linux' || inputs.target == 'all' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,3 +45,22 @@ jobs:
         run: |
           cd build
           ctest -C Release --output-on-failure || true
+
+  build-windows-vcpkg:
+    name: Build (Windows, vcpkg)
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'windows' || inputs.target == 'all' }}
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure with vcpkg
+        shell: pwsh
+        run: |
+          cmake -S . -B build-windows `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DBUILD_TESTS=OFF `
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-windows --config Release --parallel
