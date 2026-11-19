@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - deb
+          - rpm
           - appimage
           - all
 
@@ -37,11 +38,26 @@ jobs:
             libpthread-stubs0-dev \
             rpm libfuse2t64
 
-      - name: Configure and build for AppImage
-        if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
+      - name: Configure and build for AppImage or RPM
+        if: ${{ inputs.package == 'appimage' || inputs.package == 'rpm' || inputs.package == 'all' }}
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
           cmake --build build --config Release --parallel "$(nproc)"
+
+      - name: Build RPM package
+        if: ${{ inputs.package == 'rpm' || inputs.package == 'all' }}
+        working-directory: build
+        run: |
+          cpack -G RPM
+          mv scantailor*.rpm scantailor-advanced.rpm
+
+      - name: Upload RPM artifact
+        if: ${{ inputs.package == 'rpm' || inputs.package == 'all' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-linux-rpm
+          path: build/scantailor-advanced.rpm
+          if-no-files-found: error
 
       - name: Build DEB package
         if: ${{ inputs.package == 'deb' || inputs.package == 'all' }}

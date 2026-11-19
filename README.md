@@ -507,22 +507,12 @@ To build a `.deb` package (with application icon and menu entry):
 
 This shows the build plan and asks for confirmation before compiling. Use `./build-deb.sh -y` for non-interactive builds. It produces `scantailor-advanced_<version>_<arch>.deb` in the project root. Install with `sudo dpkg -i scantailor-advanced_*.deb`.
 
-#### Building a Windows .exe from Linux (cross-compile)
+#### Building on Windows, Linux, and macOS
 
-The current Windows cross-build script is still a Qt5-era MXE integration and is not supported as a Qt6 build. Do not use the Qt5-only MXE package setup with this Qt6-only source tree. Qt6 Windows cross-compilation is currently provided only as a code/build target, not as a supported packaged cross-build.
+The GitHub Actions **CI** workflow builds the application natively with MSVC on Windows and with the platform toolchains on Linux/macOS. All three builds use the dependencies and pinned baseline in the project's vcpkg manifest. Pushes and pull requests build all platforms; for a manual run, choose **Actions → CI → Run workflow** and select `windows`, `linux`, `macos`, or `all` (Windows is the default). No local Windows or macOS setup is required.
 
-Do not run the Windows script against an unverified MXE Qt5 toolchain. It will produce an unsupported Qt/ABI mix.
+The Windows build runs on Windows Server 2022; that verifies compilation, not runtime behavior on Windows 10/11. The pinned Qt 6.11.3 supports Windows 10 version 1809 and newer, and Windows 11, but the application should still be smoke-tested on those desktop versions before claiming runtime compatibility.
 
-```bash
-./build-windows.sh
-```
+For downloadable Linux packages, use the separate **Manual Package Build** workflow to create DEB, RPM, or AppImage artifacts. These Linux distribution packages use the runner's system Qt/dependencies so their package metadata and runtime linkage follow the distribution; the cross-platform CI builds use vcpkg.
 
-This shows the cross-build plan and asks for confirmation before compiling. Use `./build-windows.sh -y` for non-interactive builds. It produces `build-win-static/scantailor.exe`. Use `./build-windows.sh shared` for a smaller build that requires shipping DLLs from MXE’s `usr/x86_64-w64-mingw32.shared/bin/` alongside the .exe.
-
-#### Building on Windows (native)
-
-The GitHub Actions workflow builds the native Windows x64 application with MSVC and the project's vcpkg manifest. Run **Actions → CI → Run workflow** and select the branch to test. The workflow uses the GitHub-hosted Windows 2022 runner; no local Windows setup is required.
-
-This native vcpkg build is separate from the MXE cross-build script above. It does not replace or change the MXE workflow.
-
-Qt 6.4 is the minimum supported Qt version for Linux system packages. Qt 6.9 or newer is recommended for full Qt6 API and toolchain compatibility.
+Qt 6.4 is the minimum supported Qt version for Linux system packages. The cross-platform CI builds use the Qt version pinned by the vcpkg baseline.

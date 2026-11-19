@@ -1,4 +1,3 @@
-# CI: build on push and PR to main/master
 name: CI
 
 on:
@@ -14,53 +13,23 @@ on:
         options:
           - windows
           - linux
+          - macos
           - all
         default: windows
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   build-linux:
-    name: Build (Ubuntu)
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'linux' || inputs.target == 'all' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
+    uses: ./.github/workflows/build-linux.yml
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake \
-            qt6-base-dev qt6-svg-dev qt6-tools-dev \
-            libboost-test-dev libboost-dev \
-            libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
-
-      - name: Configure and build
-        run: |
-          mkdir build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
-          make -j$(nproc)
-
-      - name: Run tests
-        run: |
-          cd build
-          ctest -C Release --output-on-failure || true
-
-  build-windows-vcpkg:
-    name: Build (Windows, vcpkg)
+  build-windows:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'windows' || inputs.target == 'all' }}
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v5
+    uses: ./.github/workflows/build-windows.yml
 
-      - name: Configure with vcpkg
-        shell: pwsh
-        run: |
-          cmake -S . -B build-windows `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows `
-            -DBUILD_TESTS=OFF `
-            -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build-windows --config Release --parallel
+  build-macos:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'macos' || inputs.target == 'all' }}
+    uses: ./.github/workflows/build-macos.yml

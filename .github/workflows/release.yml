@@ -18,7 +18,7 @@ permissions:
 jobs:
   build-deb:
     name: Build .deb
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -128,7 +128,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-deb, build-appimage]
     steps:
       - uses: actions/download-artifact@v5
