@@ -19,7 +19,7 @@ jobs:
         with:
           version: "6.11.3"
           arch: clang_64
-          archives: "qtbase qtsvg qttools qttranslations"
+          archives: "qtbase qtdeclarative qtsvg qttools qttranslations"
           cache: true
 
       - name: Set up vcpkg
