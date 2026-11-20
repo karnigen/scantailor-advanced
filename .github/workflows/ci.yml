@@ -6,30 +6,11 @@ on:
   pull_request:
     branches: [master, main]
   workflow_dispatch:
-    inputs:
-      target:
-        description: Build target for a manual run
-        type: choice
-        options:
-          - windows
-          - linux
-          - macos
-          - all
-        default: windows
-        required: true
 
 permissions:
   contents: read
 
+# Temporarily run Linux only while stabilizing its vcpkg configuration.
 jobs:
   build-linux:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'linux' || inputs.target == 'all' }}
     uses: ./.github/workflows/build-linux.yml
-
-  build-windows:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'windows' || inputs.target == 'all' }}
-    uses: ./.github/workflows/build-windows.yml
-
-  build-macos:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'macos' || inputs.target == 'all' }}
-    uses: ./.github/workflows/build-macos.yml
