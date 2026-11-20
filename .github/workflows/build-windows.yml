@@ -19,11 +19,16 @@ jobs:
         with:
           version: "6.8.3"
           arch: win64_msvc2022_64
-          archives: "qtbase qtsvg qttools"
+          archives: "qtbase qtsvg qttools qttranslations"
           cache: true
 
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Configure
         shell: pwsh
@@ -38,3 +43,10 @@ jobs:
 
       - name: Build
         run: cmake --build build-windows --config Release --parallel
+
+      - name: Upload portable Windows build
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-advanced-windows-x64
+          path: build-windows/Release/
+          if-no-files-found: error
