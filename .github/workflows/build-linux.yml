@@ -1,4 +1,4 @@
-name: Manual Package Build
+name: Build Linux
 
 on:
   workflow_dispatch:

@@ -1,11 +1,10 @@
-# Build the in-repo Flatpak manifest on release tags (smoke test + downloadable bundle).
+# Build the in-repo Flatpak manifest (smoke build + downloadable bundle).
 # This does not publish to Flathub; see README and https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105
 name: Flatpak
 
 on:
   push:
-    tags:
-      - "v*"
+
   workflow_dispatch:
 
 permissions:
@@ -13,10 +12,11 @@ permissions:
 
 jobs:
   flatpak:
-    runs-on: ubuntu-22.04
+    if: ${{ !github.event.deleted }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Flatpak tools
         run: |
@@ -35,15 +35,17 @@ jobs:
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --user --repo=repo --force-clean build-dir flatpak/org.scantailor.Advanced.json --install-deps-from=flathub
+          mkdir -p "$RUNNER_TEMP/flatpak-source"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/flatpak-source"
+          flatpak-builder --user --repo=repo --force-clean build-dir "$RUNNER_TEMP/flatpak-source/flatpak/org.scantailor.Advanced.json" --install-deps-from=flathub
 
       - name: Create single-file bundle
         run: |
-          flatpak build-bundle repo "ScanTailor-Advanced-${{ github.ref_name }}.flatpak" org.scantailor.Advanced
+          flatpak build-bundle repo scantailor-advanced.flatpak org.scantailor.Advanced
 
       - name: Upload bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: ScanTailor-Advanced-flatpak-${{ github.ref_name }}
-          path: "*.flatpak"
+          name: scantailor-advanced-flatpak
+          path: scantailor-advanced.flatpak
           if-no-files-found: error

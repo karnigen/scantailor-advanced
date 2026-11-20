@@ -81,8 +81,8 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 |--|--|
 | **Day-to-day binaries** | Prefer [GitHub Releases](https://github.com/ScanTailor-Advanced/scantailor-advanced/releases) when the project publishes `.deb` / AppImage (or other) builds for a tagged version. |
 | **Install from Flathub** | There is **no** official Flathub listing yet for this fork under the new ID. Shipping there requires a maintainer to follow [Flathub submission](https://docs.flathub.org/docs/for-app-authors/submission/) (separate repo/PR to [flathub/flathub](https://github.com/flathub/flathub)), AppStream metainfo, screenshots, and reviewer feedback. The in-repo manifest is meant to make that step mostly mechanical; issue [#105](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105) tracks coordination. |
-| **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Example: `flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo` then `flatpak-builder --user --install-deps-from=flathub --force-clean build-dir flatpak/org.scantailor.Advanced.json` (installs the KDE runtime/SDK from Flathub on first run). |
-| **CI smoke build** | On each **`v*` tag** push (and via **workflow dispatch**), [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs `flatpak-builder` and uploads a **`.flatpak` bundle** as a workflow artifact for smoke testing. This is **not** the Flathub build pipeline. |
+| **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Example: `flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo` then `flatpak-builder --user --install-deps-from=flathub --force-clean build-dir flatpak/org.scantailor.Advanced.json` (installs the KDE 6.11 runtime/SDK from Flathub on first run). The local build uses the working tree, including uncommitted changes; common build directories are excluded. |
+| **CI smoke build** | [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs on pushes to `kgn/i18n-warning-windows-macos-ci` or manually on a selected branch, and uploads a **`.flatpak` bundle** as a workflow artifact. This is **not** the Flathub build pipeline. |
 
 **Application ID:** the manifest uses `org.scantailor.Advanced` so it does **not** replace the legacy `com.github._4lex4.*` Flatpak. Author docs: [for app authors](https://docs.flathub.org/docs/for-app-authors/).
 
@@ -509,12 +509,12 @@ This shows the build plan and asks for confirmation before compiling. Use `./bui
 
 #### Building on Windows, Linux, and macOS
 
-The **Build Windows** workflow runs manually and builds with MSVC on Windows Server 2022. The **Build macOS** workflow runs on pushes and builds on macOS 15 ARM64. Both use prebuilt Qt and the project's pinned vcpkg baseline for other dependencies. No local Windows or macOS setup is required.
+The **Build Windows** workflow runs manually and builds with MSVC on Windows Server 2022. The **Build macOS** workflow runs manually and builds on macOS 15 ARM64. Both use prebuilt Qt and the project's pinned vcpkg baseline for other dependencies. No local Windows or macOS setup is required.
 
 The Windows build runs on Windows Server 2022 with prebuilt Qt 6.8.3; that verifies compilation, not runtime behavior on Windows 10/11. The application should still be smoke-tested on those desktop versions before claiming runtime compatibility.
 
 The macOS workflow uploads a ZIP containing an ad-hoc-signed `.app` bundle with Qt dependencies. It checks the signature, runs `--help` and checks for an on-screen window without the build's Qt installation. It is an experimental ARM64 build, not notarized by Apple; Gatekeeper may block it, and it still needs interactive testing on a Mac.
 
-For downloadable Linux packages, use the separate **Manual Package Build** workflow to create DEB, RPM, or AppImage artifacts. These Linux distribution packages use the runner's system Qt/dependencies so their package metadata and runtime linkage follow the distribution; the cross-platform CI builds use vcpkg.
+For downloadable Linux packages, use the **Build Linux** workflow to create DEB, RPM, or AppImage artifacts. These Linux distribution packages use the runner's system Qt/dependencies so their package metadata and runtime linkage follow the distribution; the Windows and macOS builds use vcpkg for other dependencies.
 
 Qt 6.4 is the minimum supported Qt version for Linux system packages. The macOS CI build uses prebuilt Qt 6.11.3 and targets macOS 13 or later.
