@@ -3,8 +3,8 @@
 
 #include "OutOfMemoryDialog.h"
 
-#include <QFileDialog>
 #include <QDir>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QSettings>
 #include <utility>
@@ -64,9 +64,9 @@ void OutOfMemoryDialog::saveProjectAs() {
     }
   }
 
-  QString projectFile(QFileDialog::getSaveFileName(
-      this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)",
-      nullptr, QFileDialog::DontUseNativeDialog));
+  QString projectFile(QFileDialog::getSaveFileName(this, QString(), projectDir,
+                                                   tr("Scan Tailor Projects") + " (*.ScanTailor)", nullptr,
+                                                   QFileDialog::DontUseNativeDialog));
   if (projectFile.isEmpty()) {
     return;
   }

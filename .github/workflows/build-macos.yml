@@ -16,6 +16,26 @@ jobs:
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
 
+      - name: Cache PCRE2 submodule metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(jq -r '.default.pcre2.baseline' \
+            "$GITHUB_WORKSPACE/vcpkg/versions/baseline.json")"
+          if [[ -z "$version" || "$version" == "null" ]]; then
+            echo "Could not determine the PCRE2 version from the vcpkg baseline." >&2
+            exit 1
+          fi
+
+          downloads_dir="$GITHUB_WORKSPACE/vcpkg/downloads"
+          mkdir -p "$downloads_dir"
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/PCRE2Project/pcre2/contents/deps/sljit?ref=pcre2-${version}" \
+            --output "$downloads_dir/pcre2-pcre2-${version}-sljit-gitlink.json"
+
       - name: Configure
         run: |
           cmake -S . -B build-macos \

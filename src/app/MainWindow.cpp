@@ -1421,9 +1421,9 @@ void MainWindow::saveProjectAsTriggered() {
     }
   }
 
-  QString projectFile(QFileDialog::getSaveFileName(
-      this, QString(), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)",
-      nullptr, QFileDialog::DontUseNativeDialog));
+  QString projectFile(QFileDialog::getSaveFileName(this, QString(), projectDir,
+                                                   tr("Scan Tailor Projects") + " (*.ScanTailor)", nullptr,
+                                                   QFileDialog::DontUseNativeDialog));
   if (projectFile.isEmpty()) {
     return;
   }
@@ -1470,8 +1470,7 @@ void MainWindow::openProject() {
   if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
     projectDir = QSettings().value("project/lastDir").toString();
   }
-  QFileDialog dialog(this, tr("Open Project"), projectDir,
-                     tr("Scan Tailor Projects") + " (*.ScanTailor)");
+  QFileDialog dialog(this, tr("Open Project"), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)");
   dialog.setFileMode(QFileDialog::ExistingFile);
   dialog.setOption(QFileDialog::DontUseNativeDialog, true);
   if (dialog.exec() != QDialog::Accepted) {
@@ -1584,8 +1583,8 @@ void MainWindow::showAboutDialog() {
 void MainWindow::handleOutOfMemorySituation() {
   deleteLater();
 
-  m_outOfMemoryDialog->setParams(
-      m_projectFile, m_initialDirectory, m_stages, m_pages, m_selectedPage, m_outFileNameGen);
+  m_outOfMemoryDialog->setParams(m_projectFile, m_initialDirectory, m_stages, m_pages, m_selectedPage,
+                                 m_outFileNameGen);
 
   closeProjectWithoutSaving();
 
@@ -1623,8 +1622,7 @@ void MainWindow::disconnectFilterOptionsWidget() {
   disconnect(m_optionsWidget, SIGNAL(invalidateThumbnail(const PageInfo&)), this,
              SLOT(invalidateThumbnail(const PageInfo&)));
   disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
-  disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this,
-             SLOT(goToPage(const PageId&)));
+  disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this, SLOT(goToPage(const PageId&)));
   disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }
 
