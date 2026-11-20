@@ -79,7 +79,9 @@ target_include_directories(
     ${target_name}
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}"
     "$<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_INCLUDE_DIRECTORIES>")
-install(TARGETS ${target_name} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(TARGETS ${target_name}
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    BUNDLE DESTINATION ".")
 
 if (WIN32)
   #manage plugins with windeployqt.
