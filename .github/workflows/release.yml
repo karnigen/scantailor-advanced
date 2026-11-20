@@ -19,6 +19,8 @@ jobs:
   build-deb:
     name: Build .deb
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
@@ -56,12 +58,14 @@ jobs:
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v5
         with:
-          name: deb-package
+          name: scantailor-advanced-${{ steps.version.outputs.version }}-linux-x86_64-deb
           path: scantailor-advanced_*_amd64.deb
 
   build-appimage:
     name: Build AppImage
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v5
 
@@ -123,7 +127,7 @@ jobs:
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v5
         with:
-          name: appimage
+          name: scantailor-advanced-${{ steps.version.outputs.version }}-linux-x86_64-appimage
           path: scantailor-advanced-*-x86_64.AppImage
 
   release:
@@ -133,10 +137,10 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
-          name: deb-package
+          name: scantailor-advanced-${{ needs.build-deb.outputs.version }}-linux-x86_64-deb
       - uses: actions/download-artifact@v5
         with:
-          name: appimage
+          name: scantailor-advanced-${{ needs.build-appimage.outputs.version }}-linux-x86_64-appimage
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

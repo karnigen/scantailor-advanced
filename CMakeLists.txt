@@ -44,7 +44,6 @@ if (NOT DEFAULT_COMPILER_FLAGS_IS_SET)
   if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror=return-type -Wno-unused")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Werror=return-type -Wno-unused")
-    add_compile_options("$<$<CONFIG:RELEASE>:-march=native;-mtune=native>")
   endif()
 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}"
@@ -55,6 +54,11 @@ if (NOT DEFAULT_COMPILER_FLAGS_IS_SET)
       CACHE STRING "Common link flags for all build configurations." FORCE)
 
   set(DEFAULT_COMPILER_FLAGS_IS_SET YES CACHE INTERNAL "" FORCE)
+endif()
+
+option(NATIVE_CPU_OPTIMIZATIONS "Optimize GCC Release builds for the build machine's CPU" OFF)
+if (NATIVE_CPU_OPTIMIZATIONS AND CMAKE_COMPILER_IS_GNUCC AND CMAKE_COMPILER_IS_GNUCXX)
+  add_compile_options("$<$<CONFIG:RELEASE>:-march=native;-mtune=native>")
 endif()
 
 if (UNIX)
@@ -319,6 +323,16 @@ configure_file(
     "${SCANTAILOR_RESOURCES_DIR}/unix/${target_name}.desktop.in"
     "${CMAKE_BINARY_DIR}/${target_name}.desktop"
     @ONLY)
+
+option(INSTALL_FLATPAK_METAINFO "Install AppStream metadata for the Flatpak" OFF)
+if (INSTALL_FLATPAK_METAINFO)
+  string(TIMESTAMP FLATPAK_BUILD_DATE "%Y-%m-%d" UTC)
+  configure_file(
+      "${CMAKE_SOURCE_DIR}/flatpak/org.scantailor.Advanced.metainfo.xml.in"
+      "${CMAKE_BINARY_DIR}/org.scantailor.Advanced.metainfo.xml"
+      @ONLY)
+  install(FILES "${CMAKE_BINARY_DIR}/org.scantailor.Advanced.metainfo.xml" DESTINATION "share/metainfo")
+endif()
 
 add_subdirectory(src)
 

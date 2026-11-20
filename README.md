@@ -82,7 +82,7 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 | **Day-to-day binaries** | Prefer [GitHub Releases](https://github.com/ScanTailor-Advanced/scantailor-advanced/releases) when the project publishes `.deb` / AppImage (or other) builds for a tagged version. |
 | **Install from Flathub** | There is **no** official Flathub listing yet for this fork under the new ID. Shipping there requires a maintainer to follow [Flathub submission](https://docs.flathub.org/docs/for-app-authors/submission/) (separate repo/PR to [flathub/flathub](https://github.com/flathub/flathub)), AppStream metainfo, screenshots, and reviewer feedback. The in-repo manifest is meant to make that step mostly mechanical; issue [#105](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105) tracks coordination. |
 | **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Example: `flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo` then `flatpak-builder --user --install-deps-from=flathub --force-clean build-dir flatpak/org.scantailor.Advanced.json` (installs the KDE 6.11 runtime/SDK from Flathub on first run). The local build uses the working tree, including uncommitted changes; common build directories are excluded. |
-| **CI smoke build** | [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs on pushes to `kgn/i18n-warning-windows-macos-ci` or manually on a selected branch, and uploads a **`.flatpak` bundle** as a workflow artifact. This is **not** the Flathub build pipeline. |
+| **CI smoke build** | [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs on pushes to `kgn/i18n-warning-windows-macos-ci` or manually on a selected branch, and uploads a **`.flatpak` bundle** as a workflow artifact. Its AppStream metadata shows the application name and version; the development entry uses the build date. This is **not** the Flathub build pipeline. |
 
 **Application ID:** the manifest uses `org.scantailor.Advanced` so it does **not** replace the legacy `com.github._4lex4.*` Flatpak. Author docs: [for app authors](https://docs.flathub.org/docs/for-app-authors/).
 
@@ -467,6 +467,11 @@ cmake ..
 make -j$(nproc)
 ```
 
+Release builds do not target the build machine's CPU by default, so binaries can be
+distributed to other compatible machines. For a GCC build used only on the same
+machine, pass `-DNATIVE_CPU_OPTIMIZATIONS=ON` to CMake to enable `-march=native`
+and `-mtune=native` in Release mode. Do not enable this for distributed packages.
+
 Command-line paths:
 
 ```bash
@@ -516,5 +521,7 @@ The Windows build runs on Windows Server 2022 with prebuilt Qt 6.8.3; that verif
 The macOS workflow uploads a ZIP containing an ad-hoc-signed `.app` bundle with Qt dependencies. It checks the signature, runs `--help` and checks for an on-screen window without the build's Qt installation. It is an experimental ARM64 build, not notarized by Apple; Gatekeeper may block it, and it still needs interactive testing on a Mac.
 
 For downloadable Linux packages, use the **Build Linux** workflow to create DEB, RPM, or AppImage artifacts. These Linux distribution packages use the runner's system Qt/dependencies so their package metadata and runtime linkage follow the distribution; the Windows and macOS builds use vcpkg for other dependencies.
+
+Manual build artifact and package filenames include the application version from `version.h.in` and the short commit hash, for example `scantailor-advanced-1.3.0-abcdef0-linux-x86_64.flatpak`. Release packages use the release version without a commit hash.
 
 Qt 6.4 is the minimum supported Qt version for Linux system packages. The macOS CI build uses prebuilt Qt 6.11.3 and targets macOS 13 or later.

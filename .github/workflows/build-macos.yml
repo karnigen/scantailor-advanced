@@ -14,6 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Determine build version
+        id: build-info
+        uses: ./.github/actions/version-info
+
       - name: Install prebuilt Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -76,13 +80,13 @@ jobs:
           "$QT_ROOT_DIR/bin/macdeployqt" "$app"
           test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
           codesign --verify --deep --strict "$app"
-          ditto -c -k --sequesterRsrc --keepParent "$app" build-macos/scantailor-advanced-macos-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent "$app" "build-macos/scantailor-advanced-${{ steps.build-info.outputs.id }}-macos-arm64.zip"
 
       - name: Smoke test packaged application
         run: |
           set -euo pipefail
           test_dir="$(mktemp -d "$RUNNER_TEMP/scantailor-test.XXXXXX")"
-          ditto -x -k build-macos/scantailor-advanced-macos-arm64.zip "$test_dir"
+          ditto -x -k "build-macos/scantailor-advanced-${{ steps.build-info.outputs.id }}-macos-arm64.zip" "$test_dir"
           app="$test_dir/scantailor-advanced.app"
           codesign --verify --deep --strict "$app"
           mv "$QT_ROOT_DIR" "$QT_ROOT_DIR.hidden"
@@ -147,6 +151,6 @@ jobs:
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@v5
         with:
-          name: scantailor-advanced-macos-arm64
-          path: build-macos/scantailor-advanced-macos-arm64.zip
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-macos-arm64
+          path: build-macos/scantailor-advanced-${{ steps.build-info.outputs.id }}-macos-arm64.zip
           if-no-files-found: error

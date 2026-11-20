@@ -18,6 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Determine build version
+        id: build-info
+        uses: ./.github/actions/version-info
+
       - name: Install Flatpak tools
         run: |
           sudo apt-get update
@@ -41,11 +45,21 @@ jobs:
 
       - name: Create single-file bundle
         run: |
-          flatpak build-bundle repo scantailor-advanced.flatpak org.scantailor.Advanced
+          flatpak build-bundle repo "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.flatpak" org.scantailor.Advanced
+
+      - name: Verify bundle metadata
+        run: |
+          flatpak install --user --noninteractive --no-deps --bundle "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.flatpak"
+          actual=$(flatpak list --user --app --columns=name,application,version | awk -F '\t' '$2 == "org.scantailor.Advanced" { print $1 "\t" $3 }')
+          expected=$(printf 'ScanTailor Advanced\t%s' "${{ steps.build-info.outputs.version }}")
+          if [ "$actual" != "$expected" ]; then
+            printf 'Unexpected Flatpak name/version: %s\n' "$actual" >&2
+            exit 1
+          fi
 
       - name: Upload bundle
         uses: actions/upload-artifact@v5
         with:
-          name: scantailor-advanced-flatpak
-          path: scantailor-advanced.flatpak
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64-flatpak
+          path: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.flatpak
           if-no-files-found: error
