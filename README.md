@@ -509,10 +509,12 @@ This shows the build plan and asks for confirmation before compiling. Use `./bui
 
 #### Building on Windows, Linux, and macOS
 
-The GitHub Actions **CI** workflow builds the application natively with MSVC on Windows and with the platform toolchains on Linux/macOS. All three builds use the dependencies and pinned baseline in the project's vcpkg manifest. Pushes and pull requests build all platforms; for a manual run, choose **Actions → CI → Run workflow** and select `windows`, `linux`, `macos`, or `all` (Windows is the default). No local Windows or macOS setup is required.
+The **Build Windows** workflow runs manually and builds with MSVC on Windows Server 2022. The **Build macOS** workflow runs on pushes and builds on macOS 15 ARM64. Both use prebuilt Qt and the project's pinned vcpkg baseline for other dependencies. No local Windows or macOS setup is required.
 
-The Windows build runs on Windows Server 2022; that verifies compilation, not runtime behavior on Windows 10/11. The pinned Qt 6.11.3 supports Windows 10 version 1809 and newer, and Windows 11, but the application should still be smoke-tested on those desktop versions before claiming runtime compatibility.
+The Windows build runs on Windows Server 2022 with prebuilt Qt 6.8.3; that verifies compilation, not runtime behavior on Windows 10/11. The application should still be smoke-tested on those desktop versions before claiming runtime compatibility.
+
+The macOS workflow uploads a ZIP containing an ad-hoc-signed `.app` bundle with Qt dependencies. It checks the signature, runs `--help` and checks for an on-screen window without the build's Qt installation. It is an experimental ARM64 build, not notarized by Apple; Gatekeeper may block it, and it still needs interactive testing on a Mac.
 
 For downloadable Linux packages, use the separate **Manual Package Build** workflow to create DEB, RPM, or AppImage artifacts. These Linux distribution packages use the runner's system Qt/dependencies so their package metadata and runtime linkage follow the distribution; the cross-platform CI builds use vcpkg.
 
-Qt 6.4 is the minimum supported Qt version for Linux system packages. The cross-platform CI builds use the Qt version pinned by the vcpkg baseline.
+Qt 6.4 is the minimum supported Qt version for Linux system packages. The macOS CI build uses prebuilt Qt 6.11.3 and targets macOS 13 or later.

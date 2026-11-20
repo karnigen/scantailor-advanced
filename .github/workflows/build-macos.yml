@@ -1,6 +1,7 @@
 name: Build macOS
 
 on:
+  push:
   workflow_call:
 
 permissions:
@@ -8,10 +9,18 @@ permissions:
 
 jobs:
   build:
-    name: macOS 15 ARM64 (vcpkg)
+    name: macOS 15 ARM64 (prebuilt Qt + vcpkg)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install prebuilt Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.11.3"
+          arch: clang_64
+          archives: "qtbase qtsvg qttools qttranslations"
+          cache: true
 
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
@@ -43,8 +52,96 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=arm64-osx \
             -DVCPKG_OSX_DEPLOYMENT_TARGET=13.0 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
+            -DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON \
+            -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" \
+            -DCMAKE_MACOSX_BUNDLE=ON \
+            -DPORTABLE_VERSION=OFF \
             -DBUILD_TESTS=OFF \
             -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build-macos --config Release --parallel "$(sysctl -n hw.ncpu)"
+
+      - name: Package macOS application
+        id: package
+        run: |
+          set -euo pipefail
+          app="build-macos/scantailor-advanced.app"
+          mkdir -p "$app/Contents/MacOS/translations"
+          cp build-macos/scantailor-advanced_*.qm "$app/Contents/MacOS/translations/"
+          "$QT_ROOT_DIR/bin/macdeployqt" "$app"
+          test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
+          ditto -c -k --sequesterRsrc --keepParent "$app" build-macos/scantailor-advanced-macos-arm64.zip
+
+      - name: Smoke test packaged application
+        run: |
+          set -euo pipefail
+          test_dir="$(mktemp -d "$RUNNER_TEMP/scantailor-test.XXXXXX")"
+          ditto -x -k build-macos/scantailor-advanced-macos-arm64.zip "$test_dir"
+          app="$test_dir/scantailor-advanced.app"
+          codesign --verify --deep --strict "$app"
+          mv "$QT_ROOT_DIR" "$QT_ROOT_DIR.hidden"
+          trap 'mv "$QT_ROOT_DIR.hidden" "$QT_ROOT_DIR"' EXIT
+          env -u QT_PLUGIN_PATH -u QML2_IMPORT_PATH -u DYLD_LIBRARY_PATH \
+            "$app/Contents/MacOS/scantailor-advanced" --help
+          env -u QT_PLUGIN_PATH -u QML2_IMPORT_PATH -u DYLD_LIBRARY_PATH \
+            swift - "$app/Contents/MacOS/scantailor-advanced" <<'SWIFT'
+          import CoreGraphics
+          import Foundation
+
+          func testWindow() throws -> Bool {
+            let app = Process()
+            app.executableURL = URL(fileURLWithPath: CommandLine.arguments[1])
+            try app.run()
+            defer {
+              if app.isRunning {
+                app.terminate()
+                app.waitUntilExit()
+              }
+            }
+            let deadline = Date().addingTimeInterval(30)
+            while Date() < deadline {
+              if !app.isRunning {
+                print("Application exited before showing a window: \(app.terminationStatus)")
+                return false
+              }
+              guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+                as? [[String: Any]] else {
+                print("Cannot query windows; the runner may not have a graphical session")
+                return false
+              }
+              for window in windows {
+                guard let pid = window[kCGWindowOwnerPID as String] as? NSNumber,
+                      pid.int32Value == app.processIdentifier,
+                      let layer = window[kCGWindowLayer as String] as? NSNumber,
+                      layer.intValue == 0,
+                      let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                      let width = bounds["Width"] as? NSNumber,
+                      let height = bounds["Height"] as? NSNumber,
+                      width.doubleValue > 0, height.doubleValue > 0 else {
+                  continue
+                }
+                print("Application created an on-screen window (\(width) x \(height))")
+                return true
+              }
+              Thread.sleep(forTimeInterval: 0.5)
+            }
+            print("Application did not create an on-screen window within 30 seconds")
+            return false
+          }
+
+          do {
+            exit(try testWindow() ? 0 : 1)
+          } catch {
+            fputs("Failed to start application: \(error)\n", stderr)
+            exit(1)
+          }
+          SWIFT
+
+      - name: Upload macOS application
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-advanced-macos-arm64
+          path: build-macos/scantailor-advanced-macos-arm64.zip
+          if-no-files-found: error
