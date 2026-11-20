@@ -21,12 +21,14 @@
 #include "MainWindow.h"
 
 int main(int argc, char* argv[]) {
+#ifdef Q_OS_LINUX
   // Qt 6.12 can load GTK3's platform theme plugin even for Qt-owned dialogs.
   // With mismatched libpng builds this crashes in gdk_pixbuf/png_destroy_read_struct.
   // Keep the process on Qt's generic theme unless the user explicitly overrides it.
   if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORMTHEME")) {
     qputenv("QT_QPA_PLATFORMTHEME", QByteArrayLiteral("generic"));
   }
+#endif
   QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
   Application app(argc, argv);
   Application::setApplicationName(APPLICATION_NAME);
