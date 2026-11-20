@@ -67,10 +67,15 @@ jobs:
         run: |
           set -euo pipefail
           app="build-macos/scantailor-advanced.app"
-          mkdir -p "$app/Contents/MacOS/translations"
-          cp build-macos/scantailor-advanced_*.qm "$app/Contents/MacOS/translations/"
+          translations="$app/Contents/Resources/translations"
+          mkdir -p "$translations"
+          for qm in build-macos/scantailor-advanced_*.qm; do
+            name="${qm##*/}"
+            cp "$qm" "$translations/scantailor_${name#scantailor-advanced_}"
+          done
           "$QT_ROOT_DIR/bin/macdeployqt" "$app"
           test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
+          codesign --verify --deep --strict "$app"
           ditto -c -k --sequesterRsrc --keepParent "$app" build-macos/scantailor-advanced-macos-arm64.zip
 
       - name: Smoke test packaged application
