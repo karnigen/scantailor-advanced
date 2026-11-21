@@ -21,7 +21,7 @@ Selections:
   -h, --help        Show this help.
 
 Run from a clean, committed checkout. GitHub CLI must be authenticated.
-Without a terminal, pass build selections or use --yes.
+Without a terminal, pass --yes; build selections are optional.
 EOF
 }
 

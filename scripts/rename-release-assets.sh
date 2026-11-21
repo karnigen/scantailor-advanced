@@ -25,7 +25,9 @@ Collision policies:
   prefer-target  Keep TARGET_VERSION assets if both source and target names exist.
 
 The asset types handled are Linux DEB, RPM, AppImage and Flatpak, plus macOS and
-Windows archives.
+Windows archives. Only uploaded, non-empty assets are eligible to replace
+another asset; if neither colliding asset is complete, the helper refuses to
+change the release.
 
 Examples:
   # Rename stable asset names to RC names, then confirm interactively.
@@ -41,6 +43,10 @@ EOF
 fail() {
   echo "Error: $*" >&2
   exit 1
+}
+
+asset_is_complete() {
+  [[ "$1" == "uploaded" && "$2" =~ ^[1-9][0-9]*$ ]]
 }
 
 YES="false"
@@ -97,7 +103,7 @@ SUFFIXES=(
 )
 
 ASSETS="$(gh api "repos/${REPOSITORY}/releases/tags/${RELEASE_TAG}" \
-  --jq '.assets[] | [.id, .name] | @tsv')"
+  --jq '.assets[] | [.id, .name, .state, .size] | @tsv')"
 PLAN_ACTIONS=()
 PLAN_SOURCE_ASSETS=()
 PLAN_SOURCE_IDS=()
@@ -108,26 +114,60 @@ for suffix in "${SUFFIXES[@]}"; do
   SOURCE_ASSET="scantailor-advanced-${SOURCE_VERSION}-${suffix}"
   TARGET_ASSET="scantailor-advanced-${TARGET_VERSION}-${suffix}"
   SOURCE_ID=""
-  TARGET_EXISTS="false"
-  while IFS=$'\t' read -r asset_id asset_name; do
+  SOURCE_STATE=""
+  SOURCE_SIZE=""
+  TARGET_ID=""
+  TARGET_STATE=""
+  TARGET_SIZE=""
+  while IFS=$'\t' read -r asset_id asset_name asset_state asset_size; do
     [[ -n "${asset_name:-}" ]] || continue
     if [[ "$asset_name" == "$SOURCE_ASSET" ]]; then
       SOURCE_ID="$asset_id"
+      SOURCE_STATE="$asset_state"
+      SOURCE_SIZE="$asset_size"
     elif [[ "$asset_name" == "$TARGET_ASSET" ]]; then
-      TARGET_EXISTS="true"
+      TARGET_ID="$asset_id"
+      TARGET_STATE="$asset_state"
+      TARGET_SIZE="$asset_size"
     fi
   done <<< "$ASSETS"
   [[ -n "$SOURCE_ID" ]] || continue
 
+  SOURCE_COMPLETE="false"
+  TARGET_COMPLETE="false"
+  if asset_is_complete "$SOURCE_STATE" "$SOURCE_SIZE"; then
+    SOURCE_COMPLETE="true"
+  fi
+  if asset_is_complete "$TARGET_STATE" "$TARGET_SIZE"; then
+    TARGET_COMPLETE="true"
+  fi
+
   PLAN_SOURCE_ASSETS+=("$SOURCE_ASSET")
   PLAN_SOURCE_IDS+=("$SOURCE_ID")
   PLAN_TARGET_ASSETS+=("$TARGET_ASSET")
-  if [[ "$TARGET_EXISTS" == "true" && "$COLLISION_POLICY" == "prefer-target" ]]; then
-    PLAN_ACTIONS+=("delete-source")
-    PLAN_REPLACE_TARGET+=("false")
+  if [[ -n "$TARGET_ID" ]]; then
+    if [[ "$SOURCE_COMPLETE" == "true" && "$TARGET_COMPLETE" == "true" ]]; then
+      if [[ "$COLLISION_POLICY" == "prefer-target" ]]; then
+        PLAN_ACTIONS+=("delete-source")
+        PLAN_REPLACE_TARGET+=("false")
+      else
+        PLAN_ACTIONS+=("rename-source")
+        PLAN_REPLACE_TARGET+=("true")
+      fi
+    elif [[ "$SOURCE_COMPLETE" == "true" ]]; then
+      PLAN_ACTIONS+=("rename-source")
+      PLAN_REPLACE_TARGET+=("true")
+    elif [[ "$TARGET_COMPLETE" == "true" ]]; then
+      PLAN_ACTIONS+=("delete-source")
+      PLAN_REPLACE_TARGET+=("false")
+    else
+      fail "Both $SOURCE_ASSET and $TARGET_ASSET are incomplete; refusing to replace either."
+    fi
   else
+    [[ "$SOURCE_COMPLETE" == "true" ]] ||
+      fail "Source asset $SOURCE_ASSET is not uploaded and non-empty; refusing to rename it."
     PLAN_ACTIONS+=("rename-source")
-    PLAN_REPLACE_TARGET+=("$TARGET_EXISTS")
+    PLAN_REPLACE_TARGET+=("false")
   fi
 done
 
@@ -144,8 +184,8 @@ fi
 for i in "${!PLAN_ACTIONS[@]}"; do
   case "${PLAN_ACTIONS[$i]}" in
     delete-source)
-      printf '  Delete %s (the target asset already exists).\n' \
-        "${PLAN_SOURCE_ASSETS[$i]}"
+      printf '  Keep complete %s; delete %s.\n' \
+        "${PLAN_TARGET_ASSETS[$i]}" "${PLAN_SOURCE_ASSETS[$i]}"
       ;;
     rename-source)
       if [[ "${PLAN_REPLACE_TARGET[$i]}" == "true" ]]; then
@@ -198,11 +238,30 @@ for i in "${!PLAN_ACTIONS[@]}"; do
   printf 'Renamed %s to %s.\n' "$SOURCE_ASSET" "$TARGET_ASSET"
 done
 
-ASSETS="$(gh release view "$RELEASE_TAG" --repo "$REPOSITORY" \
-  --json assets --jq '.assets[].name')"
+ASSETS="$(gh api "repos/${REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+  --jq '.assets[] | [.id, .name, .state, .size] | @tsv')"
 for suffix in "${SUFFIXES[@]}"; do
   SOURCE_ASSET="scantailor-advanced-${SOURCE_VERSION}-${suffix}"
-  if grep -Fxq "$SOURCE_ASSET" <<< "$ASSETS"; then
+  SOURCE_REMAINS="false"
+  while IFS=$'\t' read -r asset_id asset_name asset_state asset_size; do
+    if [[ "$asset_name" == "$SOURCE_ASSET" ]]; then
+      SOURCE_REMAINS="true"
+    fi
+  done <<< "$ASSETS"
+  if [[ "$SOURCE_REMAINS" == "true" ]]; then
     fail "Old asset name remains after rename: $SOURCE_ASSET."
   fi
+done
+
+for i in "${!PLAN_TARGET_ASSETS[@]}"; do
+  TARGET_ASSET="${PLAN_TARGET_ASSETS[$i]}"
+  TARGET_COMPLETE="false"
+  while IFS=$'\t' read -r asset_id asset_name asset_state asset_size; do
+    if [[ "$asset_name" == "$TARGET_ASSET" ]] &&
+       asset_is_complete "$asset_state" "$asset_size"; then
+      TARGET_COMPLETE="true"
+    fi
+  done <<< "$ASSETS"
+  [[ "$TARGET_COMPLETE" == "true" ]] ||
+    fail "Target asset $TARGET_ASSET is not uploaded and non-empty."
 done
