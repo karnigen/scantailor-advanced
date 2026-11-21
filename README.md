@@ -86,7 +86,7 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 
 From the repository root, run:
 
-```sh
+```bash
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 set -o pipefail
 source_dir="$(mktemp -d)"

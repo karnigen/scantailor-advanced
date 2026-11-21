@@ -31,15 +31,32 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PUSH_BASE: ${{ github.event.before }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           BASE="$PUSH_BASE"
           if [ "$EVENT_NAME" = "pull_request" ]; then
             BASE="$PR_BASE"
           fi
           if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
+            DEFAULT_BRANCH_REF="refs/remotes/origin/$DEFAULT_BRANCH"
+            if ! git show-ref --verify --quiet "$DEFAULT_BRANCH_REF"; then
+              echo "::error::Default branch ref $DEFAULT_BRANCH_REF is unavailable."
+              exit 1
+            fi
+            if ! BASE="$(git merge-base HEAD "$DEFAULT_BRANCH_REF")"; then
+              echo "::error::Could not find a merge base with $DEFAULT_BRANCH_REF."
+              exit 1
+            fi
           fi
-          SRC_FILES=$(git diff --name-only "$BASE" HEAD -- src/ \
+          if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "::error::Comparison base $BASE is unavailable; refusing to skip formatting checks."
+            exit 1
+          fi
+          if ! CHANGED_PATHS="$(git diff --name-only "$BASE" HEAD -- src/)"; then
+            echo "::error::Could not determine changed source files from $BASE to HEAD."
+            exit 1
+          fi
+          SRC_FILES=$(printf '%s\n' "$CHANGED_PATHS" \
             | grep -E '\.(cpp|h)$' \
             | grep -v '/translations/' \
             || true)
