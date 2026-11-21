@@ -55,13 +55,13 @@ jobs:
           release_tags="$(gh release list --limit 1000 --json tagName --jq '.[].tagName')"
           selected_rc=""
           selected_rc_number=0
-          expected_assets=(
-            "scantailor-advanced-${VERSION}-linux-x86_64.deb"
-            "scantailor-advanced-${VERSION}-linux-x86_64.rpm"
-            "scantailor-advanced-${VERSION}-linux-x86_64.AppImage"
-            "scantailor-advanced-${VERSION}-linux-x86_64.flatpak"
-            "scantailor-advanced-${VERSION}-macos-arm64.zip"
-            "scantailor-advanced-${VERSION}-windows-x64.zip"
+          asset_suffixes=(
+            linux-x86_64.deb
+            linux-x86_64.rpm
+            linux-x86_64.AppImage
+            linux-x86_64.flatpak
+            macos-arm64.zip
+            windows-x64.zip
           )
           while IFS= read -r candidate; do
             [[ -n "$candidate" ]] || continue
@@ -74,6 +74,7 @@ jobs:
             [[ "$candidate_version" == "$VERSION" ]] || continue
             [[ "$(git rev-parse "${candidate}^{commit}")" == "$GITHUB_SHA" ]] || continue
             grep -Fxq "$candidate" <<< "$release_tags" || continue
+            candidate_asset_version="${candidate#v}"
 
             is_draft="$(gh release view "$candidate" --json isDraft --jq '.isDraft')"
             is_prerelease="$(gh release view "$candidate" --json isPrerelease --jq '.isPrerelease')"
@@ -81,8 +82,11 @@ jobs:
             assets="$(gh release view "$candidate" --json assets \
               --jq '.assets[] | select(.state == "uploaded" and .size > 0) | .name')"
             complete=true
-            for asset in "${expected_assets[@]}"; do
-              if ! grep -Fxq "$asset" <<< "$assets"; then
+            for suffix in "${asset_suffixes[@]}"; do
+              rc_asset="scantailor-advanced-${candidate_asset_version}-${suffix}"
+              stable_asset="scantailor-advanced-${VERSION}-${suffix}"
+              if ! grep -Fxq "$rc_asset" <<< "$assets" &&
+                 ! grep -Fxq "$stable_asset" <<< "$assets"; then
                 complete=false
                 break
               fi
@@ -192,17 +196,21 @@ jobs:
 
           assets="$(gh release view "$RC_TAG" --json assets \
             --jq '.assets[] | select(.state == "uploaded" and .size > 0) | .name')"
-          expected_assets=(
-            "scantailor-advanced-${VERSION}-linux-x86_64.deb"
-            "scantailor-advanced-${VERSION}-linux-x86_64.rpm"
-            "scantailor-advanced-${VERSION}-linux-x86_64.AppImage"
-            "scantailor-advanced-${VERSION}-linux-x86_64.flatpak"
-            "scantailor-advanced-${VERSION}-macos-arm64.zip"
-            "scantailor-advanced-${VERSION}-windows-x64.zip"
+          RC_VERSION="${RC_TAG#v}"
+          asset_suffixes=(
+            linux-x86_64.deb
+            linux-x86_64.rpm
+            linux-x86_64.AppImage
+            linux-x86_64.flatpak
+            macos-arm64.zip
+            windows-x64.zip
           )
-          for asset in "${expected_assets[@]}"; do
-            if ! grep -Fxq "$asset" <<< "$assets"; then
-              echo "RC release $RC_TAG is missing a complete asset: $asset" >&2
+          for suffix in "${asset_suffixes[@]}"; do
+            rc_asset="scantailor-advanced-${RC_VERSION}-${suffix}"
+            stable_asset="scantailor-advanced-${VERSION}-${suffix}"
+            if ! grep -Fxq "$rc_asset" <<< "$assets" &&
+               ! grep -Fxq "$stable_asset" <<< "$assets"; then
+              echo "RC release $RC_TAG is missing a complete asset for $suffix." >&2
               echo "Aborting promotion; rerun the stable release to use the build fallback." >&2
               exit 1
             fi
@@ -213,9 +221,12 @@ jobs:
         env:
           TAG: ${{ needs.validate.outputs.tag }}
           RC_TAG: ${{ needs.validate.outputs.rc_tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          bash scripts/rename-release-assets.sh \
+            --yes "$RC_TAG" "${RC_TAG#v}" "$VERSION" prefer-source
           gh release edit "$RC_TAG" --tag "$TAG" --title "$TAG" \
             --prerelease=false --draft=false
           actual_tag="$(gh release view "$TAG" --json tagName --jq '.tagName')"
