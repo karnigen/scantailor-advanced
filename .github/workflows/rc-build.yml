@@ -1,0 +1,229 @@
+name: RC Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      linux:
+        description: Linux package(s)
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - deb
+          - rpm
+          - appimage
+          - all
+      windows:
+        description: Build Windows
+        required: true
+        default: false
+        type: boolean
+      macos:
+        description: Build macOS
+        required: true
+        default: false
+        type: boolean
+      flatpak:
+        description: Build Flatpak
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate RC tag and selections
+    runs-on: ubuntu-24.04
+    outputs:
+      id: ${{ steps.build-info.outputs.id }}
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.build-info.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Determine build version
+        id: build-info
+        uses: ./.github/actions/version-info
+        with:
+          release: true
+
+      - name: Verify RC tag and selections
+        id: tag
+        env:
+          REF: ${{ github.ref }}
+          VERSION: ${{ steps.build-info.outputs.version }}
+          LINUX: ${{ inputs.linux }}
+          WINDOWS: ${{ inputs.windows }}
+          MACOS: ${{ inputs.macos }}
+          FLATPAK: ${{ inputs.flatpak }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+-rc[1-9][0-9]*$ ]]; then
+            echo "Select an RC tag in the form vX.Y.Z-rcN." >&2
+            exit 1
+          fi
+          tag="${REF#refs/tags/}"
+          if [[ "$tag" != "v${VERSION}-rc"* ]]; then
+            echo "Tag $tag does not match application version $VERSION." >&2
+            exit 1
+          fi
+          if [[ "$LINUX" == "none" && "$WINDOWS" != "true" &&
+                "$MACOS" != "true" && "$FLATPAK" != "true" ]]; then
+            echo "Select at least one platform or package to build." >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin "$REF"
+          if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$GITHUB_SHA" ]] ||
+             [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo "The RC tag no longer points to the selected commit." >&2
+            exit 1
+          fi
+
+          is_draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
+          is_prerelease="$(gh release view "$tag" --json isPrerelease --jq '.isPrerelease')"
+          if [[ "$is_draft" != "false" || "$is_prerelease" != "true" ]]; then
+            echo "Release $tag must be a published prerelease." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: validate
+    if: ${{ inputs.linux != 'none' }}
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      package: ${{ inputs.linux }}
+      release: true
+
+  windows:
+    needs: validate
+    if: ${{ inputs.windows }}
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      release: true
+
+  macos:
+    needs: validate
+    if: ${{ inputs.macos }}
+    uses: ./.github/workflows/build-macos.yml
+    with:
+      release: true
+
+  flatpak:
+    needs: validate
+    if: ${{ inputs.flatpak }}
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      release: true
+
+  publish:
+    name: Add selected artifacts to RC release
+    needs: [validate, linux, windows, macos, flatpak]
+    if: >-
+      ${{
+        always() &&
+        needs.validate.result == 'success' &&
+        (needs.linux.result == 'success' || needs.linux.result == 'skipped') &&
+        (needs.windows.result == 'success' || needs.windows.result == 'skipped') &&
+        (needs.macos.result == 'success' || needs.macos.result == 'skipped') &&
+        (needs.flatpak.result == 'success' || needs.flatpak.result == 'skipped')
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        if: ${{ inputs.linux == 'deb' || inputs.linux == 'all' }}
+        with:
+          name: scantailor-advanced-${{ needs.validate.outputs.id }}-linux-x86_64-deb
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        if: ${{ inputs.linux == 'rpm' || inputs.linux == 'all' }}
+        with:
+          name: scantailor-advanced-${{ needs.validate.outputs.id }}-linux-x86_64-rpm
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        if: ${{ inputs.linux == 'appimage' || inputs.linux == 'all' }}
+        with:
+          name: scantailor-advanced-${{ needs.validate.outputs.id }}-linux-x86_64-appimage
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        if: ${{ inputs.flatpak }}
+        with:
+          name: scantailor-advanced-${{ needs.validate.outputs.id }}-linux-x86_64-flatpak
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        if: ${{ inputs.macos }}
+        with:
+          name: scantailor-advanced-${{ needs.validate.outputs.id }}-macos-arm64
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        if: ${{ inputs.windows }}
+        with:
+          name: scantailor-advanced-${{ needs.validate.outputs.id }}-windows-x64
+          path: windows-package
+
+      - name: Package Windows artifact
+        if: ${{ inputs.windows }}
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          test -f windows-package/scantailor-advanced.exe
+          (cd windows-package && zip -qr "../release-assets/scantailor-advanced-${VERSION}-windows-x64.zip" .)
+
+      - name: Verify and upload selected release assets
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          LINUX: ${{ inputs.linux }}
+          WINDOWS: ${{ inputs.windows }}
+          MACOS: ${{ inputs.macos }}
+          FLATPAK: ${{ inputs.flatpak }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          expected=()
+          case "$LINUX" in
+            deb|all) expected+=("scantailor-advanced-${VERSION}-linux-x86_64.deb") ;;
+          esac
+          case "$LINUX" in
+            rpm|all) expected+=("scantailor-advanced-${VERSION}-linux-x86_64.rpm") ;;
+          esac
+          case "$LINUX" in
+            appimage|all) expected+=("scantailor-advanced-${VERSION}-linux-x86_64.AppImage") ;;
+          esac
+          if [[ "$FLATPAK" == "true" ]]; then
+            expected+=("scantailor-advanced-${VERSION}-linux-x86_64.flatpak")
+          fi
+          if [[ "$MACOS" == "true" ]]; then
+            expected+=("scantailor-advanced-${VERSION}-macos-arm64.zip")
+          fi
+          if [[ "$WINDOWS" == "true" ]]; then
+            expected+=("scantailor-advanced-${VERSION}-windows-x64.zip")
+          fi
+
+          for asset in "${expected[@]}"; do
+            test -s "release-assets/$asset" || {
+              echo "Missing or empty release asset: $asset" >&2
+              exit 1
+            }
+          done
+
+          is_draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
+          is_prerelease="$(gh release view "$TAG" --json isPrerelease --jq '.isPrerelease')"
+          if [[ "$is_draft" != "false" || "$is_prerelease" != "true" ]]; then
+            echo "Release $TAG must remain a published prerelease." >&2
+            exit 1
+          fi
+          gh release upload "$TAG" release-assets/* --clobber
