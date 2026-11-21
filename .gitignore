@@ -158,3 +158,6 @@ local.cmake
 *.bak
 *.cache
 .cache/
+
+# Local reviews
+local-review-*.md
