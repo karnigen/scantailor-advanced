@@ -78,7 +78,8 @@ jobs:
             is_draft="$(gh release view "$candidate" --json isDraft --jq '.isDraft')"
             is_prerelease="$(gh release view "$candidate" --json isPrerelease --jq '.isPrerelease')"
             [[ "$is_draft" == "false" && "$is_prerelease" == "true" ]] || continue
-            assets="$(gh release view "$candidate" --json assets --jq '.assets[].name')"
+            assets="$(gh release view "$candidate" --json assets \
+              --jq '.assets[] | select(.state == "uploaded" and .size > 0) | .name')"
             complete=true
             for asset in "${expected_assets[@]}"; do
               if ! grep -Fxq "$asset" <<< "$assets"; then
@@ -144,6 +145,10 @@ jobs:
         (needs.macos.result == 'success' || needs.macos.result == 'skipped') &&
         (needs.flatpak.result == 'success' || needs.flatpak.result == 'skipped')
       }}
+    concurrency:
+      group: release-publish-${{ needs.validate.outputs.version }}
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -161,6 +166,47 @@ jobs:
             echo "The tag no longer points to the selected commit." >&2
             exit 1
           fi
+
+      - name: Revalidate matching RC before promotion
+        if: ${{ needs.validate.outputs.promote == 'true' }}
+        env:
+          RC_TAG: ${{ needs.validate.outputs.rc_tag }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/tags/$RC_TAG"
+          if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$GITHUB_SHA" ]]; then
+            echo "RC tag $RC_TAG no longer points to the selected commit." >&2
+            exit 1
+          fi
+
+          actual_tag="$(gh release view "$RC_TAG" --json tagName --jq '.tagName')"
+          is_draft="$(gh release view "$RC_TAG" --json isDraft --jq '.isDraft')"
+          is_prerelease="$(gh release view "$RC_TAG" --json isPrerelease --jq '.isPrerelease')"
+          if [[ "$actual_tag" != "$RC_TAG" || "$is_draft" != "false" ||
+                "$is_prerelease" != "true" ]]; then
+            echo "RC release $RC_TAG is no longer a published prerelease." >&2
+            exit 1
+          fi
+
+          assets="$(gh release view "$RC_TAG" --json assets \
+            --jq '.assets[] | select(.state == "uploaded" and .size > 0) | .name')"
+          expected_assets=(
+            "scantailor-advanced-${VERSION}-linux-x86_64.deb"
+            "scantailor-advanced-${VERSION}-linux-x86_64.rpm"
+            "scantailor-advanced-${VERSION}-linux-x86_64.AppImage"
+            "scantailor-advanced-${VERSION}-linux-x86_64.flatpak"
+            "scantailor-advanced-${VERSION}-macos-arm64.zip"
+            "scantailor-advanced-${VERSION}-windows-x64.zip"
+          )
+          for asset in "${expected_assets[@]}"; do
+            if ! grep -Fxq "$asset" <<< "$assets"; then
+              echo "RC release $RC_TAG is missing a complete asset: $asset" >&2
+              echo "Aborting promotion; rerun the stable release to use the build fallback." >&2
+              exit 1
+            fi
+          done
 
       - name: Promote matching RC release
         if: ${{ needs.validate.outputs.promote == 'true' }}

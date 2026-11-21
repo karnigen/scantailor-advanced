@@ -135,11 +135,35 @@ jobs:
         (needs.macos.result == 'success' || needs.macos.result == 'skipped') &&
         (needs.flatpak.result == 'success' || needs.flatpak.result == 'skipped')
       }}
+    concurrency:
+      group: release-publish-${{ needs.validate.outputs.version }}
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
+
+      - name: Verify RC release before upload
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/tags/$TAG"
+          if [[ "$(git rev-parse 'FETCH_HEAD^{commit}')" != "$GITHUB_SHA" ]] ||
+             [[ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo "RC tag $TAG no longer points to the selected commit." >&2
+            exit 1
+          fi
+
+          is_draft="$(gh release view "$TAG" --json isDraft --jq '.isDraft')"
+          is_prerelease="$(gh release view "$TAG" --json isPrerelease --jq '.isPrerelease')"
+          if [[ "$is_draft" != "false" || "$is_prerelease" != "true" ]]; then
+            echo "RC release $TAG is no longer a published prerelease." >&2
+            exit 1
+          fi
 
       - uses: actions/download-artifact@v5
         if: ${{ inputs.linux == 'deb' || inputs.linux == 'all' }}
