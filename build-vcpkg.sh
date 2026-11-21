@@ -86,6 +86,7 @@ while (($#)); do
 done
 
 VCPKG_ROOT="${VCPKG_ROOT:-${HOME}/vcpkg}"
+INITIAL_VCPKG_ROOT="$VCPKG_ROOT"
 VCPKG_TOOLCHAIN="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
 
 display_path() {
@@ -109,7 +110,7 @@ read_build_config() {
   BUILD_TESTS="OFF"
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
   QT_ROOT=""
-  VCPKG_ROOT="${VCPKG_ROOT:-${HOME}/vcpkg}"
+  VCPKG_ROOT="$INITIAL_VCPKG_ROOT"
 
   [[ -f "$config_file" ]] || return 0
   while IFS='=' read -r key value; do

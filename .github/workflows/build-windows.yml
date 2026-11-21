@@ -54,6 +54,21 @@ jobs:
       - name: Build
         run: cmake --build build-windows --config Release --parallel
 
+      - name: Add application translations
+        shell: pwsh
+        run: |
+          $translationFiles = @(Get-ChildItem -Path build-windows -Filter 'scantailor-advanced_*.qm' -File -ErrorAction Stop)
+          if ($translationFiles.Count -eq 0) {
+            throw "No application translation catalogs were generated."
+          }
+
+          $translationDirectory = 'build-windows/Release/translations'
+          New-Item -ItemType Directory -Force -Path $translationDirectory | Out-Null
+          foreach ($translation in $translationFiles) {
+            $destinationName = $translation.Name -replace '^scantailor-advanced_', 'scantailor_'
+            Copy-Item -LiteralPath $translation.FullName -Destination (Join-Path $translationDirectory $destinationName)
+          }
+
       - name: Upload portable Windows build
         uses: actions/upload-artifact@v5
         with:

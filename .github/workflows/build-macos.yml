@@ -60,7 +60,7 @@ jobs:
           cmake -S . -B build-macos \
             -DCMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_TARGET_TRIPLET=arm64-osx \
-            -DVCPKG_OSX_DEPLOYMENT_TARGET=13.0 \
+            -DVCPKG_OVERLAY_TRIPLETS="$GITHUB_WORKSPACE/.github/vcpkg/overlays" \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
             -DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON \
             -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" \

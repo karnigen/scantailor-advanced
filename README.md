@@ -81,12 +81,34 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 |--|--|
 | **Day-to-day binaries** | Prefer [GitHub Releases](https://github.com/ScanTailor-Advanced/scantailor-advanced/releases) when the project publishes `.deb` / AppImage (or other) builds for a tagged version. |
 | **Install from Flathub** | There is **no** official Flathub listing yet for this fork under the new ID. Shipping there requires a maintainer to follow [Flathub submission](https://docs.flathub.org/docs/for-app-authors/submission/) (separate repo/PR to [flathub/flathub](https://github.com/flathub/flathub)), AppStream metainfo, screenshots, and reviewer feedback. The in-repo manifest is meant to make that step mostly mechanical; issue [#105](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105) tracks coordination. |
-| **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Example: `flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo` then `flatpak-builder --user --install-deps-from=flathub --force-clean build-dir flatpak/org.scantailor.Advanced.json` (installs the KDE 6.11 runtime/SDK from Flathub on first run). The local build uses the working tree, including uncommitted changes; common build directories are excluded. |
+| **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Add the Flathub remote, then use the staged-source command below (installs the KDE 6.11 runtime/SDK from Flathub on first run). The temporary source copy includes working-tree changes while excluding generated build directories, including versioned `build-vcpkg-qt*` directories. |
 | **CI smoke build** | [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs manually on a selected branch and uploads a **`.flatpak` bundle** as a workflow artifact. Its AppStream metadata shows the application name and version; the development entry uses the build date. This is **not** the Flathub build pipeline. |
+
+From the repository root, run:
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+set -o pipefail
+source_dir="$(mktemp -d)"
+trap 'rm -rf -- "$source_dir"' EXIT
+tar -C . \
+  --exclude='./.git' \
+  --exclude='./.flatpak-builder' \
+  --exclude='./build' \
+  --exclude='./build-*' \
+  --exclude='./cmake-build-*' \
+  --exclude='./out' \
+  --exclude='./vcpkg_installed' \
+  --exclude='./repo' \
+  --exclude='./build-dir' \
+  -cf - . | tar -xf - -C "$source_dir"
+flatpak-builder --user --install-deps-from=flathub --force-clean \
+  build-dir "$source_dir/flatpak/org.scantailor.Advanced.json"
+```
 
 **Application ID:** the manifest uses `org.scantailor.Advanced` so it does **not** replace the legacy `com.github._4lex4.*` Flatpak. Author docs: [for app authors](https://docs.flathub.org/docs/for-app-authors/).
 
-**GitHub Releases:** [`.github/workflows/release.yml`](.github/workflows/release.yml) runs only manually. Select an existing `vX.Y.Z` tag whose version exactly matches `VERSION` in `version.h.in` at that tag. It calls the Linux (`all`: DEB, RPM and AppImage), Windows, macOS and Flatpak build workflows for the same commit, then publishes their artifacts if all builds succeed. The tag is checked again before publication. Linux AppImages are built on **Ubuntu 24.04** and require a compatible **glibc** (typically **Ubuntu 24.04+** or equivalent). On **Ubuntu 22.04** and similar older bases, use the **`.deb`** package or build from source. Report Linux package problems in [issue #64](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/64).
+**GitHub Releases:** [`.github/workflows/release.yml`](.github/workflows/release.yml) runs only manually. Select an existing `vX.Y.Z` tag whose version exactly matches `VERSION` in `version.h.in` at that tag. It calls the Linux (`all`: DEB, RPM and AppImage), Windows, macOS and Flatpak build workflows for the same commit, then publishes their artifacts if all builds succeed. The tag is checked again before publication. Linux DEB packages and AppImages are built on **Ubuntu 24.04**. Treat the DEB as targeting Ubuntu 24.04 or an equivalent system-library base; it is not intended as an Ubuntu 22.04 workaround. AppImages also require a compatible **glibc** (typically **Ubuntu 24.04+** or equivalent). On older bases such as Ubuntu 22.04, build from source or use a distribution-compatible package if available. Report Linux package problems in [issue #64](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/64).
 
 The tagged commit must contain the release workflow and reusable build workflows. For example, start the workflow for an existing tag with `gh workflow run release.yml --ref v1.3.0`; successful completion publishes a GitHub Release.
 

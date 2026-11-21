@@ -4,6 +4,10 @@ name: Lint
 on:
   push:
     branches: ['**']
+  pull_request:
+    branches:
+      - master
+      - main
 
 permissions:
   contents: read
@@ -23,8 +27,15 @@ jobs:
 
       - name: Get changed source files
         id: changed
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BASE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          BASE="${{ github.event.before }}"
+          BASE="$PUSH_BASE"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="$PR_BASE"
+          fi
           if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
             BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
           fi
