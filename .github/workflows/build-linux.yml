@@ -13,6 +13,14 @@ on:
           - rpm
           - appimage
           - all
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+      release:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,6 +35,17 @@ jobs:
       - name: Determine build version
         id: build-info
         uses: ./.github/actions/version-info
+        with:
+          release: ${{ inputs.release && 'true' || 'false' }}
+
+      - name: Validate package selection
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          case "$PACKAGE" in
+            deb|rpm|appimage|all) ;;
+            *) echo "Invalid package selection: $PACKAGE" >&2; exit 1 ;;
+          esac
 
       - name: Install build dependencies
         run: |

@@ -1,12 +1,17 @@
 name: Build version information
 description: Read the application version and identify the checkout.
 
+inputs:
+  release:
+    description: Omit the commit hash for release builds
+    default: "false"
+
 outputs:
   version:
     description: Application version
     value: ${{ steps.info.outputs.version }}
   id:
-    description: Application version and short commit hash
+    description: Application version, with short commit hash for non-release builds
     value: ${{ steps.info.outputs.id }}
 
 runs:
@@ -14,6 +19,8 @@ runs:
   steps:
     - id: info
       shell: bash
+      env:
+        RELEASE_BUILD: ${{ inputs.release }}
       run: |
         set -euo pipefail
         version=$(sed -n 's/^#define VERSION "\([^"]*\)".*/\1/p' version.h.in)
@@ -26,4 +33,11 @@ runs:
           exit 1
         fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
-        echo "id=${version}-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+        if [[ "$RELEASE_BUILD" == "true" ]]; then
+          echo "id=$version" >> "$GITHUB_OUTPUT"
+        elif [[ "$RELEASE_BUILD" == "false" ]]; then
+          echo "id=${version}-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+        else
+          echo "Invalid release build flag: $RELEASE_BUILD" >&2
+          exit 1
+        fi

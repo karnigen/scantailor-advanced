@@ -3,16 +3,18 @@
 name: Flatpak
 
 on:
-  push:
-
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   flatpak:
-    if: ${{ !github.event.deleted }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -21,6 +23,8 @@ jobs:
       - name: Determine build version
         id: build-info
         uses: ./.github/actions/version-info
+        with:
+          release: ${{ inputs.release && 'true' || 'false' }}
 
       - name: Install Flatpak tools
         run: |
