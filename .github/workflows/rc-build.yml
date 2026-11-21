@@ -41,6 +41,7 @@ jobs:
       id: ${{ steps.build-info.outputs.id }}
       tag: ${{ steps.tag.outputs.tag }}
       version: ${{ steps.build-info.outputs.version }}
+      asset_version: ${{ steps.tag.outputs.asset_version }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -93,6 +94,7 @@ jobs:
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "asset_version=${tag#v}" >> "$GITHUB_OUTPUT"
 
   linux:
     needs: validate
@@ -210,6 +212,7 @@ jobs:
         env:
           TAG: ${{ needs.validate.outputs.tag }}
           VERSION: ${{ needs.validate.outputs.version }}
+          ASSET_VERSION: ${{ needs.validate.outputs.asset_version }}
           LINUX: ${{ inputs.linux }}
           WINDOWS: ${{ inputs.windows }}
           MACOS: ${{ inputs.macos }}
@@ -217,24 +220,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          for asset in release-assets/scantailor-advanced-"${VERSION}"-*; do
+            [[ -f "$asset" ]] || continue
+            asset_name="${asset##*/}"
+            asset_suffix="${asset_name#scantailor-advanced-${VERSION}-}"
+            mv "$asset" "release-assets/scantailor-advanced-${ASSET_VERSION}-${asset_suffix}"
+          done
+
           expected=()
           case "$LINUX" in
-            deb|all) expected+=("scantailor-advanced-${VERSION}-linux-x86_64.deb") ;;
+            deb|all) expected+=("scantailor-advanced-${ASSET_VERSION}-linux-x86_64.deb") ;;
           esac
           case "$LINUX" in
-            rpm|all) expected+=("scantailor-advanced-${VERSION}-linux-x86_64.rpm") ;;
+            rpm|all) expected+=("scantailor-advanced-${ASSET_VERSION}-linux-x86_64.rpm") ;;
           esac
           case "$LINUX" in
-            appimage|all) expected+=("scantailor-advanced-${VERSION}-linux-x86_64.AppImage") ;;
+            appimage|all) expected+=("scantailor-advanced-${ASSET_VERSION}-linux-x86_64.AppImage") ;;
           esac
           if [[ "$FLATPAK" == "true" ]]; then
-            expected+=("scantailor-advanced-${VERSION}-linux-x86_64.flatpak")
+            expected+=("scantailor-advanced-${ASSET_VERSION}-linux-x86_64.flatpak")
           fi
           if [[ "$MACOS" == "true" ]]; then
-            expected+=("scantailor-advanced-${VERSION}-macos-arm64.zip")
+            expected+=("scantailor-advanced-${ASSET_VERSION}-macos-arm64.zip")
           fi
           if [[ "$WINDOWS" == "true" ]]; then
-            expected+=("scantailor-advanced-${VERSION}-windows-x64.zip")
+            expected+=("scantailor-advanced-${ASSET_VERSION}-windows-x64.zip")
           fi
 
           for asset in "${expected[@]}"; do
@@ -250,4 +260,16 @@ jobs:
             echo "Release $TAG must remain a published prerelease." >&2
             exit 1
           fi
+
+          bash scripts/rename-release-assets.sh \
+            --yes "$TAG" "$VERSION" "$ASSET_VERSION" prefer-target
           gh release upload "$TAG" release-assets/* --clobber
+
+          uploaded_assets="$(gh release view "$TAG" --json assets \
+            --jq '.assets[] | select(.state == "uploaded" and .size > 0) | .name')"
+          for asset in "${expected[@]}"; do
+            grep -Fxq "$asset" <<< "$uploaded_assets" || {
+              echo "Release upload did not contain expected asset: $asset" >&2
+              exit 1
+            }
+          done
