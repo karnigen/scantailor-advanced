@@ -1,0 +1,77 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows Server 2022 (MSVC, prebuilt Qt + vcpkg)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Determine build version
+        id: build-info
+        uses: ./.github/actions/version-info
+        with:
+          release: ${{ inputs.release && 'true' || 'false' }}
+
+      - name: Install prebuilt Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          arch: win64_msvc2022_64
+          archives: "qtbase qtsvg qttools qttranslations"
+          cache: true
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build-windows `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:GITHUB_WORKSPACE/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DBUILD_TESTS=OFF `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON `
+            "-DQt6_DIR=$($env:QT_ROOT_DIR)/lib/cmake/Qt6"
+
+      - name: Build
+        run: cmake --build build-windows --config Release --parallel
+
+      - name: Add application translations
+        shell: pwsh
+        run: |
+          $translationFiles = @(Get-ChildItem -Path build-windows -Filter 'scantailor-advanced_*.qm' -File -ErrorAction Stop)
+          if ($translationFiles.Count -eq 0) {
+            throw "No application translation catalogs were generated."
+          }
+
+          $translationDirectory = 'build-windows/Release/translations'
+          New-Item -ItemType Directory -Force -Path $translationDirectory | Out-Null
+          foreach ($translation in $translationFiles) {
+            $destinationName = $translation.Name -replace '^scantailor-advanced_', 'scantailor_'
+            Copy-Item -LiteralPath $translation.FullName -Destination (Join-Path $translationDirectory $destinationName)
+          }
+
+      - name: Upload portable Windows build
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-windows-x64
+          path: build-windows/Release/
+          if-no-files-found: error

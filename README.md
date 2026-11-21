@@ -81,12 +81,38 @@ Go to [this repository](https://github.com/ScanTailor-Advanced/scantailor-libs-b
 |--|--|
 | **Day-to-day binaries** | Prefer [GitHub Releases](https://github.com/ScanTailor-Advanced/scantailor-advanced/releases) when the project publishes `.deb` / AppImage (or other) builds for a tagged version. |
 | **Install from Flathub** | There is **no** official Flathub listing yet for this fork under the new ID. Shipping there requires a maintainer to follow [Flathub submission](https://docs.flathub.org/docs/for-app-authors/submission/) (separate repo/PR to [flathub/flathub](https://github.com/flathub/flathub)), AppStream metainfo, screenshots, and reviewer feedback. The in-repo manifest is meant to make that step mostly mechanical; issue [#105](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105) tracks coordination. |
-| **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Example: `flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo` then `flatpak-builder --user --install-deps-from=flathub --force-clean build-dir flatpak/org.scantailor.Advanced.json` (installs the KDE runtime/SDK from Flathub on first run). |
-| **CI smoke build** | On each **`v*` tag** push (and via **workflow dispatch**), [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs `flatpak-builder` and uploads a **`.flatpak` bundle** as a workflow artifact for smoke testing. This is **not** the Flathub build pipeline. |
+| **Local Flatpak (maintainers / QA)** | Manifest: [`flatpak/org.scantailor.Advanced.json`](flatpak/org.scantailor.Advanced.json). Add the Flathub remote, then use the staged-source command below (installs the KDE 6.11 runtime/SDK from Flathub on first run). The temporary source copy includes working-tree changes while excluding generated build directories, including versioned `build-vcpkg-qt*` directories. |
+| **CI smoke build** | [`.github/workflows/flatpak.yml`](.github/workflows/flatpak.yml) runs manually on a selected branch and uploads a **`.flatpak` bundle** as a workflow artifact. Its AppStream metadata shows the application name and version; the development entry uses the build date. This is **not** the Flathub build pipeline. |
+
+From the repository root, run:
+
+```bash
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+set -o pipefail
+source_dir="$(mktemp -d)"
+trap 'rm -rf -- "$source_dir"' EXIT
+tar -C . \
+  --exclude='./.git' \
+  --exclude='./.flatpak-builder' \
+  --exclude='./build' \
+  --exclude='./build-*' \
+  --exclude='./cmake-build-*' \
+  --exclude='./out' \
+  --exclude='./vcpkg_installed' \
+  --exclude='./repo' \
+  --exclude='./build-dir' \
+  -cf - . | tar -xf - -C "$source_dir"
+flatpak-builder --user --install-deps-from=flathub --force-clean \
+  build-dir "$source_dir/flatpak/org.scantailor.Advanced.json"
+```
 
 **Application ID:** the manifest uses `org.scantailor.Advanced` so it does **not** replace the legacy `com.github._4lex4.*` Flatpak. Author docs: [for app authors](https://docs.flathub.org/docs/for-app-authors/).
 
-**Linux – GitHub Releases (.deb / AppImage, [issue #64](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/64)):** Version tags matching `v*` run [`.github/workflows/release.yml`](.github/workflows/release.yml), which produces a `.deb` ([`build-deb.sh`](build-deb.sh)) and an AppImage attached to the GitHub Release when the workflow is enabled. The AppImage is built on **Ubuntu 24.04** (`ubuntu-latest`) and requires a compatible **glibc** (typically **Ubuntu 24.04+** or equivalent). On **Ubuntu 22.04** and similar older bases, use the **`.deb`** package or build from source. Report problems with those binaries in [issue #64](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/64).
+**RC builds (maintainers):** `scripts/rc-build.sh` creates or reuses the next `vX.Y.Z-rcN` tag for the current commit and its GitHub prerelease. Pass only the builds needed, for example `scripts/rc-build.sh --linux deb`, `scripts/rc-build.sh --windows --macos`, or `scripts/rc-build.sh --all`. Re-running it for the same commit reuses its RC tag, so additional OS builds add assets to that release; each new commit receives the next RC number. With no build options, it creates the tag and prerelease without dispatching a build. The checkout must be clean, `gh` must be authenticated, and the RC workflow must already be on the default branch.
+
+**GitHub Releases:** [`.github/workflows/release.yml`](.github/workflows/release.yml) runs automatically when a `vX.Y.Z` tag is pushed (or can be run manually). The tag version must exactly match `VERSION` in `version.h.in` at that commit. If a complete RC prerelease points to the same commit, the workflow promotes that release to `vX.Y.Z` without rebuilding; otherwise it builds the Linux (DEB, RPM and AppImage), Windows, macOS and Flatpak packages, then publishes them if all builds succeed. Linux DEB packages and AppImages are built on **Ubuntu 24.04**. Treat the DEB as targeting Ubuntu 24.04 or an equivalent system-library base; it is not intended as an Ubuntu 22.04 workaround. AppImages also require a compatible **glibc** (typically **Ubuntu 24.04+** or equivalent). On older bases such as Ubuntu 22.04, build from source or use a distribution-compatible package if available. Report Linux package problems in [issue #64](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/64).
+
+The tagged commit must contain the release workflow and reusable build workflows. For example, start the workflow for an existing tag with `gh workflow run release.yml --ref v1.3.0`; successful completion publishes a GitHub Release.
 
 **Community examples / test data:** See also [scantailor-testing](https://github.com/ImageProcessing-ElectronicPublications/scantailor-testing) (community repository; issue [#43](https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/43)).
 
@@ -467,6 +493,11 @@ cmake ..
 make -j$(nproc)
 ```
 
+Release builds do not target the build machine's CPU by default, so binaries can be
+distributed to other compatible machines. For a GCC build used only on the same
+machine, pass `-DNATIVE_CPU_OPTIMIZATIONS=ON` to CMake to enable `-march=native`
+and `-mtune=native` in Release mode. Do not enable this for distributed packages.
+
 Command-line paths:
 
 ```bash
@@ -507,19 +538,16 @@ To build a `.deb` package (with application icon and menu entry):
 
 This shows the build plan and asks for confirmation before compiling. Use `./build-deb.sh -y` for non-interactive builds. It produces `scantailor-advanced_<version>_<arch>.deb` in the project root. Install with `sudo dpkg -i scantailor-advanced_*.deb`.
 
-#### Building a Windows .exe from Linux (cross-compile)
+#### Building on Windows, Linux, and macOS
 
-The current Windows cross-build script is still a Qt5-era MXE integration and is not supported as a Qt6 build. Do not use the Qt5-only MXE package setup with this Qt6-only source tree. Qt6 Windows cross-compilation is currently provided only as a code/build target, not as a supported packaged cross-build.
+The **Build Windows** workflow runs manually and builds with MSVC on Windows Server 2022. The **Build macOS** workflow runs manually and builds on macOS 15 ARM64. Both use prebuilt Qt and the project's pinned vcpkg baseline for other dependencies. No local Windows or macOS setup is required.
 
-Do not run the Windows script against an unverified MXE Qt5 toolchain. It will produce an unsupported Qt/ABI mix.
+The Windows build runs on Windows Server 2022 with prebuilt Qt 6.8.3; that verifies compilation, not runtime behavior on Windows 10/11. The application should still be smoke-tested on those desktop versions before claiming runtime compatibility.
 
-```bash
-./build-windows.sh
-```
+The macOS workflow uploads a ZIP containing an ad-hoc-signed `.app` bundle with Qt dependencies. It checks the signature, runs `--help` and checks for an on-screen window without the build's Qt installation. It is an experimental ARM64 build, not notarized by Apple; Gatekeeper may block it, and it still needs interactive testing on a Mac.
 
-This shows the cross-build plan and asks for confirmation before compiling. Use `./build-windows.sh -y` for non-interactive builds. It produces `build-win-static/scantailor.exe`. Use `./build-windows.sh shared` for a smaller build that requires shipping DLLs from MXE’s `usr/x86_64-w64-mingw32.shared/bin/` alongside the .exe.
+For downloadable Linux packages, use the **Build Linux** workflow to create DEB, RPM, or AppImage artifacts. These Linux distribution packages use the runner's system Qt/dependencies so their package metadata and runtime linkage follow the distribution; the Windows and macOS builds use vcpkg for other dependencies.
 
-#### Building on Windows (native)
+Manual build artifact and package filenames include the application version from `version.h.in` and the short commit hash, for example `scantailor-advanced-1.3.0-abcdef0-linux-x86_64.flatpak`. Release packages use the release version without a commit hash.
 
-Go to [this repository](https://github.com/4lex4/scantailor-libs-build) and follow the instructions given there.
-Qt 6.4 is the minimum supported Qt version for Linux system packages. Qt 6.9 or newer is recommended for full Qt6 API and toolchain compatibility.
+Qt 6.4 is the minimum supported Qt version for Linux system packages. The macOS CI build uses prebuilt Qt 6.11.3 and targets macOS 13 or later.

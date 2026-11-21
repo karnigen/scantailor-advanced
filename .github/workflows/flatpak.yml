@@ -1,22 +1,30 @@
-# Build the in-repo Flatpak manifest on release tags (smoke test + downloadable bundle).
+# Build the in-repo Flatpak manifest (smoke build + downloadable bundle).
 # This does not publish to Flathub; see README and https://github.com/ScanTailor-Advanced/scantailor-advanced/issues/105
 name: Flatpak
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   flatpak:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Determine build version
+        id: build-info
+        uses: ./.github/actions/version-info
+        with:
+          release: ${{ inputs.release && 'true' || 'false' }}
 
       - name: Install Flatpak tools
         run: |
@@ -35,15 +43,27 @@ jobs:
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --user --repo=repo --force-clean build-dir flatpak/org.scantailor.Advanced.json --install-deps-from=flathub
+          mkdir -p "$RUNNER_TEMP/flatpak-source"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/flatpak-source"
+          flatpak-builder --user --repo=repo --force-clean build-dir "$RUNNER_TEMP/flatpak-source/flatpak/org.scantailor.Advanced.json" --install-deps-from=flathub
 
       - name: Create single-file bundle
         run: |
-          flatpak build-bundle repo "ScanTailor-Advanced-${{ github.ref_name }}.flatpak" org.scantailor.Advanced
+          flatpak build-bundle repo "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.flatpak" org.scantailor.Advanced
+
+      - name: Verify bundle metadata
+        run: |
+          flatpak install --user --noninteractive --no-deps --bundle "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.flatpak"
+          actual=$(flatpak list --user --app --columns=name,application,version | awk -F '\t' '$2 == "org.scantailor.Advanced" { print $1 "\t" $3 }')
+          expected=$(printf 'ScanTailor Advanced\t%s' "${{ steps.build-info.outputs.version }}")
+          if [ "$actual" != "$expected" ]; then
+            printf 'Unexpected Flatpak name/version: %s\n' "$actual" >&2
+            exit 1
+          fi
 
       - name: Upload bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: ScanTailor-Advanced-flatpak-${{ github.ref_name }}
-          path: "*.flatpak"
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64-flatpak
+          path: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.flatpak
           if-no-files-found: error

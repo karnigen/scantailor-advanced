@@ -10,10 +10,10 @@
 #include <core/IconProvider.h>
 #include <core/StyledIconPack.h>
 
-#include <QGuiApplication>
 #include <QCommandLineParser>
 #include <QDir>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QSettings>
 #include <QStringList>
 #include <QTextStream>
@@ -21,26 +21,25 @@
 #include "MainWindow.h"
 
 int main(int argc, char* argv[]) {
+#ifdef Q_OS_LINUX
   // Qt 6.12 can load GTK3's platform theme plugin even for Qt-owned dialogs.
   // With mismatched libpng builds this crashes in gdk_pixbuf/png_destroy_read_struct.
   // Keep the process on Qt's generic theme unless the user explicitly overrides it.
   if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORMTHEME")) {
     qputenv("QT_QPA_PLATFORMTHEME", QByteArrayLiteral("generic"));
   }
-  QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
-      Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
+  QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
   Application app(argc, argv);
   Application::setApplicationName(APPLICATION_NAME);
   Application::setOrganizationName(ORGANIZATION_NAME);
 
   QCommandLineParser parser;
-  parser.setApplicationDescription(QObject::tr(
-      "ScanTailor Advanced. Specify a project file to open it, or an existing directory "
-      "to use as the initial input/output location."));
+  parser.setApplicationDescription(
+      QObject::tr("ScanTailor Advanced. Specify a project file to open it, or an existing directory "
+                  "to use as the initial input/output location."));
   parser.addHelpOption();
-  parser.addPositionalArgument(
-      "path",
-      QObject::tr("Optional project file (.ScanTailor) or initial directory."));
+  parser.addPositionalArgument("path", QObject::tr("Optional project file (.ScanTailor) or initial directory."));
   parser.process(app);
 
   QString initialDirectory;

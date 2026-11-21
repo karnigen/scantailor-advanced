@@ -38,16 +38,31 @@
           "name": "qtbase",
           "default-features": false,
           "features": [
-            "fontconfig",
             "freetype",
             "gui",
             "harfbuzz",
             "network",
             "opengl",
             "testlib",
-            "widgets",
-            "xcb"
+            "widgets"
           ]
+        },
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "fontconfig",
+            "xcb"
+          ],
+          "platform": "linux"
+        },
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "windeployqt"
+          ],
+          "platform": "windows"
         },
         "qtsvg",
         {

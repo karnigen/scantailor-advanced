@@ -1,9 +1,9 @@
 {
   "id": "org.scantailor.Advanced",
   "runtime": "org.kde.Platform",
-  "runtime-version": "5.15-24.08",
+  "runtime-version": "6.11",
   "sdk": "org.kde.Sdk",
-  "command": "scantailor",
+  "command": "scantailor-advanced",
   "finish-args": [
     "--share=ipc",
     "--socket=fallback-x11",
@@ -12,19 +12,44 @@
     "--filesystem=home",
     "--filesystem=xdg-documents"
   ],
+  "cleanup": ["/include"],
   "modules": [
     {
-      "name": "scantailor-advanced",
-      "buildsystem": "cmake-ninja",
-      "config-opts": [
-        "-DCMAKE_BUILD_TYPE=Release",
-        "-DBUILD_TESTS=OFF"
+      "name": "boost-headers",
+      "buildsystem": "simple",
+      "build-commands": [
+        "mkdir -p /app/include",
+        "cp -a boost /app/include/"
       ],
       "sources": [
         {
-          "type": "git",
-          "url": "https://github.com/ScanTailor-Advanced/scantailor-advanced.git",
-          "tag": "v1.1.1"
+          "type": "archive",
+          "url": "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz",
+          "sha256": "2575e74ffc3ef1cd0babac2c1ee8bdb5782a0ee672b1912da40e5b4b591ca01f"
+        }
+      ]
+    },
+    {
+      "name": "scantailor-advanced",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_TESTS=OFF",
+        "-DPORTABLE_VERSION=OFF",
+        "-DINSTALL_FLATPAK_METAINFO=ON"
+      ],
+      "post-install": [
+        "mv /app/share/applications/scantailor-advanced.desktop /app/share/applications/org.scantailor.Advanced.desktop",
+        "sed -i 's/^Icon=scantailor-advanced$/Icon=org.scantailor.Advanced/' /app/share/applications/org.scantailor.Advanced.desktop",
+        "mv /app/share/icons/hicolor/scalable/apps/scantailor-advanced.svg /app/share/icons/hicolor/scalable/apps/org.scantailor.Advanced.svg",
+        "for qm in /app/share/scantailor-advanced/translations/scantailor-advanced_*.qm; do mv \"$qm\" \"${qm%/*}/scantailor_${qm##*scantailor-advanced_}\"; done"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "..",
+          "skip": [".git", ".flatpak-builder", "repo", "build-dir"]
         }
       ]
     }

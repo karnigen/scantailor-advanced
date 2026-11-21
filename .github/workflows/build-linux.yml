@@ -1,4 +1,4 @@
-name: Manual Package Build
+name: Build Linux
 
 on:
   workflow_dispatch:
@@ -10,8 +10,17 @@ on:
         type: choice
         options:
           - deb
+          - rpm
           - appimage
           - all
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+      release:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,9 +28,24 @@ permissions:
 jobs:
   build-package:
     name: Build ${{ inputs.package }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+
+      - name: Determine build version
+        id: build-info
+        uses: ./.github/actions/version-info
+        with:
+          release: ${{ inputs.release && 'true' || 'false' }}
+
+      - name: Validate package selection
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          case "$PACKAGE" in
+            deb|rpm|appimage|all) ;;
+            *) echo "Invalid package selection: $PACKAGE" >&2; exit 1 ;;
+          esac
 
       - name: Install build dependencies
         run: |
@@ -37,22 +61,39 @@ jobs:
             libpthread-stubs0-dev \
             rpm libfuse2t64
 
-      - name: Configure and build
+      - name: Configure and build for AppImage or RPM
+        if: ${{ inputs.package == 'appimage' || inputs.package == 'rpm' || inputs.package == 'all' }}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
           cmake --build build --config Release --parallel "$(nproc)"
+
+      - name: Build RPM package
+        if: ${{ inputs.package == 'rpm' || inputs.package == 'all' }}
+        working-directory: build
+        run: |
+          cpack -G RPM
+          mv scantailor*.rpm "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.rpm"
+
+      - name: Upload RPM artifact
+        if: ${{ inputs.package == 'rpm' || inputs.package == 'all' }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64-rpm
+          path: build/scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.rpm
+          if-no-files-found: error
 
       - name: Build DEB package
         if: ${{ inputs.package == 'deb' || inputs.package == 'all' }}
         run: |
           ./build-deb.sh -y build
+          mv "scantailor-advanced_${{ steps.build-info.outputs.version }}_amd64.deb" "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.deb"
 
       - name: Upload DEB artifact
         if: ${{ inputs.package == 'deb' || inputs.package == 'all' }}
         uses: actions/upload-artifact@v5
         with:
-          name: scantailor-linux-deb
-          path: scantailor-advanced_*_amd64.deb
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64-deb
+          path: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.deb
           if-no-files-found: error
 
       - name: Download linuxdeploy
@@ -66,11 +107,8 @@ jobs:
       - name: Build AppImage
         if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
         run: |
-          rm -rf build-appimage
-          mkdir build-appimage
-          cd build-appimage
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr ..
-          cmake --build . --config Release --parallel "$(nproc)"
+          cd build
+          rm -rf AppDir
           make install DESTDIR=AppDir
           export QMAKE=/usr/bin/qmake6
           ../linuxdeploy-x86_64.AppImage \
@@ -79,12 +117,12 @@ jobs:
             -e AppDir/usr/bin/scantailor-advanced \
             --output appimage
           OUT=$(ls -1 *.AppImage 2>/dev/null | head -1)
-          mv "$OUT" "../scantailor-advanced-manual-${{ github.sha }}-x86_64.AppImage"
+          mv "$OUT" "../scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.AppImage"
 
       - name: Upload AppImage artifact
         if: ${{ inputs.package == 'appimage' || inputs.package == 'all' }}
         uses: actions/upload-artifact@v5
         with:
-          name: scantailor-linux-appimage
-          path: scantailor-advanced-*-x86_64.AppImage
+          name: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64-appimage
+          path: scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.AppImage
           if-no-files-found: error

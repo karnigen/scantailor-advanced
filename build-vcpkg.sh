@@ -86,6 +86,7 @@ while (($#)); do
 done
 
 VCPKG_ROOT="${VCPKG_ROOT:-${HOME}/vcpkg}"
+INITIAL_VCPKG_ROOT="$VCPKG_ROOT"
 VCPKG_TOOLCHAIN="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
 
 display_path() {
@@ -109,7 +110,7 @@ read_build_config() {
   BUILD_TESTS="OFF"
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
   QT_ROOT=""
-  VCPKG_ROOT="${VCPKG_ROOT:-${HOME}/vcpkg}"
+  VCPKG_ROOT="$INITIAL_VCPKG_ROOT"
 
   [[ -f "$config_file" ]] || return 0
   while IFS='=' read -r key value; do
@@ -144,7 +145,7 @@ select_interactive_build() {
   local dir config qt_root build_type build_tests jobs label
   local index
 
-  [[ -d "$SCRIPT_DIR/build-vcpkg" ]] && build_dirs+=("$SCRIPT_DIR/build-vcpkg")
+  build_dirs+=("$SCRIPT_DIR/build-vcpkg")
   local qt_dir
   for qt_dir in "$SCRIPT_DIR"/build-vcpkg-qt*; do
     [[ -d "$qt_dir" ]] && build_dirs+=("$qt_dir")
@@ -171,6 +172,9 @@ select_interactive_build() {
       label="local Qt $(display_path "$qt_root")"
     else
       label="vcpkg Qt"
+    fi
+    if [[ ! -d "$dir" ]]; then
+      label="$label, new build"
     fi
     printf '  %d) %s (%s, tests=%s, jobs=%s)\n' \
       "$index" "$(display_path "$dir")" "$label" "$build_tests" "$jobs"
