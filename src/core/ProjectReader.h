@@ -15,6 +15,7 @@
 #include "ImageInfo.h"
 #include "ImageMetadata.h"
 #include "PageId.h"
+#include "ProjectMigration.h"
 #include "SelectedPage.h"
 
 class QDomElement;
@@ -37,6 +38,8 @@ class ProjectReader {
   const QString& outputDirectory() const { return m_outDir; }
 
   const QString& getVersion() const { return m_version; }
+
+  const ProjectMigrationReport& migrationReport() const { return m_migrationReport; }
 
   const std::shared_ptr<ProjectPages>& pages() const { return m_pages; }
 
@@ -87,6 +90,7 @@ class ProjectReader {
   QString m_projectDirPath;
   QString m_outDir;
   QString m_version;
+  ProjectMigrationReport m_migrationReport;
   DirMap m_dirMap;
   FileMap m_fileMap;
   ImageMap m_imageMap;

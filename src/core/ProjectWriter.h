@@ -41,7 +41,7 @@ class ProjectWriter {
 
   ~ProjectWriter();
 
-  bool write(const QString& filePath, const std::vector<FilterPtr>& filters) const;
+  bool write(const QString& filePath, const std::vector<FilterPtr>& filters, QString* errorMessage = nullptr) const;
 
   /**
    * \p out will be called like this: out(ImageId, numeric_image_id)

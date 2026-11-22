@@ -13,10 +13,10 @@ Runtime validation and migration must be verified with real project files.
 
 | Key | Format 3 | Format 4 | Meaning / compatibility |
 |---|---|---|---|
-| `<project version>` | `3` | `4` | Format number. The reader rejects a value different from `PROJECT_VERSION`; it does not perform a general format migration. |
-| `<project outputDirectory>` | Absolute path in older v3 files; may be relative in later v3 files | Relative path when possible | Directory for generated output. The v4 writer stores it relative to the project file. |
+| `<project version>` | `3` | `4` | Format number. The reader supports formats 3 and 4; saving a v3 project writes format 4. |
+| `<project outputDirectory>` | Absolute path in older v3 files; may be relative in later v3 files | Relative path when possible, including `..` | Directory for generated output. The v4 writer stores it relative to the project file when the path is on the same filesystem/drive. |
 | `<project layoutDirection>` | `LTR` or `RTL` | `LTR` or `RTL` | User-interface layout direction. |
-| `<directory path>` | Absolute path in older v3 files | Relative path such as `.` or `..` | Directory containing source files. The reader resolves v4-relative paths from the project-file directory. |
+| `<directory path>` | Absolute path in older v3 files | Relative path when possible, including `..` | Directory containing source files. The reader resolves v4-relative paths from the project-file directory. |
 
 ## Filter keys
 
@@ -53,12 +53,32 @@ Attribute order in XML is not significant. Differences in numeric geometry, modi
 file size, or processing values may result from a separate project or a later processing state;
 they do not by themselves prove a format change.
 
+## Format-3 compatibility and saving
+
+The reader accepts format 3 and reports the known format-4 defaults before opening it. Opening
+does not modify the source file. Saving writes format 4 and preserves an existing v3 file first
+as a unique `<project-file>.v3.bak` (or `.v3.1.bak`, etc. if that name already exists). Save As
+to a new file leaves the original v3 file untouched.
+
+The compatibility warning reports the actual missing trim, fill, and oblique-mode data found in
+the project, plus path values that the writer will store relatively where possible. Known
+defaults are:
+
+- Missing `<trim>` data means `enabled=0`, `left=0`, `top=0`, `right=0`, and `bottom=0`.
+- Missing `fillOutsidePageBox` means `0`.
+- Missing `oblique-mode` falls back to `autoOblique` (`1` = auto, `0` = manual), then to `mode`
+  (`manual` = manual; other or missing values = auto).
+
+This project-file compatibility does not migrate `.stp` default-parameter profiles; those remain
+subject to their existing version check.
+
 ## Is changing only `version="3"` to `version="4"` enough?
 
-It may work for some projects, but it is not a supported or reliable migration.
+It is not necessary for this application: the reader accepts v3 directly and uses the
+compatibility behavior above. Manually changing the version string remains an unreliable
+workaround for other builds because it does not convert or validate any other project data.
 
-The current reader is strict: it accepts only `PROJECT_VERSION == 4` and has no general
-v3-to-v4 migration pass. Replacing `3` with `4` can appear to work when:
+Manual replacement can appear to work when:
 
 - the rest of the XML structure is already compatible;
 - missing v4 keys receive valid defaults;
@@ -73,11 +93,8 @@ Examples of compatibility behavior:
 - Missing `wienerWinSize` may be defaulted or validated to `5`.
 - Missing `oblique-mode` can fall back to legacy `autoOblique`, or then to the deskew `mode`.
 
-The practical result depends on the old project and must be tested. A safer approach is to open
-the original v3 project in a v3-compatible or compatibility-capable build, save or export it
-through an application version that performs the same relative-path and setting conversions,
-and then verify the v4 project. Renaming only the version string is a workaround, not a
-confirmed migration algorithm.
+The practical result still depends on the old project and must be tested. Keep the original
+backup until the converted project has been opened and verified.
 
 ## Adding a key
 
