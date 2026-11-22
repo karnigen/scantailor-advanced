@@ -4,7 +4,9 @@
 #include "ApplicationSettings.h"
 
 #include <tiff.h>
+#include "ImageAllocationLimit.h"
 
+#include <QDebug>
 #include <QLocale>
 #include <QtCore/QSettings>
 
@@ -54,6 +56,7 @@ const QString ApplicationSettings::CURRENT_PROFILE_KEY = "current_profile";
 const QString ApplicationSettings::SHOW_CANCELING_SELECTION_QUESTION_KEY = "selection_canceling_question";
 const QString ApplicationSettings::DEFAULT_ZONE_CREATION_MODE_KEY = "default_zone_creation_mode";
 const QString ApplicationSettings::OUTPUT_SHOW_GUIDES_KEY = "output_show_guides";
+const QString ApplicationSettings::IMAGE_ALLOCATION_LIMIT_MB_KEY = "image_allocation_limit_mb";
 const int ApplicationSettings::DEFAULT_ZONE_CREATION_MODE = 0;  // POLYGONAL
 const bool ApplicationSettings::DEFAULT_OUTPUT_SHOW_GUIDES = false;
 
@@ -257,4 +260,36 @@ bool ApplicationSettings::isOutputShowGuidesEnabled() const {
 
 void ApplicationSettings::setOutputShowGuidesEnabled(bool enabled) {
   m_settings.setValue(getKey(OUTPUT_SHOW_GUIDES_KEY), enabled);
+}
+
+int ApplicationSettings::getImageAllocationLimitMb() const {
+  QSettings settings;
+  bool valueOk = false;
+  const int limitMb = settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt(&valueOk);
+  if (settings.status() != QSettings::NoError) {
+    qWarning() << "Unable to read the saved image allocation limit; using Qt's default.";
+    return 0;
+  }
+  if (!valueOk || limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
+    if (settings.contains(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY))) {
+      qWarning() << "Invalid saved image allocation limit; using Qt's default.";
+    }
+    return 0;
+  }
+  return limitMb;
+}
+
+bool ApplicationSettings::setImageAllocationLimitMb(int limitMb) {
+  if (limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
+    qWarning() << "Ignoring invalid image allocation limit:" << limitMb;
+    return false;
+  }
+  QSettings settings;
+  settings.setValue(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), limitMb);
+  settings.sync();
+  if (settings.status() != QSettings::NoError) {
+    qWarning() << "Unable to save the image allocation limit.";
+    return false;
+  }
+  return true;
 }

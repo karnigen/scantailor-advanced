@@ -4,6 +4,7 @@
 #ifndef SCANTAILOR_CORE_TIFFREADER_H_
 #define SCANTAILOR_CORE_TIFFREADER_H_
 
+#include "ImageAllocationLimit.h"
 #include "ImageMetadataLoader.h"
 #include "VirtualFunction.h"
 
@@ -28,7 +29,7 @@ class TiffReader {
    *        TIFF file.
    * \return The resulting image, or a null image in case of failure.
    */
-  static QImage readImage(QIODevice& device, int pageNum = 0);
+  static QImage readImage(QIODevice& device, int pageNum = 0, ImageAllocationLimitInfo* limitInfo = nullptr);
 
  private:
   class TiffHeader;

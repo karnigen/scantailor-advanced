@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QReadLocker>
 #include <QtGui/QImageReader>
 
 #include "ImageId.h"
@@ -15,17 +16,37 @@ QImage ImageLoader::load(const ImageId& imageId) {
   return load(imageId.filePath(), imageId.zeroBasedPage());
 }
 
+QImage ImageLoader::load(const ImageId& imageId, ImageAllocationLimitInfo* limitInfo) {
+  return load(imageId.filePath(), imageId.zeroBasedPage(), limitInfo);
+}
+
 QImage ImageLoader::load(const QString& filePath, const int pageNum) {
+  return load(filePath, pageNum, nullptr);
+}
+
+QImage ImageLoader::load(const QString& filePath, const int pageNum, ImageAllocationLimitInfo* limitInfo) {
+  if (limitInfo) {
+    *limitInfo = ImageAllocationLimitInfo();
+  }
   QFile file(filePath);
   if (!file.open(QIODevice::ReadOnly)) {
     return QImage();
   }
-  return load(file, pageNum);
+  return load(file, pageNum, limitInfo);
 }
 
 QImage ImageLoader::load(QIODevice& ioDev, const int pageNum) {
+  return load(ioDev, pageNum, nullptr);
+}
+
+QImage ImageLoader::load(QIODevice& ioDev, const int pageNum, ImageAllocationLimitInfo* limitInfo) {
+  ImageAllocationLimitInfo localLimitInfo;
+  if (!limitInfo) {
+    limitInfo = &localLimitInfo;
+  }
+  *limitInfo = ImageAllocationLimitInfo();
   if (TiffReader::canRead(ioDev)) {
-    return TiffReader::readImage(ioDev, pageNum);
+    return TiffReader::readImage(ioDev, pageNum, limitInfo);
   }
 
   if (pageNum != 0) {
@@ -33,6 +54,7 @@ QImage ImageLoader::load(QIODevice& ioDev, const int pageNum) {
     return QImage();
   }
 
+  QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
   QImage image;
   QImageReader reader(&ioDev);
   reader.setAutoTransform(true);  // Helps with orientation and some formats (issue #20).
@@ -42,6 +64,13 @@ QImage ImageLoader::load(QIODevice& ioDev, const int pageNum) {
     if (ext == QStringLiteral("jpg") || ext == QStringLiteral("jpeg")) {
       reader.setFormat("jpeg");
     }
+  }
+  const QImage::Format format = reader.imageFormat();
+  const int bitsPerPixel = format == QImage::Format_Invalid
+                               ? static_cast<int>(QImage::toPixelFormat(QImage::Format_RGBA32FPx4).bitsPerPixel())
+                               : qMax(32, static_cast<int>(QImage::toPixelFormat(format).bitsPerPixel()));
+  if (ImageAllocationLimit::exceeds(reader.size(), bitsPerPixel, limitInfo)) {
+    return QImage();
   }
   reader.read(&image);
   return image;

@@ -22,8 +22,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
       - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+        run: python -m pip install --disable-pip-version-check clang-format==23.1.5
 
       - name: Get changed source files
         id: changed

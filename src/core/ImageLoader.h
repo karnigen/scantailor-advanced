@@ -4,6 +4,8 @@
 #ifndef SCANTAILOR_CORE_IMAGELOADER_H_
 #define SCANTAILOR_CORE_IMAGELOADER_H_
 
+#include "ImageAllocationLimit.h"
+
 class ImageId;
 class QImage;
 class QString;
@@ -13,9 +15,15 @@ class ImageLoader {
  public:
   static QImage load(const QString& filePath, int pageNum = 0);
 
+  static QImage load(const QString& filePath, int pageNum, ImageAllocationLimitInfo* limitInfo);
+
   static QImage load(const ImageId& imageId);
 
+  static QImage load(const ImageId& imageId, ImageAllocationLimitInfo* limitInfo);
+
   static QImage load(QIODevice& ioDev, int pageNum);
+
+  static QImage load(QIODevice& ioDev, int pageNum, ImageAllocationLimitInfo* limitInfo);
 };
 
 

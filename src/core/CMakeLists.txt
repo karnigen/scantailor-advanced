@@ -49,6 +49,7 @@ set(common_sources
     PngMetadataLoader.cpp PngMetadataLoader.h
     TiffMetadataLoader.cpp TiffMetadataLoader.h
     JpegMetadataLoader.cpp JpegMetadataLoader.h
+    ImageAllocationLimit.cpp ImageAllocationLimit.h
     ImageLoader.cpp ImageLoader.h
     ErrorWidget.cpp ErrorWidget.h
     OrthogonalRotation.cpp OrthogonalRotation.h

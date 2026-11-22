@@ -8,9 +8,11 @@
 #include <core/ColorSchemeManager.h>
 #include <core/FontIconPack.h>
 #include <core/IconProvider.h>
+#include <core/ImageAllocationLimit.h>
 #include <core/StyledIconPack.h>
 
 #include <QCommandLineParser>
+#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -91,6 +93,18 @@ int main(int argc, char* argv[]) {
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, app.getPortableConfigPath());
   }
   QSettings settings;
+
+  ImageAllocationLimit::defaultLimitMb();
+  if (!ImageAllocationLimit::hasEnvironmentOverride()) {
+    const int imageAllocationLimitMb = ApplicationSettings::getInstance().getImageAllocationLimitMb();
+    if (imageAllocationLimitMb > 0) {
+      int effectiveLimitMb = 0;
+      if (ImageAllocationLimit::setLimitMb(imageAllocationLimitMb, &effectiveLimitMb)
+          != ImageAllocationLimit::UpdateResult::Applied) {
+        qWarning() << "The saved image allocation limit was rejected.";
+      }
+    }
+  }
 
   app.installLanguage(ApplicationSettings::getInstance().getLanguage());
 
