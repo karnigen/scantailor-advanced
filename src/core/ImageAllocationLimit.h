@@ -18,6 +18,8 @@ struct ImageAllocationLimitInfo {
 
 class ImageAllocationLimit {
  public:
+  static bool hasEnvironmentOverride();
+
   static bool exceeds(const QSize& imageSize, int bitsPerPixel, ImageAllocationLimitInfo* info);
 
   static int setLimitMb(int limitMb);

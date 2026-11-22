@@ -16,6 +16,12 @@ QReadWriteLock& ImageAllocationLimit::readWriteLock() {
   return lock;
 }
 
+bool ImageAllocationLimit::hasEnvironmentOverride() {
+  bool valueOk = false;
+  const int limitMb = qEnvironmentVariableIntValue("QT_IMAGEIO_MAXALLOC", &valueOk);
+  return valueOk && limitMb >= 0;
+}
+
 bool ImageAllocationLimit::exceeds(const QSize& imageSize, const int bitsPerPixel, ImageAllocationLimitInfo* info) {
   ImageAllocationLimitInfo localInfo;
   if (!info) {

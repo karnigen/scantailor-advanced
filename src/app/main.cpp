@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
   }
   QSettings settings;
 
-  if (!qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")) {
+  if (!ImageAllocationLimit::hasEnvironmentOverride()) {
     const int imageAllocationLimitMb = ApplicationSettings::getInstance().getImageAllocationLimitMb();
     if (imageAllocationLimitMb > 0) {
       ImageAllocationLimit::setLimitMb(imageAllocationLimitMb);

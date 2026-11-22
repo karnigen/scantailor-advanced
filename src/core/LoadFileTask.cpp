@@ -45,7 +45,7 @@ class LoadFileTask::ErrorResult : public FilterResult {
 namespace {
 
 bool canOfferAllocationLimitIncrease(const ImageAllocationLimitInfo& limitInfo) {
-  return limitInfo.canRaiseLimit() && !qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC");
+  return limitInfo.canRaiseLimit() && !ImageAllocationLimit::hasEnvironmentOverride();
 }
 
 class LargeImageOptionsWidget : public FilterOptionsWidget {
@@ -53,7 +53,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
   LargeImageOptionsWidget(QString filePath, ImageAllocationLimitInfo limitInfo)
       : m_filePath(std::move(filePath)), m_limitInfo(limitInfo) {
     auto* layout = new QVBoxLayout(this);
-    const bool environmentOverride = qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC");
+    const bool environmentOverride = ImageAllocationLimit::hasEnvironmentOverride();
     QString explanationText;
     if (!m_limitInfo.canRaiseLimit()) {
       explanationText = tr("The image is too large for the maximum configurable allocation limit.");
@@ -88,7 +88,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
       return;
     }
 
-    if (qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")) {
+    if (ImageAllocationLimit::hasEnvironmentOverride()) {
       QMessageBox::warning(
           this, tr("Image Too Large"),
           tr("QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and restart the "
@@ -143,7 +143,7 @@ class LargeImageResult : public FilterResult {
     QString message;
     if (!m_limitInfo.canRaiseLimit()) {
       message = tr("This image is too large for the configured allocation limit.");
-    } else if (qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")) {
+    } else if (ImageAllocationLimit::hasEnvironmentOverride()) {
       message = tr(
           "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
           "variable and restart the application to load it.");

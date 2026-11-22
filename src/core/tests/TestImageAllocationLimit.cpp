@@ -61,6 +61,27 @@ BOOST_GLOBAL_FIXTURE(ClearImageAllocationLimitEnvironment);
 
 BOOST_AUTO_TEST_SUITE(CoreImageAllocationLimitTestSuite)
 
+BOOST_AUTO_TEST_CASE(test_environment_override_requires_nonnegative_integer) {
+  qunsetenv("QT_IMAGEIO_MAXALLOC");
+  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+
+  qputenv("QT_IMAGEIO_MAXALLOC", QByteArray());
+  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+
+  qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("invalid"));
+  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+
+  qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("-1"));
+  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+
+  qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("0"));
+  BOOST_CHECK(ImageAllocationLimit::hasEnvironmentOverride());
+
+  qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("1024"));
+  BOOST_CHECK(ImageAllocationLimit::hasEnvironmentOverride());
+  qunsetenv("QT_IMAGEIO_MAXALLOC");
+}
+
 BOOST_AUTO_TEST_CASE(test_detects_image_larger_than_limit) {
   AllocationLimitRestorer restoreLimit;
   BOOST_CHECK_EQUAL(ImageAllocationLimit::setLimitMb(1), 1);
