@@ -17,6 +17,11 @@
 
 namespace {
 
+class ClearImageAllocationLimitEnvironment {
+ public:
+  ClearImageAllocationLimitEnvironment() { qunsetenv("QT_IMAGEIO_MAXALLOC"); }
+};
+
 class AllocationLimitRestorer {
  public:
   AllocationLimitRestorer() : m_limitMb(QImageReader::allocationLimit()) {}
@@ -52,11 +57,13 @@ bool writeRgbTiff(const QString& path, const QSize& size) {
 
 }  // namespace
 
+BOOST_GLOBAL_FIXTURE(ClearImageAllocationLimitEnvironment);
+
 BOOST_AUTO_TEST_SUITE(CoreImageAllocationLimitTestSuite)
 
 BOOST_AUTO_TEST_CASE(test_detects_image_larger_than_limit) {
   AllocationLimitRestorer restoreLimit;
-  ImageAllocationLimit::setLimitMb(1);
+  BOOST_CHECK_EQUAL(ImageAllocationLimit::setLimitMb(1), 1);
 
   ImageAllocationLimitInfo info;
   BOOST_CHECK(ImageAllocationLimit::exceeds(QSize(513, 512), 32, &info));
@@ -65,6 +72,8 @@ BOOST_AUTO_TEST_CASE(test_detects_image_larger_than_limit) {
   BOOST_CHECK_EQUAL(info.currentLimitMb, 1);
   BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
   BOOST_CHECK(info.canRaiseLimit());
+  BOOST_CHECK(ImageAllocationLimit::exceeds(QSize(513, 512), 32, nullptr));
+  BOOST_CHECK(!ImageAllocationLimit::exceeds(QSize(512, 512), 32, nullptr));
 }
 
 BOOST_AUTO_TEST_CASE(test_accepts_image_within_limit) {
@@ -105,6 +114,25 @@ BOOST_AUTO_TEST_CASE(test_image_loader_reports_oversized_png_before_decoding) {
   BOOST_CHECK(info.exceeded);
   BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
   BOOST_CHECK(ImageLoader::load(imagePath).isNull());
+}
+
+BOOST_AUTO_TEST_CASE(test_image_loader_uses_16_bit_png_depth_for_limit_estimate) {
+  QTemporaryDir tempDir;
+  BOOST_REQUIRE(tempDir.isValid());
+
+  const QString imagePath(tempDir.filePath("16-bit.png"));
+  QImage source(QSize(512, 512), QImage::Format_RGBA64);
+  source.fill(Qt::white);
+  BOOST_REQUIRE(source.save(imagePath, "PNG"));
+
+  AllocationLimitRestorer restoreLimit;
+  ImageAllocationLimit::setLimitMb(1);
+
+  ImageAllocationLimitInfo info;
+  const QImage loaded = ImageLoader::load(imagePath, 0, &info);
+  BOOST_CHECK(loaded.isNull());
+  BOOST_CHECK(info.exceeded);
+  BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
 }
 
 BOOST_AUTO_TEST_CASE(test_tiff_loader_checks_limit_before_allocating_and_loads_after_increase) {

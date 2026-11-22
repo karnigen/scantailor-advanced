@@ -17,8 +17,9 @@ QReadWriteLock& ImageAllocationLimit::readWriteLock() {
 }
 
 bool ImageAllocationLimit::exceeds(const QSize& imageSize, const int bitsPerPixel, ImageAllocationLimitInfo* info) {
+  ImageAllocationLimitInfo localInfo;
   if (!info) {
-    return false;
+    info = &localInfo;
   }
   *info = ImageAllocationLimitInfo();
   if (imageSize.width() <= 0 || imageSize.height() <= 0 || bitsPerPixel <= 0) {
@@ -55,7 +56,8 @@ bool ImageAllocationLimit::exceeds(const QSize& imageSize, const int bitsPerPixe
   return info->exceeded;
 }
 
-void ImageAllocationLimit::setLimitMb(const int limitMb) {
+int ImageAllocationLimit::setLimitMb(const int limitMb) {
   QWriteLocker lock(&readWriteLock());
   QImageReader::setAllocationLimit(limitMb);
+  return QImageReader::allocationLimit();
 }

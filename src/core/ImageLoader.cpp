@@ -62,7 +62,11 @@ QImage ImageLoader::load(QIODevice& ioDev, const int pageNum, ImageAllocationLim
       reader.setFormat("jpeg");
     }
   }
-  if (ImageAllocationLimit::exceeds(reader.size(), 32, limitInfo)) {
+  const QImage::Format format = reader.imageFormat();
+  const int bitsPerPixel = format == QImage::Format_Invalid
+                               ? 32
+                               : qMax(32, static_cast<int>(QImage::toPixelFormat(format).bitsPerPixel()));
+  if (ImageAllocationLimit::exceeds(reader.size(), bitsPerPixel, limitInfo)) {
     return QImage();
   }
   reader.read(&image);

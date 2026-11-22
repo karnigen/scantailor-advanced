@@ -20,7 +20,7 @@ class ImageAllocationLimit {
  public:
   static bool exceeds(const QSize& imageSize, int bitsPerPixel, ImageAllocationLimitInfo* info);
 
-  static void setLimitMb(int limitMb);
+  static int setLimitMb(int limitMb);
 
   static QReadWriteLock& readWriteLock();
 };

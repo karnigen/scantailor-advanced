@@ -44,23 +44,36 @@ class LoadFileTask::ErrorResult : public FilterResult {
 
 namespace {
 
+bool canOfferAllocationLimitIncrease(const ImageAllocationLimitInfo& limitInfo) {
+  return limitInfo.canRaiseLimit() && !qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC");
+}
+
 class LargeImageOptionsWidget : public FilterOptionsWidget {
  public:
   LargeImageOptionsWidget(QString filePath, ImageAllocationLimitInfo limitInfo)
       : m_filePath(std::move(filePath)), m_limitInfo(limitInfo) {
     auto* layout = new QVBoxLayout(this);
-    auto* explanation = new QLabel(
-        tr("The image is larger than the current allocation limit. Increasing the limit affects all image loads "
-           "in this application. Large or malformed images can exhaust memory, slow down the system, or crash "
-           "the application. Choose whether to allow this limit for this run or remember it in application settings."),
-        this);
+    const bool environmentOverride = qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC");
+    const QString explanationText
+        = !m_limitInfo.canRaiseLimit()
+              ? tr("The image is too large for the maximum configurable allocation limit.")
+              : environmentOverride
+                    ? tr("QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and "
+                         "restart the application to load this image.")
+                    : tr("The image is larger than the current allocation limit. Increasing the limit affects all "
+                         "image loads in this application. Large or malformed images can exhaust memory, slow down "
+                         "the system, or crash the application. Choose whether to allow this limit for this run or "
+                         "remember it in application settings.");
+    auto* explanation = new QLabel(explanationText, this);
     explanation->setWordWrap(true);
     layout->addWidget(explanation);
 
-    auto* button = new QPushButton(tr("Review image allocation limit..."), this);
-    layout->addWidget(button);
+    if (canOfferAllocationLimitIncrease(m_limitInfo)) {
+      auto* button = new QPushButton(tr("Review image allocation limit..."), this);
+      layout->addWidget(button);
+      connect(button, &QPushButton::clicked, this, [this]() { requestLimitIncrease(); });
+    }
     layout->addStretch();
-    connect(button, &QPushButton::clicked, this, [this]() { requestLimitIncrease(); });
   }
 
  private:
@@ -71,7 +84,14 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
       return;
     }
 
-    const bool environmentOverride = qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC");
+    if (qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")) {
+      QMessageBox::warning(
+          this, tr("Image Too Large"),
+          tr("QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and restart the "
+             "application to load this image."));
+      return;
+    }
+
     QString message = tr("The image %1 (%2 x %3 pixels) requires an estimated allocation limit of at least %4 MiB. "
                          "The current limit is %5 MiB. This limit is global, not per image, and raising it can cause "
                          "memory exhaustion or make the system unresponsive.")
@@ -80,18 +100,10 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
                           .arg(m_limitInfo.imageSize.height())
                           .arg(m_limitInfo.requiredLimitMb)
                           .arg(m_limitInfo.currentLimitMb);
-    if (environmentOverride) {
-      message += QLatin1Char('\n')
-                 + tr(
-                     "QT_IMAGEIO_MAXALLOC is set. The remembered value will be used on startup only when that "
-                     "environment variable is unset.");
-    }
 
     QMessageBox dialog(QMessageBox::Warning, tr("Image Too Large"), message, QMessageBox::Cancel, this);
     QPushButton* const onceButton = dialog.addButton(tr("Allow for This Run"), QMessageBox::AcceptRole);
-    QPushButton* const rememberButton = dialog.addButton(
-        environmentOverride ? tr("Remember (when environment variable is unset)") : tr("Remember This Limit"),
-        QMessageBox::AcceptRole);
+    QPushButton* const rememberButton = dialog.addButton(tr("Remember This Limit"), QMessageBox::AcceptRole);
     dialog.setDefaultButton(QMessageBox::Cancel);
     dialog.exec();
 
@@ -99,7 +111,13 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
       return;
     }
 
-    ImageAllocationLimit::setLimitMb(m_limitInfo.requiredLimitMb);
+    const int effectiveLimitMb = ImageAllocationLimit::setLimitMb(m_limitInfo.requiredLimitMb);
+    if (effectiveLimitMb > 0 && effectiveLimitMb < m_limitInfo.requiredLimitMb) {
+      QMessageBox::warning(
+          this, tr("Image Too Large"),
+          tr("The requested allocation limit could not be applied. QT_IMAGEIO_MAXALLOC may override the limit."));
+      return;
+    }
     if (dialog.clickedButton() == rememberButton) {
       ApplicationSettings::getInstance().setImageAllocationLimitMb(m_limitInfo.requiredLimitMb);
     }
@@ -119,10 +137,13 @@ class LargeImageResult : public FilterResult {
 
   void updateUI(FilterUiInterface* ui) override {
     const QString message
-        = m_limitInfo.canRaiseLimit()
-              ? tr("This image is larger than the current image allocation limit. Review the limit in the options "
-                   "panel to allow loading it.")
-              : tr("This image is too large for the configured allocation limit.");
+        = !m_limitInfo.canRaiseLimit()
+              ? tr("This image is too large for the configured allocation limit.")
+              : qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")
+                    ? tr("This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
+                         "variable and restart the application to load it.")
+                    : tr("This image is larger than the current image allocation limit. Review the limit in the "
+                         "options panel to allow loading it.");
     ui->setImageWidget(new ErrorWidget(message), ui->TRANSFER_OWNERSHIP);
     ui->setOptionsWidget(new LargeImageOptionsWidget(m_filePath, m_limitInfo), ui->TRANSFER_OWNERSHIP);
   }
