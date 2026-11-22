@@ -4,6 +4,7 @@
 #ifndef SCANTAILOR_CORE_FILTERRESULT_H_
 #define SCANTAILOR_CORE_FILTERRESULT_H_
 
+#include <QString>
 #include <memory>
 
 class AbstractFilter;
@@ -14,6 +15,8 @@ class FilterResult {
   virtual ~FilterResult() = default;
 
   virtual void updateUI(FilterUiInterface* ui) = 0;
+
+  virtual QString failureDescription() const { return QString(); }
 
   /**
    * \brief Return the filter that generated this result.

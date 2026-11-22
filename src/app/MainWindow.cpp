@@ -1311,18 +1311,6 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     return;
   }
 
-  if (isBatchTask && (!result || !result->filter())) {
-    QString pageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
-    if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
-      pageName += tr(" (page %1)").arg(batchPage.imageId().page());
-    }
-    if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
-      pageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
-    }
-    const QString details = errorMessage.isEmpty() ? tr("The page could not be processed.") : errorMessage;
-    m_batchFailures.append(tr("%1: %2").arg(pageName, details));
-  }
-
   const auto showFailure = [this](const QString& message) {
     const QString details = message.isEmpty() ? tr("An unknown error occurred.") : message;
     setImageWidget(new ErrorWidget(tr("Background processing failed:\n%1").arg(details), Qt::PlainText),
@@ -1331,6 +1319,23 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
   };
 
   try {
+    if (isBatchTask) {
+      const QString failureDescription = result ? result->failureDescription() : QString();
+      if (!result || !failureDescription.isEmpty() || !errorMessage.isEmpty()) {
+        QString pageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+        if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
+          pageName += tr(" (page %1)").arg(batchPage.imageId().page());
+        }
+        if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
+          pageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
+        }
+        const QString details = !failureDescription.isEmpty()
+                                    ? failureDescription
+                                    : (errorMessage.isEmpty() ? tr("The page could not be processed.") : errorMessage);
+        m_batchFailures.append(tr("%1: %2").arg(pageName, details));
+      }
+    }
+
     if (!result) {
       showFailure(errorMessage);
     } else {

@@ -38,6 +38,7 @@ class LoadFileTask::ErrorResult : public FilterResult {
   ErrorResult(const QString& filePath, const QString& errorDetails);
 
   void updateUI(FilterUiInterface* ui) override;
+  QString failureDescription() const override;
 
   std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
 
@@ -237,6 +238,8 @@ class LargeImageResult : public FilterResult {
     ui->setOptionsWidget(new LargeImageOptionsWidget(m_filePath, m_limitInfo), ui->TRANSFER_OWNERSHIP);
   }
 
+  QString failureDescription() const override { return QString(); }
+
   std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
 
  private:
@@ -253,6 +256,8 @@ class ThumbnailInvalidationResult : public FilterResult {
     m_result->updateUI(ui);
     ui->invalidateThumbnail(m_pageId);
   }
+
+  QString failureDescription() const override { return m_result->failureDescription(); }
 
   std::shared_ptr<AbstractFilter> filter() override { return m_result->filter(); }
 
@@ -377,18 +382,10 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
   QString errMsg;
   Qt::TextFormat fmt = Qt::AutoText;
   if (m_processingError) {
-    const QString details = m_errorDetails.isEmpty() ? tr("An unknown error occurred.") : m_errorDetails;
-    errMsg = tr("An error occurred while processing this page:\n%1\n\nFile: %2").arg(details, m_filePath);
+    errMsg = failureDescription();
     fmt = Qt::PlainText;
   } else if (m_fileExists) {
-    if (m_dimensionsKnown) {
-      errMsg = tr("The following file could not be loaded:\n%1").arg(m_filePath);
-    } else {
-      errMsg = tr("The image could not be loaded because its dimensions were unavailable for allocation checking:\n%1"
-                  "\nVerify that the file is valid. If you suspect it exceeds Qt's allocation limit, you can increase "
-                  "the saved image limit in Settings and restart.")
-                   .arg(m_filePath);
-    }
+    errMsg = failureDescription();
     fmt = Qt::PlainText;
   } else {
     errMsg = tr("The following file doesn't exist:<br>%1<br>"
@@ -400,3 +397,20 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
   ui->setImageWidget(new ErrWidget(ui->relinkingDialogRequester(), errMsg, fmt), ui->TRANSFER_OWNERSHIP);
   ui->setOptionsWidget(new FilterOptionsWidget, ui->TRANSFER_OWNERSHIP);
 }  // LoadFileTask::ErrorResult::updateUI
+
+QString LoadFileTask::ErrorResult::failureDescription() const {
+  if (m_processingError) {
+    const QString details = m_errorDetails.isEmpty() ? tr("An unknown error occurred.") : m_errorDetails;
+    return tr("An error occurred while processing this page:\n%1\n\nFile: %2").arg(details, m_filePath);
+  }
+  if (m_fileExists && m_dimensionsKnown) {
+    return tr("The following file could not be loaded:\n%1").arg(m_filePath);
+  }
+  if (m_fileExists) {
+    return tr("The image could not be loaded because its dimensions were unavailable for allocation checking:\n%1"
+              "\nVerify that the file is valid. If you suspect it exceeds Qt's allocation limit, you can increase "
+              "the saved image limit in Settings and restart.")
+        .arg(m_filePath);
+  }
+  return tr("The following file doesn't exist:\n%1").arg(m_filePath);
+}

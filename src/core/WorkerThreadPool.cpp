@@ -73,7 +73,8 @@ void WorkerThreadPool::submitTask(const BackgroundTaskPtr& task) {
       try {
         result = (*m_task)();
       } catch (const BackgroundTask::CancelledException&) {
-        return;
+        taskFailed = true;
+        errorMessage = QStringLiteral("Background task was cancelled unexpectedly.");
       } catch (const std::bad_alloc&) {
         OutOfMemoryHandler::instance().handleOutOfMemorySituation();
         taskFailed = true;

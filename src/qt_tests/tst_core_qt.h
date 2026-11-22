@@ -20,6 +20,7 @@ class TestCoreQt : public QObject {
   void testProcessingTaskQueueReturnsPageInfoForTask();
   void testWorkerThreadPoolReturnsFailureResult();
   void testWorkerThreadPoolCompletesWhenFailureResultIsUnavailable();
+  void testWorkerThreadPoolCompletesUnexpectedCancellation();
 };
 
 class Emitter : public QObject {

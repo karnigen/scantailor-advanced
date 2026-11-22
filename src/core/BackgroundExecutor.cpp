@@ -144,17 +144,33 @@ void BackgroundExecutor::Impl::enqueueTask(const TaskPtr& task) {
 }
 
 void BackgroundExecutor::Impl::run() {
-  while (!m_shuttingDown.load()) {
+  constexpr int maxEventLoopAttempts = 3;
+  int consecutiveFailures = 0;
+  while (!m_shuttingDown.load() && consecutiveFailures < maxEventLoopAttempts) {
     try {
       exec();
       return;
     } catch (const std::bad_alloc&) {
-      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      ++consecutiveFailures;
+      try {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& e) {
+        qCritical("Out-of-memory handler failed: %s", e.what());
+      } catch (...) {
+        qCritical("Out-of-memory handler failed with an unknown exception.");
+      }
+      qCritical("Background executor event loop failed; restarting (%d).", consecutiveFailures);
     } catch (const std::exception& e) {
-      qCritical("Background executor event loop failed: %s", e.what());
+      ++consecutiveFailures;
+      qCritical("Background executor event loop failed: %s; restarting (%d).", e.what(), consecutiveFailures);
     } catch (...) {
-      qCritical("Background executor event loop failed with an unknown exception.");
+      ++consecutiveFailures;
+      qCritical("Background executor event loop failed with an unknown exception; restarting (%d).",
+                consecutiveFailures);
     }
+  }
+  if (!m_shuttingDown.load() && consecutiveFailures >= maxEventLoopAttempts) {
+    qCritical("Background executor event loop failed permanently; background tasks will not run.");
   }
 }
 

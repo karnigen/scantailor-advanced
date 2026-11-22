@@ -111,6 +111,15 @@ class FailingBackgroundTask : public BackgroundTask {
   ResultFactoryFailure m_resultFactoryFailure;
 };
 
+class UnexpectedlyCancelledBackgroundTask : public BackgroundTask {
+ public:
+  UnexpectedlyCancelledBackgroundTask() : BackgroundTask(INTERACTIVE) {}
+
+  FilterResultPtr operator()() override { throw CancelledException(); }
+
+  FilterResultPtr exceptionResult(const QString&) override { return nullptr; }
+};
+
 }  // namespace
 
 void TestCoreQt::testUnitsToString() {
@@ -244,4 +253,21 @@ void TestCoreQt::testWorkerThreadPoolCompletesWhenFailureResultIsUnavailable() {
     QTRY_VERIFY(state.resultEventReceived);
     QCOMPARE(state.errorMessage, QString("page processing failed"));
   }
+}
+
+void TestCoreQt::testWorkerThreadPoolCompletesUnexpectedCancellation() {
+  WorkerThreadPool workerPool;
+  bool resultEventReceived = false;
+  QString errorMessage;
+  connect(&workerPool, &WorkerThreadPool::taskResult, this,
+          [&resultEventReceived, &errorMessage](const BackgroundTaskPtr&, const FilterResultPtr& result,
+                                                const QString& message) {
+            QVERIFY(!result);
+            resultEventReceived = true;
+            errorMessage = message;
+          });
+
+  workerPool.submitTask(std::make_shared<UnexpectedlyCancelledBackgroundTask>());
+  QTRY_VERIFY(resultEventReceived);
+  QCOMPARE(errorMessage, QStringLiteral("Background task was cancelled unexpectedly."));
 }
