@@ -18,6 +18,7 @@
 #include <QStackedLayout>
 #include <QtWidgets/QInputDialog>
 #include <boost/lambda/lambda.hpp>
+#include <exception>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -275,8 +276,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
           SLOT(filterSelectionChanged(const QItemSelection&)));
   connect(filterList, SIGNAL(launchBatchProcessing()), this, SLOT(startBatchProcessing()));
 
-  connect(m_workerThreadPool.get(), SIGNAL(taskResult(const BackgroundTaskPtr&, const FilterResultPtr&)), this,
-          SLOT(filterResult(const BackgroundTaskPtr&, const FilterResultPtr&)));
+  connect(m_workerThreadPool.get(), &WorkerThreadPool::taskResult, this, &MainWindow::filterResult);
 
   connect(m_thumbSequence.get(),
           SIGNAL(newSelectionLeader(const PageInfo&, const QRectF&, ThumbnailSequence::SelectionFlags)), this,
@@ -1283,7 +1283,9 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
   resetThumbSequence(currentPageOrderProvider());
 }
 
-void MainWindow::filterResult(const BackgroundTaskPtr& task, const FilterResultPtr& result) {
+void MainWindow::filterResult(const BackgroundTaskPtr& task,
+                              const FilterResultPtr& result,
+                              const QString& errorMessage) {
   // Cancelled or not, we must mark it as finished.
   m_interactiveQueue->processingFinished(task);
   if (m_batchQueue) {
@@ -1294,23 +1296,60 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task, const FilterResultP
     return;
   }
 
-  if (!isBatchProcessingInProgress()) {
-    if (!result->filter()) {
-      // Error loading file.  No special action is necessary.
-    } else if (result->filter() != m_stages->filterAt(m_curFilter)) {
-      // Error from one of the previous filters.
-      const int idx = m_stages->findFilter(result->filter());
-      assert(idx >= 0);
-      m_curFilter = idx;
+  const auto showFailure = [this](const QString& message) {
+    const QString details = message.isEmpty() ? tr("An unknown error occurred.") : message;
+    setImageWidget(new ErrorWidget(tr("Background processing failed:\n%1").arg(details), Qt::PlainText),
+                   TRANSFER_OWNERSHIP);
+    setOptionsWidget(new FilterOptionsWidget, TRANSFER_OWNERSHIP);
+  };
 
-      ScopedIncDec<int> selectionGuard(m_ignoreSelectionChanges);
-      filterList->selectRow(idx);
+  try {
+    if (!result) {
+      showFailure(errorMessage);
+    } else {
+      if (!isBatchProcessingInProgress()) {
+        if (!result->filter()) {
+          // Error loading file.  No special action is necessary.
+        } else if (result->filter() != m_stages->filterAt(m_curFilter)) {
+          // Error from one of the previous filters.
+          const int idx = m_stages->findFilter(result->filter());
+          assert(idx >= 0);
+          m_curFilter = idx;
+
+          ScopedIncDec<int> selectionGuard(m_ignoreSelectionChanges);
+          filterList->selectRow(idx);
+        }
+      }
+
+      // This needs to be done even if batch processing is taking place,
+      // for instance because thumbnail invalidation is done from here.
+      result->updateUI(this);
+    }
+  } catch (const std::bad_alloc&) {
+    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+  } catch (const std::exception& e) {
+    qCritical("Failed to update the UI for a background task: %s", e.what());
+    try {
+      showFailure(QString());
+    } catch (const std::bad_alloc&) {
+      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    } catch (const std::exception& error) {
+      qWarning("Failed to display a background task error: %s", error.what());
+    } catch (...) {
+      qWarning("Failed to display a background task error: unknown exception.");
+    }
+  } catch (...) {
+    qCritical("Failed to update the UI for a background task with an unknown exception.");
+    try {
+      showFailure(QString());
+    } catch (const std::bad_alloc&) {
+      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    } catch (const std::exception& error) {
+      qWarning("Failed to display a background task error: %s", error.what());
+    } catch (...) {
+      qWarning("Failed to display a background task error: unknown exception.");
     }
   }
-
-  // This needs to be done even if batch processing is taking place,
-  // for instance because thumbnail invalidation is done from here.
-  result->updateUI(this);
 
   if (isBatchProcessingInProgress()) {
     if (m_batchQueue->allProcessed()) {

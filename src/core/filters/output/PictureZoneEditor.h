@@ -70,6 +70,7 @@ class PictureZoneEditor : public ZoneEditorBase {
   void schedulePictureMaskRebuild();
 
   void screenPictureMaskBuilt(const QPoint& origin, const QImage& mask);
+  void screenPictureMaskBuildFailed(MaskTransformTask* task, const QTransform& xform);
 
   void paintOverPictureMask(QPainter& painter);
 
@@ -83,6 +84,8 @@ class PictureZoneEditor : public ZoneEditorBase {
   QPoint m_screenPictureMaskOrigin;
   QTransform m_screenPictureMaskXform;
   QTransform m_potentialPictureMaskXform;
+  QTransform m_failedPictureMaskXform;
+  bool m_pictureMaskBuildFailed = false;
   QTimer m_pictureMaskRebuildTimer;
   QTimer m_pictureMaskAnimateTimer;
   int m_pictureMaskAnimationPhase;  // degrees

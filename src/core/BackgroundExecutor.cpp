@@ -5,9 +5,26 @@
 
 #include <QCoreApplication>
 #include <QThread>
-#include <cassert>
+#include <exception>
+#include <utility>
 
 #include "OutOfMemoryHandler.h"
+
+namespace {
+
+void executeTaskException(const BackgroundExecutor::TaskPtr& task, const QString& message) {
+  try {
+    task->handleException(message);
+  } catch (const std::bad_alloc&) {
+    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+  } catch (const std::exception& e) {
+    qWarning("Background task exception handler failed: %s", e.what());
+  } catch (...) {
+    qWarning("Background task exception handler failed with an unknown exception.");
+  }
+}
+
+}  // namespace
 
 class BackgroundExecutor::Dispatcher : public QObject {
  public:
@@ -64,17 +81,41 @@ BackgroundExecutor::Dispatcher::Dispatcher(Impl& owner) : m_owner(owner) {}
 void BackgroundExecutor::Dispatcher::customEvent(QEvent* event) {
   try {
     auto* evt = dynamic_cast<TaskEvent*>(event);
-    assert(evt);
+    if (!evt) {
+      qWarning("Background executor received an unexpected task event.");
+      return;
+    }
 
-    const TaskPtr& task = evt->payload();
-    assert(task);
+    const TaskPtr task = evt->payload();
+    if (!task) {
+      qWarning("Background executor received an empty task.");
+      return;
+    }
 
-    const TaskResultPtr result((*task)());
+    TaskResultPtr result;
+    try {
+      result = (*task)();
+    } catch (const std::bad_alloc&) {
+      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      return;
+    } catch (const std::exception& e) {
+      qWarning("Background task failed: %s", e.what());
+      QCoreApplication::postEvent(&m_owner, new FailureEvent(std::make_pair(task, QString::fromUtf8(e.what()))));
+      return;
+    } catch (...) {
+      qWarning("Background task failed with an unknown exception.");
+      QCoreApplication::postEvent(&m_owner, new FailureEvent(std::make_pair(task, QString())));
+      return;
+    }
     if (result) {
-      QCoreApplication::postEvent(&m_owner, new ResultEvent(result));
+      QCoreApplication::postEvent(&m_owner, new ResultEvent(std::make_pair(task, result)));
     }
   } catch (const std::bad_alloc&) {
     OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+  } catch (const std::exception& e) {
+    qWarning("Background executor failed: %s", e.what());
+  } catch (...) {
+    qWarning("Background executor failed with an unknown exception.");
   }
 }
 
@@ -99,15 +140,51 @@ void BackgroundExecutor::Impl::enqueueTask(const TaskPtr& task) {
 }
 
 void BackgroundExecutor::Impl::run() {
-  exec();
+  try {
+    exec();
+  } catch (const std::bad_alloc&) {
+    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+  } catch (const std::exception& e) {
+    qCritical("Background executor event loop failed: %s", e.what());
+  } catch (...) {
+    qCritical("Background executor event loop failed with an unknown exception.");
+  }
 }
 
 void BackgroundExecutor::Impl::customEvent(QEvent* event) {
+  if (auto* failureEvent = dynamic_cast<FailureEvent*>(event)) {
+    const TaskPtr& task = failureEvent->payload().first;
+    if (!task) {
+      qWarning("Background executor received an empty failure event.");
+      return;
+    }
+    executeTaskException(task, failureEvent->payload().second);
+    return;
+  }
+
   auto* evt = dynamic_cast<ResultEvent*>(event);
-  assert(evt);
+  if (!evt) {
+    qWarning("Background executor received an unexpected result event.");
+    return;
+  }
 
-  const TaskResultPtr& result = evt->payload();
-  assert(result);
+  const TaskPtr& task = evt->payload().first;
+  const TaskResultPtr& result = evt->payload().second;
+  if (!task || !result) {
+    qWarning("Background executor received an incomplete result event.");
+    return;
+  }
 
-  (*result)();
+  try {
+    (*result)();
+  } catch (const std::bad_alloc&) {
+    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    executeTaskException(task, QString());
+  } catch (const std::exception& e) {
+    qWarning("Background task result failed: %s", e.what());
+    executeTaskException(task, QString::fromUtf8(e.what()));
+  } catch (...) {
+    qWarning("Background task result failed with an unknown exception.");
+    executeTaskException(task, QString());
+  }
 }

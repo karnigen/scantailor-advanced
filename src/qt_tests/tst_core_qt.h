@@ -16,6 +16,9 @@ class TestCoreQt : public QObject {
   void testUtilsDoubleToString();
   void testSmartFilenameOrdering();
   void testSignalSpy();
+  void testBackgroundExecutorContainsWorkerAndResultExceptions();
+  void testWorkerThreadPoolReturnsFailureResult();
+  void testWorkerThreadPoolCompletesWhenFailureResultIsUnavailable();
 };
 
 class Emitter : public QObject {

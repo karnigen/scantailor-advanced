@@ -113,28 +113,21 @@ void RelinkingListView::drawStatusLayer(QPainter* painter) {
 
   painter->setRenderHint(QPainter::Antialiasing);
 
-  // Prepare for drawing existing items.
-  QPen pen(QColor(0x3a5827));
-  pen.setWidthF(1.5);
-  QBrush brush(QColor(0x89e74a));
-
-  // Draw existing, then missing items.
-  for (int status = RelinkingModel::Exists, i = 0; i < 2; ++i) {
+  const QColor colors[] = {QColor(0x89e74a), QColor(0xff674b), QColor(0xffc247)};
+  const int statuses[] = {RelinkingModel::Exists, RelinkingModel::Missing, RelinkingModel::StatusUpdateFailed};
+  for (int i = 0; i < 3; ++i) {
+    QPen pen(i == 0 ? QColor(0x3a5827) : (i == 1 ? QColor(0x6f2719) : QColor(0x805800)));
+    pen.setWidthF(1.5);
     painter->setPen(pen);
-    painter->setBrush(brush);
-
+    painter->setBrush(colors[i]);
     for (const IndicationGroup& group : groupAggregator.groups()) {
-      if (group.status == status) {
+      if (group.status == statuses[i]) {
         const qreal radius = 0.5 * group.rect.width();
         QRectF rect(group.rect);
         rect.adjust(pen.widthF(), pen.widthF(), -pen.widthF(), -pen.widthF());
         painter->drawRoundedRect(rect, radius, radius);
       }
     }
-    // Prepare for drawing missing items.
-    status = RelinkingModel::Missing;
-    pen.setColor(QColor(0x6f2719));
-    brush.setColor(QColor(0xff674b));
   }
 }  // RelinkingListView::drawStatusLayer
 

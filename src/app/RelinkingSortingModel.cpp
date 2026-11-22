@@ -3,8 +3,6 @@
 
 #include "RelinkingSortingModel.h"
 
-#include <cassert>
-
 #include "RelinkingModel.h"
 
 RelinkingSortingModel::RelinkingSortingModel(QObject* parent) : QSortFilterProxyModel(parent) {
@@ -16,16 +14,20 @@ bool RelinkingSortingModel::lessThan(const QModelIndex& left, const QModelIndex&
   const int leftStatus = left.data(RelinkingModel::UncommittedStatusRole).toInt();
   const int rightStatus = right.data(RelinkingModel::UncommittedStatusRole).toInt();
   if (leftStatus != rightStatus) {
-    if (leftStatus == RelinkingModel::Missing) {
-      return true;  // Missing items go before other ones.
-    } else if (rightStatus == RelinkingModel::Missing) {
-      return false;
-    } else if (leftStatus == RelinkingModel::StatusUpdatePending) {
-      return true;  // These go after missing ones.
-    } else if (rightStatus == RelinkingModel::StatusUpdatePending) {
-      return false;
-    }
-    assert(!"Unreachable");
+    const auto statusPriority = [](const int status) {
+      switch (status) {
+        case RelinkingModel::Missing:
+          return 0;
+        case RelinkingModel::StatusUpdateFailed:
+          return 1;
+        case RelinkingModel::StatusUpdatePending:
+          return 2;
+        case RelinkingModel::Exists:
+          return 3;
+      }
+      return 4;
+    };
+    return statusPriority(leftStatus) < statusPriority(rightStatus);
   }
 
   const int leftType = left.data(RelinkingModel::TypeRole).toInt();

@@ -154,7 +154,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void showRelinkingDialog();
 
-  void filterResult(const BackgroundTaskPtr& task, const FilterResultPtr& result);
+  void filterResult(const BackgroundTaskPtr& task, const FilterResultPtr& result, const QString& errorMessage);
 
   void debugToggled(bool enabled);
 

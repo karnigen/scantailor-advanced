@@ -10,6 +10,8 @@
 #include <QFontDatabase>
 #include <QTemporaryDir>
 
+#include <exception>
+
 #include "OutOfMemoryHandler.h"
 
 Application::Application(int& argc, char** argv) : QApplication(argc, argv), m_currentLocale("en") {
@@ -23,6 +25,12 @@ bool Application::notify(QObject* receiver, QEvent* e) {
     return QApplication::notify(receiver, e);
   } catch (const std::bad_alloc&) {
     OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    return false;
+  } catch (const std::exception& e) {
+    qCritical("Unhandled exception while dispatching a Qt event: %s", e.what());
+    return false;
+  } catch (...) {
+    qCritical("Unhandled unknown exception while dispatching a Qt event.");
     return false;
   }
 }

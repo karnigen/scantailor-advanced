@@ -35,6 +35,7 @@ class LoadFileTask::ErrorResult : public FilterResult {
   Q_DECLARE_TR_FUNCTIONS(LoadFileTask)
  public:
   ErrorResult(const QString& filePath, bool dimensionsKnown);
+  ErrorResult(const QString& filePath, const QString& errorDetails);
 
   void updateUI(FilterUiInterface* ui) override;
 
@@ -42,8 +43,10 @@ class LoadFileTask::ErrorResult : public FilterResult {
 
  private:
   QString m_filePath;
+  QString m_errorDetails;
   bool m_fileExists;
   bool m_dimensionsKnown;
+  bool m_processingError = false;
 };
 
 namespace {
@@ -279,10 +282,10 @@ LoadFileTask::LoadFileTask(Type type,
 LoadFileTask::~LoadFileTask() = default;
 
 FilterResultPtr LoadFileTask::operator()() {
-  ImageAllocationLimitInfo limitInfo;
-  QImage image = ImageLoader::load(m_imageId, &limitInfo);
-
   try {
+    ImageAllocationLimitInfo limitInfo;
+    QImage image = ImageLoader::load(m_imageId, &limitInfo);
+
     throwIfCancelled();
 
     if (image.isNull()) {
@@ -304,6 +307,10 @@ FilterResultPtr LoadFileTask::operator()() {
   } catch (const CancelledException&) {
     return nullptr;
   }
+}
+
+FilterResultPtr LoadFileTask::exceptionResult(const QString& message) {
+  return std::make_shared<ErrorResult>(m_imageId.filePath(), message);
 }
 
 void LoadFileTask::updateImageSizeIfChanged(const QImage& image) {
@@ -345,6 +352,13 @@ LoadFileTask::ErrorResult::ErrorResult(const QString& filePath, const bool dimen
       m_fileExists(QFile::exists(filePath)),
       m_dimensionsKnown(dimensionsKnown) {}
 
+LoadFileTask::ErrorResult::ErrorResult(const QString& filePath, const QString& errorDetails)
+    : m_filePath(QDir::toNativeSeparators(filePath)),
+      m_errorDetails(errorDetails),
+      m_fileExists(QFile::exists(filePath)),
+      m_dimensionsKnown(false),
+      m_processingError(true) {}
+
 void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
   class ErrWidget : public ErrorWidget {
    public:
@@ -362,7 +376,11 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
 
   QString errMsg;
   Qt::TextFormat fmt = Qt::AutoText;
-  if (m_fileExists) {
+  if (m_processingError) {
+    const QString details = m_errorDetails.isEmpty() ? tr("An unknown error occurred.") : m_errorDetails;
+    errMsg = tr("An error occurred while processing this page:\n%1\n\nFile: %2").arg(details, m_filePath);
+    fmt = Qt::PlainText;
+  } else if (m_fileExists) {
     if (m_dimensionsKnown) {
       errMsg = tr("The following file could not be loaded:\n%1").arg(m_filePath);
     } else {

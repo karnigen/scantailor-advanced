@@ -33,6 +33,7 @@ class DebugImageView
   class ImageLoader;
 
   void imageLoaded(const QImage& image);
+  void imageLoadFailed(const QString& message);
 
   AutoRemovingFile m_file;
   boost::function<QWidget*(const QImage&)> m_imageViewFactory;

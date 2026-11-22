@@ -36,6 +36,8 @@ class LoadFileTask : public BackgroundTask {
 
   FilterResultPtr operator()() override;
 
+  FilterResultPtr exceptionResult(const QString& message) override;
+
  private:
   class ErrorResult;
 

@@ -9,6 +9,7 @@
 #include "AbstractCommand.h"
 #include "BackgroundExecutor.h"
 #include "BasicImageView.h"
+#include "ErrorWidget.h"
 #include "ImageViewBase.h"
 #include "ProcessingIndicationWidget.h"
 
@@ -29,13 +30,19 @@ class DebugImageView::ImageLoadResult : public AbstractCommand<void> {
 };
 
 
-class DebugImageView::ImageLoader : public AbstractCommand<BackgroundExecutor::TaskResultPtr> {
+class DebugImageView::ImageLoader : public BackgroundExecutor::Task {
  public:
   ImageLoader(DebugImageView* owner, const QString& filePath) : m_owner(owner), m_filePath(filePath) {}
 
   BackgroundExecutor::TaskResultPtr operator()() override {
     QImage image(m_filePath);
     return std::make_shared<ImageLoadResult>(m_owner, image);
+  }
+
+  void handleException(const QString& message) override {
+    if (DebugImageView* owner = m_owner) {
+      owner->imageLoadFailed(message);
+    }
   }
 
  private:
@@ -84,4 +91,14 @@ void DebugImageView::imageLoaded(const QImage& image) {
     }
     setCurrentIndex(addWidget(imageView.release()));
   }
+}
+
+void DebugImageView::imageLoadFailed(const QString& message) {
+  if (!m_isLive) {
+    return;
+  }
+
+  const QString details = message.isEmpty() ? tr("An unknown error occurred.") : message;
+  auto* const errorWidget = new ErrorWidget(tr("Failed to load debug image:\n%1").arg(details), Qt::PlainText);
+  setCurrentIndex(addWidget(errorWidget));
 }

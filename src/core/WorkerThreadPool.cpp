@@ -5,22 +5,26 @@
 
 #include <QCoreApplication>
 #include <QThreadPool>
+#include <exception>
 #include <utility>
 
 #include "OutOfMemoryHandler.h"
 
 class WorkerThreadPool::TaskResultEvent : public QEvent {
  public:
-  TaskResultEvent(BackgroundTaskPtr task, FilterResultPtr result)
-      : QEvent(User), m_task(std::move(task)), m_result(std::move(result)) {}
+  TaskResultEvent(BackgroundTaskPtr task, FilterResultPtr result, QString errorMessage)
+      : QEvent(User), m_task(std::move(task)), m_result(std::move(result)), m_errorMessage(std::move(errorMessage)) {}
 
   const BackgroundTaskPtr& task() const { return m_task; }
 
   const FilterResultPtr& result() const { return m_result; }
 
+  const QString& errorMessage() const { return m_errorMessage; }
+
  private:
   BackgroundTaskPtr m_task;
   FilterResultPtr m_result;
+  QString m_errorMessage;
 };
 
 
@@ -50,13 +54,58 @@ void WorkerThreadPool::submitTask(const BackgroundTaskPtr& task) {
         return;
       }
 
-      try {
-        const FilterResultPtr result((*m_task)());
-        if (result) {
-          QCoreApplication::postEvent(&m_owner, new TaskResultEvent(m_task, result));
+      const auto makeExceptionResult = [this](const QString& message) {
+        try {
+          return m_task->exceptionResult(message);
+        } catch (const std::bad_alloc&) {
+          OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+        } catch (const std::exception& e) {
+          qWarning("Failed to create a background task error result: %s", e.what());
+        } catch (...) {
+          qWarning("Failed to create a background task error result: unknown exception.");
         }
+        return FilterResultPtr();
+      };
+
+      FilterResultPtr result;
+      QString errorMessage;
+      bool taskFailed = false;
+      try {
+        result = (*m_task)();
+      } catch (const BackgroundTask::CancelledException&) {
+        return;
       } catch (const std::bad_alloc&) {
         OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+        return;
+      } catch (const std::exception& e) {
+        taskFailed = true;
+        qWarning("Background task failed: %s", e.what());
+        try {
+          errorMessage = QString::fromUtf8(e.what());
+        } catch (const std::bad_alloc&) {
+          OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+        } catch (const std::exception& error) {
+          qWarning("Failed to capture a background task error message: %s", error.what());
+        } catch (...) {
+          qWarning("Failed to capture a background task error message: unknown exception.");
+        }
+        result = makeExceptionResult(errorMessage);
+      } catch (...) {
+        taskFailed = true;
+        qWarning("Background task failed with an unknown exception.");
+        result = makeExceptionResult(QString());
+      }
+
+      if (result || taskFailed) {
+        try {
+          QCoreApplication::postEvent(&m_owner, new TaskResultEvent(m_task, result, errorMessage));
+        } catch (const std::bad_alloc&) {
+          OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+        } catch (const std::exception& e) {
+          qWarning("Failed to post a background task result: %s", e.what());
+        } catch (...) {
+          qWarning("Failed to post a background task result: unknown exception.");
+        }
       }
     }
 
@@ -72,7 +121,7 @@ void WorkerThreadPool::submitTask(const BackgroundTaskPtr& task) {
 
 void WorkerThreadPool::customEvent(QEvent* event) {
   if (auto* evt = dynamic_cast<TaskResultEvent*>(event)) {
-    emit taskResult(evt->task(), evt->result());
+    emit taskResult(evt->task(), evt->result(), evt->errorMessage());
   }
 }
 
