@@ -6,6 +6,8 @@
 #include <Constants.h>
 #include <core/IconProvider.h>
 
+#include <algorithm>
+
 #include <QAction>
 #include <QPainter>
 #include <QWheelEvent>
@@ -262,14 +264,25 @@ QPointF ImageView::getImageRotationOrigin() const {
  * Get the square in widget coordinates where two rotation arcs will be drawn.
  */
 QRectF ImageView::getRotationArcSquare() const {
-  const QRectF reducedScreenRect(getOccupiedWidgetRect());
+  const double halfHandleWidth = 0.5 * m_handlePixmap.width();
+  const double halfHandleHeight = 0.5 * m_handlePixmap.height();
+  const QRectF viewportRect(QPointF(0, 0), viewport()->size());
+  const QRectF safeViewportRect(
+      viewportRect.adjusted(halfHandleWidth, halfHandleHeight, -halfHandleWidth, -halfHandleHeight));
+  QRectF controlBounds(getOccupiedWidgetRect().intersected(safeViewportRect));
+  if (controlBounds.isEmpty()) {
+    controlBounds = safeViewportRect;
+  }
+  if (controlBounds.isEmpty()) {
+    return QRectF(controlBounds.center(), QSizeF());
+  }
 
   QSizeF arcSize(1.0, m_maxRotationSin);
-  arcSize.scale(reducedScreenRect.size(), Qt::KeepAspectRatio);
+  arcSize.scale(controlBounds.size(), Qt::KeepAspectRatio);
   arcSize.setHeight(arcSize.width());
 
   QRectF arcSquare(QPointF(0, 0), arcSize);
-  arcSquare.moveCenter(reducedScreenRect.center());
+  arcSquare.moveCenter(controlBounds.center());
   return arcSquare;
 }
 
@@ -286,16 +299,20 @@ std::pair<QPointF, QPointF> ImageView::getRotationHandles(const QRectF& arcSquar
 }
 
 QRectF ImageView::getObliqueArcSquare() const {
-  const QRectF reducedScreenRect(getOccupiedWidgetRect());
-
+  const double halfHandleWidth = 0.5 * m_handlePixmap.width();
+  const double halfHandleHeight = 0.5 * m_handlePixmap.height();
+  const QRectF viewportRect(QPointF(0, 0), viewport()->size());
+  const QRectF controlBounds(
+      viewportRect.adjusted(halfHandleWidth, halfHandleHeight, -halfHandleWidth, -halfHandleHeight));
+  if (controlBounds.isEmpty()) {
+    return QRectF(controlBounds.center(), QSizeF());
+  }
   const double obliqueSin = std::sin(m_maxObliqueDeg * constants::DEG2RAD);
-  QSizeF arcSize(obliqueSin, 1.0);
-  arcSize.scale(reducedScreenRect.size(), Qt::KeepAspectRatio);
-  arcSize.setWidth(arcSize.height());
+  const double arcRadius = std::min(0.5 * controlBounds.height(), 0.5 * controlBounds.width() / obliqueSin);
+  const QSizeF arcSize(2.0 * arcRadius, 2.0 * arcRadius);
 
   QRectF arcSquare(QPointF(0, 0), arcSize);
-  arcSquare.moveRight(reducedScreenRect.right());
-  arcSquare.moveCenter(QPointF(arcSquare.center().x(), reducedScreenRect.center().y()));
+  arcSquare.moveCenter(QPointF(controlBounds.right() - obliqueSin * arcRadius, controlBounds.center().y()));
   return arcSquare;
 }
 

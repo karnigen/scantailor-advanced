@@ -19,7 +19,7 @@ Params mergeParamsForApply(const std::unique_ptr<Params>& existing,
                            const OptionsWidget::UiData& cur,
                            const bool applyDeskew,
                            const bool applyOblique) {
-  const Dependencies deps(cur.dependencies());
+  const Dependencies deps(applyDeskew ? cur.dependencies() : (existing ? existing->dependencies() : Dependencies()));
   const AutoManualMode defaultObliqueMode = Utils::buildDefaultParams().obliqueMode();
   if (!existing) {
     return Params(applyDeskew ? cur.effectiveDeskewAngle() : 0.0, applyOblique ? cur.effectiveObliqueAngle() : 0.0,

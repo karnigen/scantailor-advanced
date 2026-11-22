@@ -6,6 +6,7 @@
 #include <ImageTransformation.h>
 #include <filters/deskew/Dependencies.h>
 #include <filters/deskew/Params.h>
+#include <filters/deskew/Settings.h>
 #include <filters/deskew/Utils.h>
 
 #include <QDomDocument>
@@ -13,6 +14,7 @@
 #include <QRectF>
 #include <QTransform>
 #include <boost/test/unit_test.hpp>
+#include <memory>
 
 namespace Tests {
 using namespace deskew;
@@ -49,6 +51,40 @@ BOOST_AUTO_TEST_CASE(legacy_dependencies_are_stale_for_deskew_algorithm) {
   const Dependencies restoredLegacy(doc.documentElement());
   BOOST_CHECK(!el.hasAttribute("algoContentBased"));
   BOOST_CHECK(!current.matches(restoredLegacy));
+}
+
+BOOST_AUTO_TEST_CASE(pending_recompute_is_persisted_as_stale_dependencies) {
+  Settings settings;
+  const PageId pageId(ImageId(QStringLiteral("pending-recompute.tif")));
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies currentDependencies(outline, OrthogonalRotation(), true);
+  settings.setPageParams(pageId, Params(1.0, 0.0, currentDependencies, MODE_AUTO, MODE_DISABLED));
+  settings.requestRecompute(pageId, true, false);
+
+  const std::unique_ptr<Params> pendingParams(settings.getPageParams(pageId));
+  BOOST_REQUIRE(pendingParams);
+  BOOST_CHECK(!currentDependencies.matches(pendingParams->dependencies()));
+
+  QDomDocument doc;
+  const QDomElement el = pendingParams->toXml(doc, "params");
+  doc.appendChild(el);
+  const Params restored(doc.documentElement());
+  BOOST_CHECK(!currentDependencies.matches(restored.dependencies()));
+}
+
+BOOST_AUTO_TEST_CASE(pending_oblique_recompute_is_persisted_as_stale_dependencies) {
+  Settings settings;
+  const PageId pageId(ImageId(QStringLiteral("pending-oblique-recompute.tif")));
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies currentDependencies(outline, OrthogonalRotation(), true);
+  settings.setPageParams(pageId, Params(1.0, 0.0, currentDependencies, MODE_MANUAL, MODE_AUTO));
+  settings.requestRecompute(pageId, false, true);
+
+  const std::unique_ptr<Params> pendingParams(settings.getPageParams(pageId));
+  BOOST_REQUIRE(pendingParams);
+  BOOST_CHECK(!currentDependencies.matches(pendingParams->dependencies()));
 }
 
 BOOST_AUTO_TEST_CASE(params_oblique_roundtrip_xml) {

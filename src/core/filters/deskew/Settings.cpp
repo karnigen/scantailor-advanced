@@ -75,6 +75,13 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
 
   auto it(m_perPageParams.find(pageId));
   if (it != m_perPageParams.end()) {
+    const auto pendingIt = m_pendingRecompute.find(pageId);
+    if (pendingIt != m_pendingRecompute.end()
+        && ((pendingIt->second.deskew && it->second.mode() == MODE_AUTO)
+            || (pendingIt->second.oblique && it->second.obliqueMode() == MODE_AUTO))) {
+      return std::make_unique<Params>(it->second.deskewAngle(), it->second.obliqueAngle(), Dependencies(),
+                                      it->second.mode(), it->second.obliqueMode());
+    }
     return std::make_unique<Params>(it->second);
   } else {
     return nullptr;
