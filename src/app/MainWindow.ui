@@ -102,6 +102,8 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionKeyboardShortcuts"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
@@ -1247,6 +1249,11 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionKeyboardShortcuts">
+   <property name="text">
+    <string>Keyboard Shortcuts...</string>
    </property>
   </action>
   <action name="actionFixDpi">

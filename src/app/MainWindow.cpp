@@ -7,17 +7,27 @@
 #include <core/IconProvider.h>
 
 #include <QActionGroup>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileSystemModel>
+#include <QFrame>
+#include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPalette>
 #include <QResource>
 #include <QScrollBar>
+#include <QSet>
 #include <QSortFilterProxyModel>
 #include <QStackedLayout>
+#include <QStringList>
+#include <QTextBrowser>
 #include <QTimer>
+#include <QVBoxLayout>
 #include <QtWidgets/QInputDialog>
+#include <algorithm>
 #include <boost/lambda/lambda.hpp>
 #include <exception>
 #include <memory>
@@ -130,6 +140,21 @@ MainWindow::MainWindow(const QString& initialDirectory)
   setupUi(this);
   setupIcons();
 
+  QSet<QChar> usedMenuMnemonics;
+  for (QMenu* menu : {menuFile, menuDebug, menuHelp}) {
+    const QString title = menu->title();
+    for (int i = 0; i < title.size(); ++i) {
+      const QChar mnemonic = title.at(i).toUpper();
+      if (mnemonic.isLetter() && !usedMenuMnemonics.contains(mnemonic)) {
+        QString titleWithMnemonic = title;
+        titleWithMnemonic.insert(i, '&');
+        menu->setTitle(titleWithMnemonic);
+        usedMenuMnemonics.insert(mnemonic);
+        break;
+      }
+    }
+  }
+
   sortOptions->setVisible(false);
 
   createBatchProcessingWidget();
@@ -241,6 +266,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionNextSelectedPageW, SIGNAL(triggered(bool)), this, SLOT(goNextSelectedPage()));
   connect(actionGotoPage, SIGNAL(triggered(bool)), this, SLOT(execGotoPageDialog()));
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
+  connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
   connect(prevPageBtn, &QToolButton::clicked, this, [this]() {
     if (filterSelectedBtn->isChecked()) {
@@ -1694,6 +1720,90 @@ void MainWindow::onSettingsChanged() {
   if (needInvalidate) {
     m_thumbSequence->invalidateAllThumbnails();
   }
+}
+
+void MainWindow::showKeyboardShortcuts() {
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Keyboard Shortcuts"));
+
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* browser = new QTextBrowser(&dialog);
+  browser->setOpenLinks(false);
+  browser->setFrameShape(QFrame::NoFrame);
+
+  const QString borderColor = dialog.palette().color(QPalette::Mid).name();
+  const QString headerColor = dialog.palette().color(QPalette::AlternateBase).name();
+  QString html = "<html><body>";
+  html += "<h2>" + tr("Menu access").toHtmlEscaped() + "</h2>";
+  html += "<table width='100%' cellspacing='0' cellpadding='7'>";
+  html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Menu").toHtmlEscaped() +
+          "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th></tr>";
+  for (QMenu* menu : {menuFile, menuDebug, menuHelp}) {
+    QString title = menu->title();
+    title.remove('&');
+    const QString shortcut = QKeySequence::mnemonic(menu->menuAction()->text()).toString(QKeySequence::NativeText);
+    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + title.toHtmlEscaped() +
+            "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" + shortcut.toHtmlEscaped() +
+            "</b></td></tr>";
+  }
+  html += "</table><h2>" + tr("Keyboard shortcuts").toHtmlEscaped() + "</h2>";
+  html += "<table width='100%' cellspacing='0' cellpadding='7'>";
+  html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Action").toHtmlEscaped() +
+          "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th><th align='left'>" +
+          tr("Context").toHtmlEscaped() + "</th></tr>";
+
+  QList<QAction*> actions = findChildren<QAction*>();
+  std::sort(actions.begin(), actions.end(),
+            [](const QAction* left, const QAction* right) { return left->text().localeAwareCompare(right->text()) < 0; });
+  for (QAction* action : actions) {
+    const QList<QKeySequence> shortcuts = action->shortcuts();
+    if (action->isSeparator() || shortcuts.isEmpty()) {
+      continue;
+    }
+
+    QString label = action->text();
+    if (action->objectName().startsWith("actionSwitchFilter") && !action->toolTip().isEmpty()) {
+      label = action->toolTip();
+    }
+    if (label.isEmpty()) {
+      continue;
+    }
+
+    QStringList shortcutTexts;
+    for (const QKeySequence& shortcut : shortcuts) {
+      shortcutTexts.append(shortcut.toString(QKeySequence::NativeText));
+    }
+
+    QString context;
+    switch (action->shortcutContext()) {
+      case Qt::ApplicationShortcut:
+        context = tr("Application");
+        break;
+      case Qt::WindowShortcut:
+        context = tr("Main window");
+        break;
+      case Qt::WidgetShortcut:
+      case Qt::WidgetWithChildrenShortcut:
+        context = tr("Active tool");
+        break;
+    }
+
+    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + label.toHtmlEscaped() +
+            "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" +
+            shortcutTexts.join(", ").toHtmlEscaped() + "</b></td><td style='border-bottom:1px solid " +
+            borderColor + ";'>" + context.toHtmlEscaped() + "</td></tr>";
+  }
+  html += "</table></body></html>";
+  browser->setHtml(html);
+  layout->addWidget(browser);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  layout->addWidget(buttonBox);
+
+  dialog.resize(640, 720);
+  dialog.exec();
 }
 
 void MainWindow::showAboutDialog() {
