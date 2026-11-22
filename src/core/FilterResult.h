@@ -16,7 +16,11 @@ class FilterResult {
 
   virtual void updateUI(FilterUiInterface* ui) = 0;
 
+  /** Returns a user-readable reason when this result represents a failure. */
   virtual QString failureDescription() const { return QString(); }
+
+  /** Returns a user-readable reason when this result represents a skipped page. */
+  virtual QString skippedDescription() const { return QString(); }
 
   /**
    * \brief Return the filter that generated this result.

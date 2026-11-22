@@ -222,27 +222,31 @@ class LargeImageResult : public FilterResult {
       : m_filePath(filePath), m_limitInfo(limitInfo) {}
 
   void updateUI(FilterUiInterface* ui) override {
-    QString message;
-    if (!m_limitInfo.canRaiseLimit()) {
-      message = tr("This image is too large for the maximum configurable image allocation limit.");
-    } else if (ImageAllocationLimit::hasEnvironmentOverride()) {
-      message = tr(
-          "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
-          "variable and restart the application to load it.");
-    } else {
-      message = tr(
-          "This image is larger than the current image allocation limit. Review the limit in the options "
-          "panel to allow loading it.");
-    }
-    ui->setImageWidget(new ErrorWidget(message), ui->TRANSFER_OWNERSHIP);
+    ui->setImageWidget(new ErrorWidget(limitMessage()), ui->TRANSFER_OWNERSHIP);
     ui->setOptionsWidget(new LargeImageOptionsWidget(m_filePath, m_limitInfo), ui->TRANSFER_OWNERSHIP);
   }
 
   QString failureDescription() const override { return QString(); }
 
+  QString skippedDescription() const override { return tr("The page was skipped: %1").arg(limitMessage()); }
+
   std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
 
  private:
+  QString limitMessage() const {
+    if (!m_limitInfo.canRaiseLimit()) {
+      return tr("This image is too large for the maximum configurable image allocation limit.");
+    }
+    if (ImageAllocationLimit::hasEnvironmentOverride()) {
+      return tr(
+          "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
+          "variable and restart the application to load it.");
+    }
+    return tr(
+        "This image is larger than the current image allocation limit. Review the limit in the options "
+        "panel to allow loading it.");
+  }
+
   QString m_filePath;
   ImageAllocationLimitInfo m_limitInfo;
 };
@@ -258,6 +262,8 @@ class ThumbnailInvalidationResult : public FilterResult {
   }
 
   QString failureDescription() const override { return m_result->failureDescription(); }
+
+  QString skippedDescription() const override { return m_result->skippedDescription(); }
 
   std::shared_ptr<AbstractFilter> filter() override { return m_result->filter(); }
 

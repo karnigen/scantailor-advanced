@@ -327,6 +327,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   std::unique_ptr<WorkerThreadPool> m_workerThreadPool;
   std::unique_ptr<ProcessingTaskQueue> m_batchQueue;
   QStringList m_batchFailures;
+  QStringList m_batchSkippedPages;
   std::unique_ptr<ProcessingTaskQueue> m_interactiveQueue;
   QStackedLayout* m_imageFrameLayout;
   QStackedLayout* m_optionsFrameLayout;

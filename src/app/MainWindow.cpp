@@ -1216,6 +1216,7 @@ void MainWindow::startBatchProcessing() {
   }
 
   m_batchFailures.clear();
+  m_batchSkippedPages.clear();
   m_interactiveQueue->cancelAndClear();
 
   m_batchQueue = std::make_unique<ProcessingTaskQueue>();
@@ -1262,7 +1263,9 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
   }
 
   const QStringList batchFailures(std::move(m_batchFailures));
+  const QStringList batchSkippedPages(std::move(m_batchSkippedPages));
   m_batchFailures.clear();
+  m_batchSkippedPages.clear();
 
   const PageInfo page(m_batchQueue->selectedPage());
   if (!page.isNull()) {
@@ -1286,11 +1289,20 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
 
   resetThumbSequence(currentPageOrderProvider());
 
-  if (!batchFailures.isEmpty() && mainArea != CLEAR_MAIN_AREA) {
+  if ((!batchFailures.isEmpty() || !batchSkippedPages.isEmpty()) && mainArea != CLEAR_MAIN_AREA) {
     QMessageBox messageBox(QMessageBox::Warning, tr("Batch processing"),
-                           tr("%1 page(s) failed during batch processing.").arg(batchFailures.size()), QMessageBox::Ok,
-                           this);
-    messageBox.setDetailedText(batchFailures.join(QLatin1Char('\n')));
+                           tr("Batch processing finished with %1 failure(s) and %2 skipped page(s).")
+                               .arg(batchFailures.size())
+                               .arg(batchSkippedPages.size()),
+                           QMessageBox::Ok, this);
+    QStringList details;
+    if (!batchFailures.isEmpty()) {
+      details.append(tr("Failed pages:\n%1").arg(batchFailures.join(QLatin1Char('\n'))));
+    }
+    if (!batchSkippedPages.isEmpty()) {
+      details.append(tr("Skipped pages:\n%1").arg(batchSkippedPages.join(QLatin1Char('\n'))));
+    }
+    messageBox.setDetailedText(details.join(QStringLiteral("\n\n")));
     messageBox.exec();
   }
 }
@@ -1321,14 +1333,18 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
   try {
     if (isBatchTask) {
       const QString failureDescription = result ? result->failureDescription() : QString();
+      const QString skippedDescription = result ? result->skippedDescription() : QString();
+      QString pageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+      if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
+        pageName += tr(" (page %1)").arg(batchPage.imageId().page());
+      }
+      if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
+        pageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
+      }
+      if (!skippedDescription.isEmpty()) {
+        m_batchSkippedPages.append(tr("%1: %2").arg(pageName, skippedDescription));
+      }
       if (!result || !failureDescription.isEmpty() || !errorMessage.isEmpty()) {
-        QString pageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
-        if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
-          pageName += tr(" (page %1)").arg(batchPage.imageId().page());
-        }
-        if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
-          pageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
-        }
         const QString details = !failureDescription.isEmpty()
                                     ? failureDescription
                                     : (errorMessage.isEmpty() ? tr("The page could not be processed.") : errorMessage);

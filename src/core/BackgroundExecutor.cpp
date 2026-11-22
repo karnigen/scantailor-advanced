@@ -55,8 +55,9 @@ class BackgroundExecutor::Impl : public QThread {
  private:
   BackgroundExecutor& m_owner;
   Dispatcher m_dispatcher;
-  bool m_threadStarted;
+  std::atomic_bool m_threadStarted{false};
   std::atomic_bool m_shuttingDown{false};
+  std::atomic_int m_threadRestartCount{0};
 };
 
 
@@ -124,9 +125,30 @@ void BackgroundExecutor::Dispatcher::customEvent(QEvent* event) {
 
 /*======================= BackgroundExecutor::Impl =========================*/
 
-BackgroundExecutor::Impl::Impl(BackgroundExecutor& owner)
-    : m_owner(owner), m_dispatcher(*this), m_threadStarted(false) {
+BackgroundExecutor::Impl::Impl(BackgroundExecutor& owner) : m_owner(owner), m_dispatcher(*this) {
   m_dispatcher.moveToThread(this);
+  connect(
+      this, &QThread::finished, this,
+      [this]() {
+        m_threadStarted.store(false);
+        if (m_shuttingDown.load()) {
+          return;
+        }
+
+        constexpr int maxAutomaticRestarts = 3;
+        const int restartCount = m_threadRestartCount.fetch_add(1) + 1;
+        if (restartCount > maxAutomaticRestarts) {
+          qCritical("Background executor is unavailable after repeated event loop failures; a later task can retry.");
+          return;
+        }
+
+        qWarning("Background executor thread stopped unexpectedly; restarting (%d/%d).", restartCount,
+                 maxAutomaticRestarts);
+        if (!m_threadStarted.exchange(true)) {
+          start();
+        }
+      },
+      Qt::QueuedConnection);
 }
 
 BackgroundExecutor::Impl::~Impl() {
@@ -137,9 +159,9 @@ BackgroundExecutor::Impl::~Impl() {
 
 void BackgroundExecutor::Impl::enqueueTask(const TaskPtr& task) {
   QCoreApplication::postEvent(&m_dispatcher, new TaskEvent(task));
-  if (!m_threadStarted) {
+  if (!m_threadStarted.exchange(true)) {
+    m_threadRestartCount.store(0);
     start();
-    m_threadStarted = true;
   }
 }
 
@@ -170,7 +192,7 @@ void BackgroundExecutor::Impl::run() {
     }
   }
   if (!m_shuttingDown.load() && consecutiveFailures >= maxEventLoopAttempts) {
-    qCritical("Background executor event loop failed permanently; background tasks will not run.");
+    qCritical("Background executor event loop failed after %d attempts.", consecutiveFailures);
   }
 }
 
