@@ -9,6 +9,7 @@
 #include <QPointer>
 #include <QSizeF>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <boost/function.hpp>
 #include <memory>
@@ -325,6 +326,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   std::unique_ptr<ThumbnailSequence> m_thumbSequence;
   std::unique_ptr<WorkerThreadPool> m_workerThreadPool;
   std::unique_ptr<ProcessingTaskQueue> m_batchQueue;
+  QStringList m_batchFailures;
   std::unique_ptr<ProcessingTaskQueue> m_interactiveQueue;
   QStackedLayout* m_imageFrameLayout;
   QStackedLayout* m_optionsFrameLayout;

@@ -218,6 +218,7 @@ void ImageViewBase::hqTransformSetEnabled(const bool enabled) {
   } else if (enabled && !m_hqTransformEnabled) {
     // Turning on.
     m_hqTransformEnabled = true;
+    m_hqTransformFailed = false;
     update();
   }
 }
@@ -922,9 +923,10 @@ bool ImageViewBase::validateHqPixmap() const {
 
 void ImageViewBase::scheduleHqVersionRebuild() {
   const QTransform xform(m_imageToVirtual * m_virtualToWidget);
+  const qint64 sourceId = m_image.cacheKey();
 
   if (m_hqTransformFailed) {
-    if (m_failedHqXform == xform) {
+    if (m_failedHqXform == xform && m_failedHqSourceId == sourceId) {
       return;
     }
     m_hqTransformFailed = false;
@@ -981,6 +983,7 @@ void ImageViewBase::hqVersionFailed(HqTransformTask* task, const QTransform& xfo
   if (m_hqTransformTask.get() == task) {
     m_hqTransformTask.reset();
     m_failedHqXform = xform;
+    m_failedHqSourceId = m_hqSourceId;
     m_hqTransformFailed = true;
   }
 }

@@ -17,6 +17,7 @@ class TestCoreQt : public QObject {
   void testSmartFilenameOrdering();
   void testSignalSpy();
   void testBackgroundExecutorContainsWorkerAndResultExceptions();
+  void testProcessingTaskQueueReturnsPageInfoForTask();
   void testWorkerThreadPoolReturnsFailureResult();
   void testWorkerThreadPoolCompletesWhenFailureResultIsUnavailable();
 };

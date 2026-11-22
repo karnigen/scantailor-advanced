@@ -15,38 +15,42 @@
 
 class DebugImageView::ImageLoadResult : public AbstractCommand<void> {
  public:
-  ImageLoadResult(QPointer<DebugImageView> owner, const QImage& image) : m_owner(std::move(owner)), m_image(image) {}
+  ImageLoadResult(QPointer<DebugImageView> owner, const quint64 generation, const QImage& image)
+      : m_owner(std::move(owner)), m_generation(generation), m_image(image) {}
 
   // This method is called from the main thread.
   void operator()() override {
     if (DebugImageView* owner = m_owner) {
-      owner->imageLoaded(m_image);
+      owner->imageLoaded(m_generation, m_image);
     }
   }
 
  private:
   QPointer<DebugImageView> m_owner;
+  quint64 m_generation;
   QImage m_image;
 };
 
 
 class DebugImageView::ImageLoader : public BackgroundExecutor::Task {
  public:
-  ImageLoader(DebugImageView* owner, const QString& filePath) : m_owner(owner), m_filePath(filePath) {}
+  ImageLoader(DebugImageView* owner, const quint64 generation, const QString& filePath)
+      : m_owner(owner), m_generation(generation), m_filePath(filePath) {}
 
   BackgroundExecutor::TaskResultPtr operator()() override {
     QImage image(m_filePath);
-    return std::make_shared<ImageLoadResult>(m_owner, image);
+    return std::make_shared<ImageLoadResult>(m_owner, m_generation, image);
   }
 
   void handleException(const QString& message) override {
     if (DebugImageView* owner = m_owner) {
-      owner->imageLoadFailed(message);
+      owner->imageLoadFailed(m_generation, message);
     }
   }
 
  private:
   QPointer<DebugImageView> m_owner;
+  quint64 m_generation;
   QString m_filePath;
 };
 
@@ -64,8 +68,11 @@ DebugImageView::DebugImageView(AutoRemovingFile file,
 
 void DebugImageView::setLive(const bool live) {
   if (live && !m_isLive) {
-    ImageViewBase::backgroundExecutor().enqueueTask(std::make_shared<ImageLoader>(this, m_file.get()));
+    ++m_loadGeneration;
+    ImageViewBase::backgroundExecutor().enqueueTask(
+        std::make_shared<ImageLoader>(this, m_loadGeneration, m_file.get()));
   } else if (!live && m_isLive) {
+    ++m_loadGeneration;
     if (QWidget* wgt = currentWidget()) {
       if (wgt != m_placeholderWidget) {
         removeWidget(wgt);
@@ -77,8 +84,8 @@ void DebugImageView::setLive(const bool live) {
   m_isLive = live;
 }
 
-void DebugImageView::imageLoaded(const QImage& image) {
-  if (!m_isLive) {
+void DebugImageView::imageLoaded(const quint64 generation, const QImage& image) {
+  if (!m_isLive || generation != m_loadGeneration) {
     return;
   }
 
@@ -93,8 +100,8 @@ void DebugImageView::imageLoaded(const QImage& image) {
   }
 }
 
-void DebugImageView::imageLoadFailed(const QString& message) {
-  if (!m_isLive) {
+void DebugImageView::imageLoadFailed(const quint64 generation, const QString& message) {
+  if (!m_isLive || generation != m_loadGeneration || currentWidget() != m_placeholderWidget) {
     return;
   }
 

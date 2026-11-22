@@ -5,6 +5,7 @@
 
 #include <QCoreApplication>
 #include <QThread>
+#include <atomic>
 #include <exception>
 #include <utility>
 
@@ -55,6 +56,7 @@ class BackgroundExecutor::Impl : public QThread {
   BackgroundExecutor& m_owner;
   Dispatcher m_dispatcher;
   bool m_threadStarted;
+  std::atomic_bool m_shuttingDown{false};
 };
 
 
@@ -97,6 +99,7 @@ void BackgroundExecutor::Dispatcher::customEvent(QEvent* event) {
       result = (*task)();
     } catch (const std::bad_alloc&) {
       OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      QCoreApplication::postEvent(&m_owner, new FailureEvent(std::make_pair(task, QString())));
       return;
     } catch (const std::exception& e) {
       qWarning("Background task failed: %s", e.what());
@@ -127,6 +130,7 @@ BackgroundExecutor::Impl::Impl(BackgroundExecutor& owner)
 }
 
 BackgroundExecutor::Impl::~Impl() {
+  m_shuttingDown.store(true);
   exit();
   wait();
 }
@@ -140,14 +144,17 @@ void BackgroundExecutor::Impl::enqueueTask(const TaskPtr& task) {
 }
 
 void BackgroundExecutor::Impl::run() {
-  try {
-    exec();
-  } catch (const std::bad_alloc&) {
-    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
-  } catch (const std::exception& e) {
-    qCritical("Background executor event loop failed: %s", e.what());
-  } catch (...) {
-    qCritical("Background executor event loop failed with an unknown exception.");
+  while (!m_shuttingDown.load()) {
+    try {
+      exec();
+      return;
+    } catch (const std::bad_alloc&) {
+      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    } catch (const std::exception& e) {
+      qCritical("Background executor event loop failed: %s", e.what());
+    } catch (...) {
+      qCritical("Background executor event loop failed with an unknown exception.");
+    }
   }
 }
 

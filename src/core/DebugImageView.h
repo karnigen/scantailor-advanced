@@ -32,13 +32,14 @@ class DebugImageView
   class ImageLoadResult;
   class ImageLoader;
 
-  void imageLoaded(const QImage& image);
-  void imageLoadFailed(const QString& message);
+  void imageLoaded(quint64 generation, const QImage& image);
+  void imageLoadFailed(quint64 generation, const QString& message);
 
   AutoRemovingFile m_file;
   boost::function<QWidget*(const QImage&)> m_imageViewFactory;
   QWidget* m_placeholderWidget;
   bool m_isLive;
+  quint64 m_loadGeneration = 0;
 };
 
 

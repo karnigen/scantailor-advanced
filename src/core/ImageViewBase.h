@@ -460,6 +460,7 @@ class ImageViewBase : public QAbstractScrollArea {
   bool m_hqTransformEnabled;
   bool m_hqTransformFailed = false;
   QTransform m_failedHqXform;
+  qint64 m_failedHqSourceId = 0;
 
   ImageViewInfoProvider m_infoProvider;
 };

@@ -76,7 +76,8 @@ void WorkerThreadPool::submitTask(const BackgroundTaskPtr& task) {
         return;
       } catch (const std::bad_alloc&) {
         OutOfMemoryHandler::instance().handleOutOfMemorySituation();
-        return;
+        taskFailed = true;
+        result = makeExceptionResult(QString());
       } catch (const std::exception& e) {
         taskFailed = true;
         qWarning("Background task failed: %s", e.what());

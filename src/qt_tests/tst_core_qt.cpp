@@ -18,6 +18,7 @@
 #include "BackgroundExecutor.h"
 #include "BackgroundTask.h"
 #include "FilterResult.h"
+#include "ProcessingTaskQueue.h"
 #include "WorkerThreadPool.h"
 
 namespace {
@@ -189,6 +190,23 @@ void TestCoreQt::testBackgroundExecutorContainsWorkerAndResultExceptions() {
     }
     QCOMPARE(state.errorMessage, expectedMessages[i]);
   }
+}
+
+void TestCoreQt::testProcessingTaskQueueReturnsPageInfoForTask() {
+  AsyncTaskState state;
+  const BackgroundTaskPtr task = std::make_shared<FailingBackgroundTask>(state);
+  const PageInfo page(PageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::RIGHT_PAGE), ImageMetadata(), 1, false,
+                      false);
+  ProcessingTaskQueue queue;
+  queue.addProcessingTask(page, task);
+  QCOMPARE(queue.takeForProcessing(), task);
+
+  const PageInfo retrievedPage = queue.pageInfoForTask(task);
+  QCOMPARE(retrievedPage.imageId().filePath(), page.imageId().filePath());
+  QCOMPARE(retrievedPage.id().subPage(), PageId::RIGHT_PAGE);
+
+  queue.processingFinished(task);
+  QVERIFY(queue.pageInfoForTask(task).isNull());
 }
 
 void TestCoreQt::testWorkerThreadPoolReturnsFailureResult() {

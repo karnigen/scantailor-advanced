@@ -1215,6 +1215,7 @@ void MainWindow::startBatchProcessing() {
     return;
   }
 
+  m_batchFailures.clear();
   m_interactiveQueue->cancelAndClear();
 
   m_batchQueue = std::make_unique<ProcessingTaskQueue>();
@@ -1260,6 +1261,9 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
     return;
   }
 
+  const QStringList batchFailures(std::move(m_batchFailures));
+  m_batchFailures.clear();
+
   const PageInfo page(m_batchQueue->selectedPage());
   if (!page.isNull()) {
     m_thumbSequence->setSelection(page.id());
@@ -1281,11 +1285,22 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
   }
 
   resetThumbSequence(currentPageOrderProvider());
+
+  if (!batchFailures.isEmpty() && mainArea != CLEAR_MAIN_AREA) {
+    QMessageBox messageBox(QMessageBox::Warning, tr("Batch processing"),
+                           tr("%1 page(s) failed during batch processing.").arg(batchFailures.size()), QMessageBox::Ok,
+                           this);
+    messageBox.setDetailedText(batchFailures.join(QLatin1Char('\n')));
+    messageBox.exec();
+  }
 }
 
 void MainWindow::filterResult(const BackgroundTaskPtr& task,
                               const FilterResultPtr& result,
                               const QString& errorMessage) {
+  const bool isBatchTask = m_batchQueue && task->type() == BackgroundTask::BATCH;
+  const PageInfo batchPage = isBatchTask ? m_batchQueue->pageInfoForTask(task) : PageInfo();
+
   // Cancelled or not, we must mark it as finished.
   m_interactiveQueue->processingFinished(task);
   if (m_batchQueue) {
@@ -1294,6 +1309,18 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 
   if (task->isCancelled()) {
     return;
+  }
+
+  if (isBatchTask && (!result || !result->filter())) {
+    QString pageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+    if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
+      pageName += tr(" (page %1)").arg(batchPage.imageId().page());
+    }
+    if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
+      pageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
+    }
+    const QString details = errorMessage.isEmpty() ? tr("The page could not be processed.") : errorMessage;
+    m_batchFailures.append(tr("%1: %2").arg(pageName, details));
   }
 
   const auto showFailure = [this](const QString& message) {
