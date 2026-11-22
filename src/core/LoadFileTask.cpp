@@ -8,9 +8,14 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QTextDocument>
+#include <QVBoxLayout>
 
 #include "AbstractFilter.h"
+#include "ApplicationSettings.h"
 #include "Dpm.h"
 #include "ErrorWidget.h"
 #include "FilterData.h"
@@ -37,6 +42,100 @@ class LoadFileTask::ErrorResult : public FilterResult {
   bool m_fileExists;
 };
 
+namespace {
+
+class LargeImageOptionsWidget : public FilterOptionsWidget {
+ public:
+  LargeImageOptionsWidget(QString filePath, ImageAllocationLimitInfo limitInfo)
+      : m_filePath(std::move(filePath)), m_limitInfo(limitInfo) {
+    auto* layout = new QVBoxLayout(this);
+    auto* explanation = new QLabel(
+        tr("The image is larger than the current allocation limit. Increasing the limit affects all image loads "
+           "in this application. Large or malformed images can exhaust memory, slow down the system, or crash "
+           "the application. Choose whether to allow this limit for this run or remember it in application settings."),
+        this);
+    explanation->setWordWrap(true);
+    layout->addWidget(explanation);
+
+    auto* button = new QPushButton(tr("Review image allocation limit..."), this);
+    layout->addWidget(button);
+    layout->addStretch();
+    connect(button, &QPushButton::clicked, this, [this]() { requestLimitIncrease(); });
+  }
+
+ private:
+  void requestLimitIncrease() {
+    if (!m_limitInfo.canRaiseLimit()) {
+      QMessageBox::warning(this, tr("Image Too Large"),
+                           tr("The image dimensions exceed the maximum limit that can be configured."));
+      return;
+    }
+
+    const bool environmentOverride = qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC");
+    QString message = tr("The image %1 (%2 x %3 pixels) requires an estimated allocation limit of at least %4 MiB. "
+                         "The current limit is %5 MiB. This limit is global, not per image, and raising it can cause "
+                         "memory exhaustion or make the system unresponsive.")
+                          .arg(QDir::toNativeSeparators(m_filePath))
+                          .arg(m_limitInfo.imageSize.width())
+                          .arg(m_limitInfo.imageSize.height())
+                          .arg(m_limitInfo.requiredLimitMb)
+                          .arg(m_limitInfo.currentLimitMb);
+    if (environmentOverride) {
+      message += QLatin1Char('\n')
+                 + tr(
+                     "QT_IMAGEIO_MAXALLOC is set. The remembered value will be used on startup only when that "
+                     "environment variable is unset.");
+    }
+
+    QMessageBox dialog(QMessageBox::Warning, tr("Image Too Large"), message, QMessageBox::Cancel, this);
+    QPushButton* const onceButton = dialog.addButton(tr("Allow for This Run"), QMessageBox::AcceptRole);
+    QPushButton* const rememberButton = dialog.addButton(
+        environmentOverride ? tr("Remember (when environment variable is unset)") : tr("Remember This Limit"),
+        QMessageBox::AcceptRole);
+    dialog.setDefaultButton(QMessageBox::Cancel);
+    dialog.exec();
+
+    if (dialog.clickedButton() != onceButton && dialog.clickedButton() != rememberButton) {
+      return;
+    }
+
+    ImageAllocationLimit::setLimitMb(m_limitInfo.requiredLimitMb);
+    if (dialog.clickedButton() == rememberButton) {
+      ApplicationSettings::getInstance().setImageAllocationLimitMb(m_limitInfo.requiredLimitMb);
+    }
+    emit reloadRequested();
+  }
+
+  QString m_filePath;
+  ImageAllocationLimitInfo m_limitInfo;
+};
+
+class LargeImageResult : public FilterResult {
+  Q_DECLARE_TR_FUNCTIONS(LoadFileTask)
+
+ public:
+  LargeImageResult(const QString& filePath, const ImageAllocationLimitInfo& limitInfo)
+      : m_filePath(filePath), m_limitInfo(limitInfo) {}
+
+  void updateUI(FilterUiInterface* ui) override {
+    const QString message
+        = m_limitInfo.canRaiseLimit()
+              ? tr("This image is larger than the current image allocation limit. Review the limit in the options "
+                   "panel to allow loading it.")
+              : tr("This image is too large for the configured allocation limit.");
+    ui->setImageWidget(new ErrorWidget(message), ui->TRANSFER_OWNERSHIP);
+    ui->setOptionsWidget(new LargeImageOptionsWidget(m_filePath, m_limitInfo), ui->TRANSFER_OWNERSHIP);
+  }
+
+  std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
+
+ private:
+  QString m_filePath;
+  ImageAllocationLimitInfo m_limitInfo;
+};
+
+}  // namespace
+
 
 LoadFileTask::LoadFileTask(Type type,
                            const PageInfo& page,
@@ -55,12 +154,16 @@ LoadFileTask::LoadFileTask(Type type,
 LoadFileTask::~LoadFileTask() = default;
 
 FilterResultPtr LoadFileTask::operator()() {
-  QImage image = ImageLoader::load(m_imageId);
+  ImageAllocationLimitInfo limitInfo;
+  QImage image = ImageLoader::load(m_imageId, &limitInfo);
 
   try {
     throwIfCancelled();
 
     if (image.isNull()) {
+      if (limitInfo.exceeded) {
+        return std::make_shared<LargeImageResult>(m_imageId.filePath(), limitInfo);
+      }
       return std::make_shared<ErrorResult>(m_imageId.filePath());
     } else {
       convertToSupportedFormat(image);

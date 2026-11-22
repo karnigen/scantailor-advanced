@@ -8,6 +8,7 @@
 #include <core/ColorSchemeManager.h>
 #include <core/FontIconPack.h>
 #include <core/IconProvider.h>
+#include <core/ImageAllocationLimit.h>
 #include <core/StyledIconPack.h>
 
 #include <QCommandLineParser>
@@ -91,6 +92,13 @@ int main(int argc, char* argv[]) {
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, app.getPortableConfigPath());
   }
   QSettings settings;
+
+  if (!qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")) {
+    const int imageAllocationLimitMb = ApplicationSettings::getInstance().getImageAllocationLimitMb();
+    if (imageAllocationLimitMb > 0) {
+      ImageAllocationLimit::setLimitMb(imageAllocationLimitMb);
+    }
+  }
 
   app.installLanguage(ApplicationSettings::getInstance().getLanguage());
 

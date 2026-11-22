@@ -114,6 +114,10 @@ class ApplicationSettings {
 
   void setOutputShowGuidesEnabled(bool enabled);
 
+  int getImageAllocationLimitMb() const;
+
+  void setImageAllocationLimitMb(int limitMb);
+
  private:
   static inline QString getKey(const QString& keyName);
 
@@ -163,6 +167,7 @@ class ApplicationSettings {
   static const QString SHOW_CANCELING_SELECTION_QUESTION_KEY;
   static const QString DEFAULT_ZONE_CREATION_MODE_KEY;
   static const QString OUTPUT_SHOW_GUIDES_KEY;
+  static const QString IMAGE_ALLOCATION_LIMIT_MB_KEY;
 
   static const int DEFAULT_ZONE_CREATION_MODE;  // 0 = polygonal
   static const bool DEFAULT_OUTPUT_SHOW_GUIDES;

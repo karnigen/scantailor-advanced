@@ -27,7 +27,9 @@ Or run each suite individually:
 - **ContentSpanFinder**: content span detection.
 - **DeskewParams**: deskew filter parameters.
 - **ImageId** / **PageId**: image and page identification, ordering, and subpages.
+- **ImageAllocationLimit**: decoded-image memory estimates, rejection of oversized PNG/TIFF images before decoding, and successful TIFF loading after the limit is raised.
 - **Margins**: margins and XML serialization.
+- **ProjectMigration**: format-3 compatibility, migration backups, and format-4 serialization.
 - **PageRange**: page ranges and alternating selection.
 - **SelectContentApply**: applying the content filter.
 - **SmartFilenameOrdering**: natural filename ordering.

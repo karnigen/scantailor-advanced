@@ -9,6 +9,7 @@
 #include <QDebug>
 #include <QIODevice>
 #include <QImage>
+#include <QReadLocker>
 #include <cassert>
 #include <cmath>
 
@@ -241,7 +242,8 @@ static void convertAbgrToArgb(const uint32_t* src, uint32_t* dst, int count) {
   }
 }
 
-QImage TiffReader::readImage(QIODevice& device, const int pageNum) {
+QImage TiffReader::readImage(QIODevice& device, const int pageNum, ImageAllocationLimitInfo* limitInfo) {
+  QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
   if (!device.isReadable()) {
     return QImage();
   }
@@ -268,6 +270,9 @@ QImage TiffReader::readImage(QIODevice& device, const int pageNum) {
   const TiffInfo info(tif, header);
 
   const ImageMetadata metadata(currentPageMetadata(tif));
+  if (ImageAllocationLimit::exceeds(QSize(info.width, info.height), 32, limitInfo)) {
+    return QImage();
+  }
 
   QImage image;
 

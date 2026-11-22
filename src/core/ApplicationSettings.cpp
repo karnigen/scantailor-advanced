@@ -54,6 +54,7 @@ const QString ApplicationSettings::CURRENT_PROFILE_KEY = "current_profile";
 const QString ApplicationSettings::SHOW_CANCELING_SELECTION_QUESTION_KEY = "selection_canceling_question";
 const QString ApplicationSettings::DEFAULT_ZONE_CREATION_MODE_KEY = "default_zone_creation_mode";
 const QString ApplicationSettings::OUTPUT_SHOW_GUIDES_KEY = "output_show_guides";
+const QString ApplicationSettings::IMAGE_ALLOCATION_LIMIT_MB_KEY = "image_allocation_limit_mb";
 const int ApplicationSettings::DEFAULT_ZONE_CREATION_MODE = 0;  // POLYGONAL
 const bool ApplicationSettings::DEFAULT_OUTPUT_SHOW_GUIDES = false;
 
@@ -257,4 +258,12 @@ bool ApplicationSettings::isOutputShowGuidesEnabled() const {
 
 void ApplicationSettings::setOutputShowGuidesEnabled(bool enabled) {
   m_settings.setValue(getKey(OUTPUT_SHOW_GUIDES_KEY), enabled);
+}
+
+int ApplicationSettings::getImageAllocationLimitMb() const {
+  return m_settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt();
+}
+
+void ApplicationSettings::setImageAllocationLimitMb(int limitMb) {
+  m_settings.setValue(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), limitMb);
 }
