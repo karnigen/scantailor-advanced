@@ -77,7 +77,12 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
   ui.autoSaveProjectCB->setChecked(settings.isAutoSaveProjectEnabled());
   ui.imageAllocationLimitSB->setMaximum(image_allocation_limit::kMaxLimitMb);
-  ui.imageAllocationLimitSB->setValue(settings.getImageAllocationLimitMb());
+  const int imageAllocationLimitAtOpen = settings.getImageAllocationLimitMb();
+  ui.imageAllocationLimitSB->setValue(imageAllocationLimitAtOpen);
+  ui.imageAllocationLimitHelpLabel->setVisible(false);
+  connect(ui.imageAllocationLimitSB, &QSpinBox::valueChanged, this, [this, imageAllocationLimitAtOpen](int value) {
+    ui.imageAllocationLimitHelpLabel->setVisible(value != imageAllocationLimitAtOpen);
+  });
 
   ui.thumbnailQualitySB->setValue(settings.getThumbnailQuality().width());
   ui.thumbnailSizeSB->setValue(settings.getMaxLogicalThumbnailSize().toSize().width());
@@ -95,7 +100,11 @@ void SettingsDialog::commitChanges() {
 
   settings.setOpenGlEnabled(ui.enableOpenglCb->isChecked());
   settings.setAutoSaveProjectEnabled(ui.autoSaveProjectCB->isChecked());
-  settings.setImageAllocationLimitMb(ui.imageAllocationLimitSB->value());
+  if (!settings.setImageAllocationLimitMb(ui.imageAllocationLimitSB->value())) {
+    QMessageBox::warning(this, tr("Settings"),
+                         tr("The remembered image allocation limit could not be saved. Check application settings "
+                            "and try again."));
+  }
   settings.setHighlightDeviationEnabled(ui.highlightDeviationCB->isChecked());
   settings.setColorScheme(ui.colorSchemeBox->currentData().toString());
 

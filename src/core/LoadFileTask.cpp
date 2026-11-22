@@ -7,6 +7,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QLabel>
 #include <QMessageBox>
@@ -48,6 +49,9 @@ class LoadFileTask::ErrorResult : public FilterResult {
 
 namespace {
 
+constexpr int kLimitUpdateRetryIntervalMs = 100;
+constexpr int kLimitUpdateTimeoutMs = 5000;
+
 bool canOfferAllocationLimitIncrease(const ImageAllocationLimitInfo& limitInfo) {
   return limitInfo.canRaiseLimit() && !ImageAllocationLimit::hasEnvironmentOverride();
 }
@@ -62,7 +66,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     const bool environmentOverride = ImageAllocationLimit::hasEnvironmentOverride();
     QString explanationText;
     if (!m_limitInfo.canRaiseLimit()) {
-      explanationText = tr("The image is too large for the maximum configurable allocation limit.");
+      explanationText = tr("This image is too large for the maximum configurable image allocation limit.");
     } else if (environmentOverride) {
       explanationText = tr(
           "QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and "
@@ -74,14 +78,21 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
           "the system, or crash the application. Choose whether to allow this limit for this run or "
           "remember it in application settings.");
     }
+    m_initialExplanation = explanationText;
     m_explanation = new QLabel(explanationText, this);
     m_explanation->setWordWrap(true);
     layout->addWidget(m_explanation);
 
     if (canOfferAllocationLimitIncrease(m_limitInfo)) {
-      auto* button = new QPushButton(tr("Review image allocation limit..."), this);
-      layout->addWidget(button);
-      connect(button, &QPushButton::clicked, this, [this]() { requestLimitIncrease(); });
+      m_limitButton = new QPushButton(tr("Review image allocation limit..."), this);
+      layout->addWidget(m_limitButton);
+      connect(m_limitButton, &QPushButton::clicked, this, [this]() {
+        if (m_waitingForLimitUpdate) {
+          cancelLimitUpdate();
+        } else {
+          requestLimitIncrease();
+        }
+      });
     }
     layout->addStretch();
   }
@@ -128,36 +139,76 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     }
 
     const int requiredLimitMb = m_limitInfo.requiredLimitMb;
-    const bool rememberLimit = dialog.clickedButton() == rememberButton;
+    m_pendingLimitMb = requiredLimitMb;
+    m_rememberLimit = dialog.clickedButton() == rememberButton;
+    m_waitingForLimitUpdate = true;
+    m_limitUpdateTimer.start();
+    m_limitButton->setText(tr("Cancel"));
     m_explanation->setText(tr("Waiting for active image loads to finish..."));
-    setEnabled(false);
-    applyLimitWhenAvailable(requiredLimitMb, rememberLimit);
+    applyLimitWhenAvailable();
   }
 
-  void applyLimitWhenAvailable(const int requiredLimitMb, const bool rememberLimit) {
-    int effectiveLimitMb = 0;
-    if (!ImageAllocationLimit::trySetLimitMb(requiredLimitMb, &effectiveLimitMb)) {
-      QTimer::singleShot(50, this, [this, requiredLimitMb, rememberLimit]() {
-        applyLimitWhenAvailable(requiredLimitMb, rememberLimit);
-      });
+  void cancelLimitUpdate() {
+    m_waitingForLimitUpdate = false;
+    m_limitButton->setText(tr("Review image allocation limit..."));
+    m_explanation->setText(m_initialExplanation);
+  }
+
+  void finishLimitUpdate(const QString& message) {
+    m_waitingForLimitUpdate = false;
+    m_limitButton->setText(tr("Review image allocation limit..."));
+    m_explanation->setText(message);
+  }
+
+  void applyLimitWhenAvailable() {
+    if (!m_waitingForLimitUpdate) {
       return;
     }
 
-    setEnabled(true);
-    if (effectiveLimitMb > 0 && effectiveLimitMb < requiredLimitMb) {
-      m_explanation->setText(
+    if (m_limitUpdateTimer.elapsed() >= kLimitUpdateTimeoutMs) {
+      finishLimitUpdate(
+          tr("Active image loads are still in progress. The allocation limit was not changed. You can try again."));
+      return;
+    }
+
+    int effectiveLimitMb = 0;
+    const ImageAllocationLimit::TrySetResult result
+        = ImageAllocationLimit::trySetLimitMb(m_pendingLimitMb, &effectiveLimitMb);
+    if (result == ImageAllocationLimit::TrySetResult::Busy) {
+      QTimer::singleShot(kLimitUpdateRetryIntervalMs, this, [this]() { applyLimitWhenAvailable(); });
+      return;
+    }
+    if (result == ImageAllocationLimit::TrySetResult::Invalid) {
+      finishLimitUpdate(tr("The requested allocation limit is invalid and was not applied."));
+      return;
+    }
+    if (effectiveLimitMb > 0 && effectiveLimitMb < m_pendingLimitMb) {
+      finishLimitUpdate(
           tr("The requested allocation limit could not be applied. QT_IMAGEIO_MAXALLOC may override the limit."));
       return;
     }
-    if (rememberLimit) {
-      ApplicationSettings::getInstance().setImageAllocationLimitMb(requiredLimitMb);
+    if (m_rememberLimit && !ApplicationSettings::getInstance().setImageAllocationLimitMb(m_pendingLimitMb)) {
+      QPointer<LargeImageOptionsWidget> self(this);
+      QMessageBox::warning(window(), tr("Image Too Large"),
+                           tr("The allocation limit was applied for this run, but could not be saved to application "
+                              "settings."));
+      if (!self) {
+        return;
+      }
     }
+    m_waitingForLimitUpdate = false;
     emit reloadRequested();
   }
 
   QString m_filePath;
   ImageAllocationLimitInfo m_limitInfo;
+  QString m_initialExplanation;
   QLabel* m_explanation = nullptr;
+  QPushButton* m_limitButton = nullptr;
+  QElapsedTimer m_limitUpdateTimer;
+  int m_pendingLimitMb = 0;
+  bool m_rememberLimit = false;
+  bool m_waitingForLimitUpdate = false;
 };
 
 class LargeImageResult : public FilterResult {
@@ -170,7 +221,7 @@ class LargeImageResult : public FilterResult {
   void updateUI(FilterUiInterface* ui) override {
     QString message;
     if (!m_limitInfo.canRaiseLimit()) {
-      message = tr("This image is too large for the configured allocation limit.");
+      message = tr("This image is too large for the maximum configurable image allocation limit.");
     } else if (ImageAllocationLimit::hasEnvironmentOverride()) {
       message = tr(
           "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "

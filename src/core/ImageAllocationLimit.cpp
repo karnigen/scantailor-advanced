@@ -67,19 +67,19 @@ int ImageAllocationLimit::setLimitMb(const int limitMb) {
   return QImageReader::allocationLimit();
 }
 
-bool ImageAllocationLimit::trySetLimitMb(const int limitMb, int* effectiveLimitMb) {
+ImageAllocationLimit::TrySetResult ImageAllocationLimit::trySetLimitMb(const int limitMb, int* effectiveLimitMb) {
   if (limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
-    return false;
+    return TrySetResult::Invalid;
   }
 
   QReadWriteLock& lock = readWriteLock();
   if (!lock.tryLockForWrite()) {
-    return false;
+    return TrySetResult::Busy;
   }
   QImageReader::setAllocationLimit(limitMb);
   if (effectiveLimitMb) {
     *effectiveLimitMb = QImageReader::allocationLimit();
   }
   lock.unlock();
-  return true;
+  return TrySetResult::Applied;
 }

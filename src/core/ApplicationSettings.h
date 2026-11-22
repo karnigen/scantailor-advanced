@@ -116,7 +116,7 @@ class ApplicationSettings {
 
   int getImageAllocationLimitMb() const;
 
-  void setImageAllocationLimitMb(int limitMb);
+  bool setImageAllocationLimitMb(int limitMb);
 
  private:
   static inline QString getKey(const QString& keyName);

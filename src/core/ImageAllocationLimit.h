@@ -25,6 +25,8 @@ struct ImageAllocationLimitInfo {
 
 class ImageAllocationLimit {
  public:
+  enum class TrySetResult { Applied, Busy, Invalid };
+
   static bool hasEnvironmentOverride();
 
   // Callers must hold a read lock across this check and the image decode.
@@ -32,7 +34,7 @@ class ImageAllocationLimit {
 
   static int setLimitMb(int limitMb);
 
-  static bool trySetLimitMb(int limitMb, int* effectiveLimitMb);
+  static TrySetResult trySetLimitMb(int limitMb, int* effectiveLimitMb);
 
   static QReadWriteLock& readWriteLock();
 };

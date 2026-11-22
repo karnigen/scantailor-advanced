@@ -305,7 +305,7 @@ QImage TiffReader::readImage(QIODevice& device, const int pageNum, ImageAllocati
       const std::uint64_t maxPixelCount
           = static_cast<std::uint64_t>(std::numeric_limits<tsize_t>::max()) / sizeof(uint32_t);
       if (pixelCount > maxPixelCount) {
-        throw std::bad_alloc();
+        return QImage();
       }
       TiffBuffer<uint32_t>(static_cast<tsize_t>(pixelCount)).swap(tmpBuffer);
       if (!TIFFReadRGBAImageOriented(tif.handle(), info.width, info.height, tmpBuffer.data(), ORIENTATION_TOPLEFT, 0)) {

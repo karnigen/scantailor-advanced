@@ -59,7 +59,7 @@
             <item>
              <widget class="QLabel" name="imageAllocationLimitLabel">
               <property name="text">
-               <string>Remembered image limit:</string>
+               <string>Image size limit:</string>
               </property>
               <property name="buddy">
                <cstring>imageAllocationLimitSB</cstring>
@@ -69,19 +69,18 @@
             <item>
              <widget class="QSpinBox" name="imageAllocationLimitSB">
               <property name="toolTip">
-               <string>Maximum memory allowed for a single image. The setting is applied when the application starts.</string>
+               <string>Saved limit in MiB.
+0 uses Qt's default unless QT_IMAGEIO_MAXALLOC is set.
+Higher limits can exhaust memory.</string>
               </property>
               <property name="minimum">
                <number>0</number>
-              </property>
-              <property name="maximum">
-               <number>8192</number>
               </property>
               <property name="singleStep">
                <number>256</number>
               </property>
               <property name="specialValueText">
-               <string>Default</string>
+               <string>Default (128 MiB)</string>
               </property>
               <property name="suffix">
                <string> MiB</string>
@@ -96,9 +95,22 @@
              <bool>true</bool>
             </property>
             <property name="text">
-             <string>0 uses Qt's default unless QT_IMAGEIO_MAXALLOC is set. Increasing this limit can exhaust memory.</string>
+             <string>Restart the application to apply this change.</string>
             </property>
            </widget>
+          </item>
+          <item>
+           <spacer name="imageAllocationLimitSpacing">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>1</width>
+              <height>8</height>
+             </size>
+            </property>
+           </spacer>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout">

@@ -6,6 +6,7 @@
 #include <tiff.h>
 #include "ImageAllocationLimit.h"
 
+#include <QDebug>
 #include <QLocale>
 #include <QtCore/QSettings>
 
@@ -263,15 +264,34 @@ void ApplicationSettings::setOutputShowGuidesEnabled(bool enabled) {
 
 int ApplicationSettings::getImageAllocationLimitMb() const {
   QSettings settings;
+  settings.sync();
+  if (settings.status() != QSettings::NoError) {
+    qWarning() << "Unable to read the saved image allocation limit; using Qt's default.";
+    return 0;
+  }
+
   bool valueOk = false;
   const int limitMb = settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt(&valueOk);
-  return valueOk && limitMb >= 0 && limitMb <= image_allocation_limit::kMaxLimitMb ? limitMb : 0;
+  if (!valueOk || limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
+    if (settings.contains(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY))) {
+      qWarning() << "Invalid saved image allocation limit; using Qt's default.";
+    }
+    return 0;
+  }
+  return limitMb;
 }
 
-void ApplicationSettings::setImageAllocationLimitMb(int limitMb) {
+bool ApplicationSettings::setImageAllocationLimitMb(int limitMb) {
   if (limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
-    return;
+    qWarning() << "Ignoring invalid image allocation limit:" << limitMb;
+    return false;
   }
   QSettings settings;
   settings.setValue(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), limitMb);
+  settings.sync();
+  if (settings.status() != QSettings::NoError) {
+    qWarning() << "Unable to save the image allocation limit.";
+    return false;
+  }
+  return true;
 }

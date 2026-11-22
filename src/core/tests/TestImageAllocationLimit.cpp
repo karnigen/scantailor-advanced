@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "ApplicationSettings.h"
 #include "ImageAllocationLimit.h"
 #include "ImageLoader.h"
 
@@ -94,18 +95,28 @@ BOOST_AUTO_TEST_CASE(test_allocation_limit_is_capped) {
   BOOST_CHECK(!info.canRaiseLimit());
 }
 
-BOOST_AUTO_TEST_CASE(test_try_set_limit_does_not_wait_for_active_readers) {
+BOOST_AUTO_TEST_CASE(test_saved_image_allocation_limit_rejects_out_of_range_values) {
+  ApplicationSettings& settings = ApplicationSettings::getInstance();
+  BOOST_CHECK(!settings.setImageAllocationLimitMb(-1));
+  BOOST_CHECK(!settings.setImageAllocationLimitMb(image_allocation_limit::kMaxLimitMb + 1));
+}
+
+BOOST_AUTO_TEST_CASE(test_try_set_limit_distinguishes_busy_invalid_and_applied) {
   AllocationLimitRestorer restoreLimit;
   BOOST_CHECK_EQUAL(ImageAllocationLimit::setLimitMb(32), 32);
 
   int effectiveLimitMb = -1;
+  BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(-1, &effectiveLimitMb)
+              == ImageAllocationLimit::TrySetResult::Invalid);
+  BOOST_CHECK_EQUAL(effectiveLimitMb, -1);
   {
     QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
-    BOOST_CHECK(!ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb));
+    BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb) == ImageAllocationLimit::TrySetResult::Busy);
     BOOST_CHECK_EQUAL(effectiveLimitMb, -1);
   }
 
-  BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb));
+  BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb)
+              == ImageAllocationLimit::TrySetResult::Applied);
   BOOST_CHECK_EQUAL(effectiveLimitMb, 64);
 }
 
@@ -149,7 +160,19 @@ BOOST_AUTO_TEST_CASE(test_accepts_image_within_limit) {
   BOOST_CHECK(!info.exceeded);
 }
 
-BOOST_AUTO_TEST_CASE(test_reports_unrepresentable_limit_without_wrapping) {
+BOOST_AUTO_TEST_CASE(test_unknown_dimensions_do_not_request_limit) {
+  AllocationLimitRestorer restoreLimit;
+  ImageAllocationLimit::setLimitMb(1);
+  QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
+
+  ImageAllocationLimitInfo info;
+  BOOST_CHECK(!ImageAllocationLimit::exceeds(QSize(), 32, &info));
+  BOOST_CHECK(!info.dimensionsKnown);
+  BOOST_CHECK(!info.exceeded);
+  BOOST_CHECK_EQUAL(info.requiredLimitMb, 0);
+}
+
+BOOST_AUTO_TEST_CASE(test_rejects_image_exceeding_representable_limit_without_wrapping) {
   AllocationLimitRestorer restoreLimit;
   ImageAllocationLimit::setLimitMb(1);
   QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());

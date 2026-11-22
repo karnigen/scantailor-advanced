@@ -27,7 +27,7 @@ Or run each suite individually:
 - **ContentSpanFinder**: content span detection.
 - **DeskewParams**: deskew filter parameters.
 - **ImageId** / **PageId**: image and page identification, ordering, and subpages.
-- **ImageAllocationLimit**: decoded-image memory estimates, rejection of oversized PNG/TIFF images before decoding, and successful TIFF loading after the limit is raised.
+- **ImageAllocationLimit**: decoded-image memory estimates, unknown dimensions, allocation-limit caps and non-blocking updates, rejection of oversized PNG/TIFF images before decoding, and successful TIFF loading after the limit is raised.
 - **Margins**: margins and XML serialization.
 - **ProjectMigration**: format-3 compatibility, migration backups, and format-4 serialization.
 - **PageRange**: page ranges and alternating selection.
@@ -74,6 +74,7 @@ The existing `qt_tests` suite already covers widget-level interactions, includin
    - Run filters and check results on disk or in memory.
 
 3. **End-to-end tests**: Use tools such as Squish or scripts that control the graphical application. These tests are more costly to maintain.
+4. **Settings smoke check**: Change the remembered image allocation limit in Settings; verify that 0 restores Qt's default and that saved changes take effect after restarting the application.
 
 To measure code coverage with gcov/lcov (for supported compilers):
 
