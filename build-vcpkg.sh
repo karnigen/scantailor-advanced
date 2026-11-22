@@ -23,6 +23,7 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_TYPE="Release"
+BOOST_USE_STATIC_LIBS="ON"
 BUILD_TESTS="OFF"
 JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
 CLEAN="OFF"
@@ -261,6 +262,7 @@ CONFIG_SIGNATURE="$(
   cat <<EOF
 build_type=$BUILD_TYPE
 build_tests=$BUILD_TESTS
+boost_use_static_libs=$BOOST_USE_STATIC_LIBS
 vcpkg_root=$VCPKG_ROOT
 qt_root=$QT_ROOT
 qt_signature=$QT_SIGNATURE
@@ -378,6 +380,7 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
     -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -DBUILD_TESTS="$BUILD_TESTS" \
+    -DBoost_USE_STATIC_LIBS="$BOOST_USE_STATIC_LIBS" \
     -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
     -DVCPKG_INSTALLED_DIR="$BUILD_DIR/vcpkg_installed" \
     "${CMAKE_PREFIX_OPTIONS[@]}" \
