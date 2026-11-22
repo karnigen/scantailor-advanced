@@ -58,13 +58,15 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     if (!m_limitInfo.canRaiseLimit()) {
       explanationText = tr("The image is too large for the maximum configurable allocation limit.");
     } else if (environmentOverride) {
-      explanationText = tr("QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and "
-                           "restart the application to load this image.");
+      explanationText = tr(
+          "QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and "
+          "restart the application to load this image.");
     } else {
-      explanationText = tr("The image is larger than the current allocation limit. Increasing the limit affects all "
-                           "image loads in this application. Large or malformed images can exhaust memory, slow down "
-                           "the system, or crash the application. Choose whether to allow this limit for this run or "
-                           "remember it in application settings.");
+      explanationText = tr(
+          "The image is larger than the current allocation limit. Increasing the limit affects all "
+          "image loads in this application. Large or malformed images can exhaust memory, slow down "
+          "the system, or crash the application. Choose whether to allow this limit for this run or "
+          "remember it in application settings.");
     }
     auto* explanation = new QLabel(explanationText, this);
     explanation->setWordWrap(true);
@@ -142,11 +144,13 @@ class LargeImageResult : public FilterResult {
     if (!m_limitInfo.canRaiseLimit()) {
       message = tr("This image is too large for the configured allocation limit.");
     } else if (qEnvironmentVariableIsSet("QT_IMAGEIO_MAXALLOC")) {
-      message = tr("This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
-                   "variable and restart the application to load it.");
+      message = tr(
+          "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
+          "variable and restart the application to load it.");
     } else {
-      message = tr("This image is larger than the current image allocation limit. Review the limit in the options "
-                   "panel to allow loading it.");
+      message = tr(
+          "This image is larger than the current image allocation limit. Review the limit in the options "
+          "panel to allow loading it.");
     }
     ui->setImageWidget(new ErrorWidget(message), ui->TRANSFER_OWNERSHIP);
     ui->setOptionsWidget(new LargeImageOptionsWidget(m_filePath, m_limitInfo), ui->TRANSFER_OWNERSHIP);
