@@ -12,7 +12,10 @@ using namespace deskew;
 
 Params Utils::buildDefaultParams() {
   const DefaultParams& defaultParams = DefaultParamsProvider::getInstance().getParams();
-  const DefaultParams::DeskewParams& deskewParams = defaultParams.getDeskewParams();
+  return buildDefaultParams(defaultParams.getDeskewParams());
+}
 
-  return Params(deskewParams.getDeskewAngleDeg(), 0.0, Dependencies(), deskewParams.getMode(), MODE_AUTO);
+Params Utils::buildDefaultParams(const DefaultParams::DeskewParams& deskewParams) {
+  const AutoManualMode obliqueMode = deskewParams.isAutoOblique() ? MODE_AUTO : MODE_DISABLED;
+  return Params(deskewParams.getDeskewAngleDeg(), 0.0, Dependencies(), deskewParams.getMode(), obliqueMode);
 }

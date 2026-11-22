@@ -91,15 +91,24 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
   const Dependencies deps(data.xform().preCropArea(), data.xform().preRotation());
 
   std::unique_ptr<Params> params(m_settings->getPageParams(m_pageId));
+  const Settings::RecomputeRequest pendingRecompute = m_settings->pendingRecompute(m_pageId);
   std::optional<Params> priorParamsBeforeRecompute;
   updateFilterData(status, data, (!params || !deps.matches(params->dependencies())));
 
   OptionsWidget::UiData uiData;
   uiData.setDependencies(deps);
 
+  bool recomputeDeskew = false;
+  bool recomputeOblique = false;
   if (params) {
-    if ((!deps.matches(params->dependencies()) || (params->deskewAngle() != uiData.effectiveDeskewAngle()))
-        && (params->mode() == MODE_AUTO)) {
+    if (!deps.matches(params->dependencies())) {
+      recomputeDeskew = recomputeDeskew || (params->mode() == MODE_AUTO);
+      recomputeOblique = recomputeOblique || (params->obliqueMode() == MODE_AUTO);
+    }
+    recomputeDeskew = recomputeDeskew || (pendingRecompute.deskew && params->mode() == MODE_AUTO);
+    recomputeOblique = recomputeOblique || (pendingRecompute.oblique && params->obliqueMode() == MODE_AUTO);
+
+    if (recomputeDeskew || recomputeOblique) {
       priorParamsBeforeRecompute = *params;
       params.reset();
     } else {
@@ -108,102 +117,116 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
       uiData.setMode(params->mode());
       uiData.setObliqueMode(params->obliqueMode());
 
+      status.throwIfCancelled();
       Params newParams(uiData.effectiveDeskewAngle(), uiData.effectiveObliqueAngle(), deps, uiData.mode(),
                        uiData.obliqueMode());
       m_settings->setPageParams(m_pageId, newParams);
+      m_settings->clearRecomputeRequest(m_pageId, pendingRecompute.generation);
     }
   }
 
   if (!params) {
-    const QRectF imageArea(data.xform().transformBack().mapRect(data.xform().resultingRect()));
-    const QRect boundedImageArea(imageArea.toRect().intersected(data.origImage().rect()));
+    const DefaultParams::DeskewParams& defaultDeskew
+        = DefaultParamsProvider::getInstance().getParams().getDeskewParams();
+    double deskewAngle
+        = priorParamsBeforeRecompute ? priorParamsBeforeRecompute->deskewAngle() : defaultDeskew.getDeskewAngleDeg();
+    AutoManualMode deskewMode
+        = priorParamsBeforeRecompute ? priorParamsBeforeRecompute->mode() : defaultDeskew.getMode();
+    double obliqueAngle = priorParamsBeforeRecompute ? priorParamsBeforeRecompute->obliqueAngle() : 0.0;
+    AutoManualMode obliqueMode = priorParamsBeforeRecompute
+                                     ? priorParamsBeforeRecompute->obliqueMode()
+                                     : (defaultDeskew.isAutoOblique() ? MODE_AUTO : MODE_DISABLED);
 
-    status.throwIfCancelled();
-
-    bool autoObliqueEnabled = false;
-    if (priorParamsBeforeRecompute) {
-      autoObliqueEnabled = priorParamsBeforeRecompute->autoOblique();
-    } else if (const auto pending = m_settings->takePendingAutoOblique(m_pageId)) {
-      autoObliqueEnabled = *pending;
-    } else {
-      autoObliqueEnabled = DefaultParamsProvider::getInstance().getParams().getDeskewParams().isAutoOblique();
+    if (!priorParamsBeforeRecompute) {
+      recomputeDeskew = (deskewMode == MODE_AUTO);
+      recomputeOblique = (obliqueMode == MODE_AUTO);
+    }
+    recomputeDeskew = recomputeDeskew || (pendingRecompute.deskew && deskewMode == MODE_AUTO);
+    recomputeOblique = recomputeOblique || (pendingRecompute.oblique && obliqueMode == MODE_AUTO);
+    if (recomputeDeskew && obliqueMode == MODE_AUTO) {
+      recomputeOblique = true;
+    }
+    if (obliqueMode == MODE_DISABLED) {
+      obliqueAngle = 0.0;
+      recomputeOblique = false;
     }
 
-    double preservedObliqueDeg = 0.;
-    if (priorParamsBeforeRecompute && !priorParamsBeforeRecompute->autoOblique()) {
-      preservedObliqueDeg = priorParamsBeforeRecompute->obliqueAngle();
-    }
-
-    if (boundedImageArea.isValid()) {
-      BinaryImage rotatedImage(orthogonalRotation(
-          BinaryImage(data.grayImageBlackOnWhite(), boundedImageArea, data.bwThresholdBlackOnWhite()),
-          data.xform().preRotation().toDegrees()));
-      if (m_dbg) {
-        m_dbg->add(rotatedImage, "bw_rotated");
-      }
-
-      const QSize unrotatedDpm(Dpm(data.origImage()).toSize());
-      const Dpm rotatedDpm(data.xform().preRotation().rotate(unrotatedDpm));
-      cleanup(status, rotatedImage, Dpi(rotatedDpm));
-      if (m_dbg) {
-        m_dbg->add(rotatedImage, "after_cleanup");
-      }
+    bool canStoreParams = true;
+    if ((recomputeDeskew && deskewMode == MODE_AUTO) || (recomputeOblique && obliqueMode == MODE_AUTO)) {
+      const QRectF imageArea(data.xform().transformBack().mapRect(data.xform().resultingRect()));
+      const QRect boundedImageArea(imageArea.toRect().intersected(data.origImage().rect()));
 
       status.throwIfCancelled();
 
-      SkewFinder skewFinder;
-      skewFinder.setResolutionRatio((double) rotatedDpm.horizontal() / rotatedDpm.vertical());
-      const Skew skew(m_settings->algoContentBased() ? skewFinder.findSkew(rotatedImage)
-                                                     : skewFinder.findSkewFromTopEdge(rotatedImage));
+      if (boundedImageArea.isValid()) {
+        BinaryImage rotatedImage(orthogonalRotation(
+            BinaryImage(data.grayImageBlackOnWhite(), boundedImageArea, data.bwThresholdBlackOnWhite()),
+            data.xform().preRotation().toDegrees()));
+        if (m_dbg) {
+          m_dbg->add(rotatedImage, "bw_rotated");
+        }
 
-      if (skew.confidence() >= Skew::GOOD_CONFIDENCE) {
-        uiData.setEffectiveDeskewAngle(-skew.angle());
-      } else {
-        uiData.setEffectiveDeskewAngle(0);
-      }
-      uiData.setMode(MODE_AUTO);
-      uiData.setObliqueMode(autoObliqueEnabled ? MODE_AUTO : MODE_MANUAL);
+        const QSize unrotatedDpm(Dpm(data.origImage()).toSize());
+        const Dpm rotatedDpm(data.xform().preRotation().rotate(unrotatedDpm));
+        cleanup(status, rotatedImage, Dpi(rotatedDpm));
+        if (m_dbg) {
+          m_dbg->add(rotatedImage, "after_cleanup");
+        }
 
-      if (autoObliqueEnabled) {
-        // Find oblique on the deskewed (horizontal) mask for better accuracy (PR #110 feedback).
-        BinaryImage horizontalMask;
-        const double deskewAngleDeg = uiData.effectiveDeskewAngle();
-        if (std::abs(deskewAngleDeg) < 1e-6) {
-          horizontalMask = rotatedImage;
-        } else {
-          const int w = rotatedImage.width();
-          const int h = rotatedImage.height();
-          QTransform rotXform;
-          const QPointF center(0.5 * w, 0.5 * h);
-          rotXform.translate(-center.x(), -center.y());
-          rotXform.rotate(deskewAngleDeg);
-          rotXform.translate(center.x(), center.y());
-          const QRectF srcRectF(0, 0, w, h);
-          QPolygonF dstCorners;
-          dstCorners << rotXform.map(srcRectF.topLeft()) << rotXform.map(srcRectF.topRight())
-                     << rotXform.map(srcRectF.bottomRight()) << rotXform.map(srcRectF.bottomLeft());
-          const QRect dstRect = dstCorners.boundingRect().toAlignedRect();
-          if (dstRect.isValid()) {
-            const QImage srcQ = rotatedImage.toQImage();
-            const QImage dstQ = transform(srcQ, rotXform, dstRect, OutsidePixels::assumeWeakColor(Qt::white));
-            horizontalMask = BinaryImage(dstQ);
-          } else {
+        status.throwIfCancelled();
+
+        SkewFinder skewFinder;
+        skewFinder.setResolutionRatio((double) rotatedDpm.horizontal() / rotatedDpm.vertical());
+        if (recomputeDeskew && deskewMode == MODE_AUTO) {
+          const Skew skew(m_settings->algoContentBased() ? skewFinder.findSkew(rotatedImage)
+                                                         : skewFinder.findSkewFromTopEdge(rotatedImage));
+          deskewAngle = skew.confidence() >= Skew::GOOD_CONFIDENCE ? -skew.angle() : 0.0;
+        }
+
+        if (recomputeOblique && obliqueMode == MODE_AUTO) {
+          // Estimate oblique on the deskewed mask for better accuracy (PR #110 feedback).
+          BinaryImage horizontalMask;
+          if (std::abs(deskewAngle) < 1e-6) {
             horizontalMask = rotatedImage;
+          } else {
+            const int w = rotatedImage.width();
+            const int h = rotatedImage.height();
+            QTransform rotXform;
+            const QPointF center(0.5 * w, 0.5 * h);
+            rotXform.translate(-center.x(), -center.y());
+            rotXform.rotate(deskewAngle);
+            rotXform.translate(center.x(), center.y());
+            const QRectF srcRectF(0, 0, w, h);
+            QPolygonF dstCorners;
+            dstCorners << rotXform.map(srcRectF.topLeft()) << rotXform.map(srcRectF.topRight())
+                       << rotXform.map(srcRectF.bottomRight()) << rotXform.map(srcRectF.bottomLeft());
+            const QRect dstRect = dstCorners.boundingRect().toAlignedRect();
+            if (dstRect.isValid()) {
+              const QImage srcQ = rotatedImage.toQImage();
+              const QImage dstQ = transform(srcQ, rotXform, dstRect, OutsidePixels::assumeWeakColor(Qt::white));
+              horizontalMask = BinaryImage(dstQ);
+            } else {
+              horizontalMask = rotatedImage;
+            }
           }
-        }
-        const std::optional<double> obliqueDeg = findObliqueDegrees(horizontalMask, skewFinder, 5.0);
-        if (obliqueDeg) {
-          uiData.setEffectiveObliqueAngle(-*obliqueDeg);
+          const std::optional<double> obliqueDeg = findObliqueDegrees(horizontalMask, skewFinder, 5.0);
+          obliqueAngle = obliqueDeg ? -*obliqueDeg : 0.0;
         }
       } else {
-        uiData.setEffectiveObliqueAngle(preservedObliqueDeg);
+        canStoreParams = false;
       }
+    }
 
-      Params newParams(uiData.effectiveDeskewAngle(), uiData.effectiveObliqueAngle(), deps, uiData.mode(),
-                       uiData.obliqueMode());
-      m_settings->setPageParams(m_pageId, newParams);
+    uiData.setEffectiveDeskewAngle(deskewAngle);
+    uiData.setEffectiveObliqueAngle(obliqueAngle);
+    uiData.setMode(deskewMode);
+    uiData.setObliqueMode(obliqueMode);
 
+    if (canStoreParams) {
       status.throwIfCancelled();
+      Params newParams(deskewAngle, obliqueAngle, deps, deskewMode, obliqueMode);
+      m_settings->setPageParams(m_pageId, newParams);
+      m_settings->clearRecomputeRequest(m_pageId, pendingRecompute.generation);
     }
   }
 

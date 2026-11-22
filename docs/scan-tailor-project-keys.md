@@ -28,8 +28,9 @@ Runtime validation and migration must be verified with real project files.
 | `<deskew><params angle>` | Present | Present | Deskew angle in degrees. |
 | `<deskew><params mode>` | `auto` or `manual` | `auto` or `manual` | Deskew algorithm/parameter mode. |
 | `<deskew><params oblique>` | Present | Present | Oblique/shear angle in degrees. |
-| `<deskew><params oblique-mode>` | Not written | `auto` or `manual` | Separate mode for automatic or manual oblique correction. |
-| `<deskew><params autoOblique>` | Legacy boolean in an intermediate v4 implementation | Reader compatibility fallback | Legacy `1`/`0` representation for automatic oblique correction. The current reader prefers `oblique-mode`, then `autoOblique`, then `mode`. |
+| `<deskew><params oblique-mode>` | Not written | `auto` or `manual` | Separate mode for automatic or manual oblique correction. Off is stored as `manual` plus `oblique-disabled="1"` so older readers do not enable shear. |
+| `<deskew><params oblique-disabled>` | Not written | `1` only for Off | Distinguishes Off from Manual at 0°. The current reader checks this before `oblique-mode`. |
+| `<deskew><params autoOblique>` | Legacy boolean in an intermediate v4 implementation | Reader compatibility fallback | Legacy `1`/`0` representation for automatic oblique correction. The current reader prefers `oblique-disabled`, then `oblique-mode`, then `autoOblique`, then `mode`. |
 | `<color-or-grayscale fillOutsidePageBox>` | Not written | `1` or `0`; default `0` | Fill areas outside the original page box instead of only regular margins/offcut areas. |
 | `<color-or-grayscale wienerCoef>` | Already written by `v1.1.1` | Present | Wiener denoising coefficient. Valid range is approximately `0..1`; values outside the range are reset to `0`. |
 | `<color-or-grayscale wienerWinSize>` | Already written by `v1.1.1` | Present | Wiener filter window size. Values below `3` are reset to the default `5`. |
@@ -66,7 +67,7 @@ defaults are:
 
 - Missing `<trim>` data means `enabled=0`, `left=0`, `top=0`, `right=0`, and `bottom=0`.
 - Missing `fillOutsidePageBox` means `0`.
-- Missing `oblique-mode` falls back to `autoOblique` (`1` = auto, `0` = manual), then to `mode`
+- Missing `oblique-mode` falls back to `autoOblique` (`1` = auto, `0` = manual), then to `mode`; `oblique-disabled="1"` represents the newer Off state.
   (`manual` = manual; other or missing values = auto).
 
 This project-file compatibility does not migrate `.stp` default-parameter profiles; those remain
@@ -91,7 +92,7 @@ Examples of compatibility behavior:
 - Missing `fillOutsidePageBox` means `0`.
 - Missing `wienerCoef` reads as `0.0`.
 - Missing `wienerWinSize` may be defaulted or validated to `5`.
-- Missing `oblique-mode` can fall back to legacy `autoOblique`, or then to the deskew `mode`.
+- Missing `oblique-mode` can fall back to legacy `autoOblique`, or then to the deskew `mode`. A present `oblique-disabled="1"` explicitly selects Off.
 
 The practical result still depends on the old project and must be tested. Keep the original
 backup until the converted project has been opened and verified.

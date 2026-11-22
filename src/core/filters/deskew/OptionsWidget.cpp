@@ -3,14 +3,14 @@
 
 #include "OptionsWidget.h"
 
-#include <utility>
+#include <QButtonGroup>
 
-#include <core/DefaultParams.h>
-#include <core/DefaultParamsProvider.h>
+#include <utility>
 
 #include "ApplyDialog.h"
 #include "Params.h"
 #include "Settings.h"
+#include "Utils.h"
 
 namespace deskew {
 namespace {
@@ -20,24 +20,15 @@ Params mergeParamsForApply(const std::unique_ptr<Params>& existing,
                            const bool applyDeskew,
                            const bool applyOblique) {
   const Dependencies deps(cur.dependencies());
+  const AutoManualMode defaultObliqueMode = Utils::buildDefaultParams().obliqueMode();
   if (!existing) {
     return Params(applyDeskew ? cur.effectiveDeskewAngle() : 0.0, applyOblique ? cur.effectiveObliqueAngle() : 0.0,
-                  deps, applyDeskew ? cur.mode() : MODE_AUTO, applyOblique ? cur.obliqueMode() : MODE_AUTO);
+                  deps, applyDeskew ? cur.mode() : MODE_AUTO, applyOblique ? cur.obliqueMode() : defaultObliqueMode);
   }
   return Params(applyDeskew ? cur.effectiveDeskewAngle() : existing->deskewAngle(),
                 applyOblique ? cur.effectiveObliqueAngle() : existing->obliqueAngle(), deps,
                 applyDeskew ? cur.mode() : existing->mode(),
                 applyOblique ? cur.obliqueMode() : existing->obliqueMode());
-}
-
-void setDefaultAutoOblique(const bool enabled) {
-  DefaultParamsProvider& provider = DefaultParamsProvider::getInstance();
-  const DefaultParams& current = provider.getParams();
-  auto updated = std::make_unique<DefaultParams>(current);
-  DefaultParams::DeskewParams deskewParams(current.getDeskewParams());
-  deskewParams.setAutoOblique(enabled);
-  updated->setDeskewParams(deskewParams);
-  provider.setParams(std::move(updated), provider.getProfileName());
 }
 
 }  // namespace
@@ -49,14 +40,23 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings, const PageSelec
       m_pageSelectionAccessor(pageSelectionAccessor),
       m_connectionManager(std::bind(&OptionsWidget::setupUiConnections, this)) {
   setupUi(this);
+  auto* rotationModeGroup = new QButtonGroup(this);
+  rotationModeGroup->setExclusive(true);
+  rotationModeGroup->addButton(autoBtn);
+  rotationModeGroup->addButton(manualBtn);
+  auto* obliqueModeGroup = new QButtonGroup(this);
+  obliqueModeGroup->setExclusive(true);
+  obliqueModeGroup->addButton(obliqueOffBtn);
+  obliqueModeGroup->addButton(obliqueAutoBtn);
+  obliqueModeGroup->addButton(obliqueManualBtn);
+  autoBtn->setChecked(true);
+  obliqueOffBtn->setChecked(true);
   angleSpinBox->setSuffix(QChar(0x00B0));  // the degree symbol
   angleSpinBox->setRange(-MAX_ANGLE, MAX_ANGLE);
   angleSpinBox->adjustSize();
   setSpinBoxUnknownState();
   topEdgeCheckBox->setChecked(!m_settings->algoContentBased());
-  autoObliqueCheckBox->setChecked(DefaultParamsProvider::getInstance().getParams().getDeskewParams().isAutoOblique());
-  obliqueManualBtn->setChecked(true);
-  obliqueAutoBtn->setChecked(false);
+  obliqueOffBtn->setChecked(true);
 
   setupUiConnections();
 }
@@ -110,21 +110,26 @@ void OptionsWidget::manualDeskewAngleSetExternally(const double degrees) {
   m_uiData.setMode(MODE_MANUAL);
   updateModeIndication(MODE_MANUAL);
   setSpinBoxKnownState(degreesToSpinBox(degrees));
+  m_settings->cancelRecomputeRequest(m_pageId);
   commitCurrentParams();
 
-  emit invalidateThumbnail(m_pageId);
+  if (m_uiData.obliqueMode() == MODE_AUTO) {
+    m_settings->requestRecompute(m_pageId, false, true);
+  }
+  emit reloadRequested();
 }
 
 void OptionsWidget::manualObliqueAngleSetExternally(const double degrees) {
   auto block = m_connectionManager.getScopedBlock();
 
+  m_settings->cancelRecomputeRequest(m_pageId);
   m_uiData.setEffectiveObliqueAngle(degrees);
   m_uiData.setObliqueMode(MODE_MANUAL);
   updateObliqueModeIndication(MODE_MANUAL);
   obliqueSpinBox->setValue(degrees);
   commitCurrentParams();
 
-  emit invalidateThumbnail(m_pageId);
+  emit reloadRequested();
 }
 
 void OptionsWidget::preUpdateUI(const PageId& pageId) {
@@ -132,9 +137,9 @@ void OptionsWidget::preUpdateUI(const PageId& pageId) {
 
   m_pageId = pageId;
   setSpinBoxUnknownState();
-  autoBtn->setChecked(true);
   autoBtn->setEnabled(false);
   manualBtn->setEnabled(false);
+  obliqueOffBtn->setEnabled(false);
   obliqueAutoBtn->setEnabled(false);
   obliqueManualBtn->setEnabled(false);
 }
@@ -145,13 +150,13 @@ void OptionsWidget::postUpdateUI(const UiData& uiData) {
   m_uiData = uiData;
   autoBtn->setEnabled(true);
   manualBtn->setEnabled(true);
+  obliqueOffBtn->setEnabled(true);
   obliqueAutoBtn->setEnabled(true);
   obliqueManualBtn->setEnabled(true);
   updateModeIndication(uiData.mode());
   updateObliqueModeIndication(uiData.obliqueMode());
   setSpinBoxKnownState(degreesToSpinBox(uiData.effectiveDeskewAngle()));
   obliqueSpinBox->setValue(m_uiData.effectiveObliqueAngle());
-  autoObliqueCheckBox->setChecked(DefaultParamsProvider::getInstance().getParams().getDeskewParams().isAutoOblique());
 }
 
 void OptionsWidget::spinBoxValueChanged(const double value) {
@@ -161,37 +166,51 @@ void OptionsWidget::spinBoxValueChanged(const double value) {
   m_uiData.setEffectiveDeskewAngle(degrees);
   m_uiData.setMode(MODE_MANUAL);
   updateModeIndication(MODE_MANUAL);
+  m_settings->cancelRecomputeRequest(m_pageId);
   commitCurrentParams();
 
   emit manualDeskewAngleSet(degrees);
-  emit invalidateThumbnail(m_pageId);
+  if (m_uiData.obliqueMode() == MODE_AUTO) {
+    m_settings->requestRecompute(m_pageId, false, true);
+  }
+  emit reloadRequested();
 }
 
 void OptionsWidget::modeChanged(const bool autoMode) {
   if (autoMode) {
     m_uiData.setMode(MODE_AUTO);
-    if (m_uiData.obliqueMode() == MODE_AUTO) {
-      m_uiData.setEffectiveObliqueAngle(0.0);
-    }
-    m_settings->setPendingAutoOblique(m_pageId, autoObliqueCheckBox->isChecked());
-    m_settings->clearPageParams(m_pageId);
+    updateModeIndication(MODE_AUTO);
+    m_settings->requestRecompute(m_pageId, true, false);
+    commitCurrentParams();
     emit reloadRequested();
   } else {
+    m_settings->cancelRecomputeRequest(m_pageId);
     m_uiData.setMode(MODE_MANUAL);
+    updateModeIndication(MODE_MANUAL);
     commitCurrentParams();
+    emit reloadRequested();
   }
 }
 
-void OptionsWidget::obliqueModeChanged(const bool autoMode) {
-  if (autoMode) {
-    m_uiData.setObliqueMode(MODE_AUTO);
+void OptionsWidget::obliqueModeChanged(const AutoManualMode mode) {
+  auto block = m_connectionManager.getScopedBlock();
+
+  m_uiData.setObliqueMode(mode);
+  updateObliqueModeIndication(mode);
+  if (mode == MODE_DISABLED || mode == MODE_AUTO) {
     m_uiData.setEffectiveObliqueAngle(0.0);
     obliqueSpinBox->setValue(0.0);
+    if (mode == MODE_AUTO) {
+      m_settings->requestRecompute(m_pageId, false, true);
+    } else {
+      m_settings->cancelRecomputeRequest(m_pageId);
+    }
     commitCurrentParams();
     emit reloadRequested();
   } else {
-    m_uiData.setObliqueMode(MODE_MANUAL);
+    m_settings->cancelRecomputeRequest(m_pageId);
     commitCurrentParams();
+    emit reloadRequested();
   }
 }
 
@@ -208,10 +227,16 @@ void OptionsWidget::updateModeIndication(const AutoManualMode mode) {
 void OptionsWidget::updateObliqueModeIndication(const AutoManualMode mode) {
   auto block = m_connectionManager.getScopedBlock();
 
-  if (mode == MODE_AUTO) {
-    obliqueAutoBtn->setChecked(true);
-  } else {
-    obliqueManualBtn->setChecked(true);
+  switch (mode) {
+    case MODE_DISABLED:
+      obliqueOffBtn->setChecked(true);
+      break;
+    case MODE_AUTO:
+      obliqueAutoBtn->setChecked(true);
+      break;
+    case MODE_MANUAL:
+      obliqueManualBtn->setChecked(true);
+      break;
   }
 }
 
@@ -224,6 +249,7 @@ void OptionsWidget::setSpinBoxUnknownState() {
   angleSpinBox->setEnabled(false);
   obliqueSpinBox->setValue(0.0);
   obliqueSpinBox->setEnabled(false);
+  obliqueOffBtn->setEnabled(false);
   obliqueAutoBtn->setEnabled(false);
   obliqueManualBtn->setEnabled(false);
 }
@@ -238,6 +264,7 @@ void OptionsWidget::setSpinBoxKnownState(const double angle) {
   angleSpinBox->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   angleSpinBox->setEnabled(true);
   obliqueSpinBox->setEnabled(true);
+  obliqueOffBtn->setEnabled(true);
   obliqueAutoBtn->setEnabled(true);
   obliqueManualBtn->setEnabled(true);
 }
@@ -270,35 +297,27 @@ void OptionsWidget::topEdgeToggled(bool checked) {
   }
 }
 
-void OptionsWidget::autoObliqueCheckBoxToggled(const bool checked) {
-  setDefaultAutoOblique(checked);
-  m_settings->setPendingAutoOblique(m_pageId, checked);
-  if (autoBtn->isChecked()) {
-    m_settings->clearPageParams(m_pageId);
-    emit reloadRequested();
-  }
-}
-
 void OptionsWidget::obliqueSpinBoxValueChanged(double value) {
   auto block = m_connectionManager.getScopedBlock();
 
+  m_settings->cancelRecomputeRequest(m_pageId);
   m_uiData.setEffectiveObliqueAngle(value);
-  if (value != 0.0) {
-    m_uiData.setObliqueMode(MODE_MANUAL);
-    updateObliqueModeIndication(MODE_MANUAL);
-  }
+  m_uiData.setObliqueMode(MODE_MANUAL);
+  updateObliqueModeIndication(MODE_MANUAL);
   commitCurrentParams();
   emit manualObliqueAngleSet(value);
   emit invalidateThumbnail(m_pageId);
+  emit reloadRequested();
 }
 
 void OptionsWidget::setupUiConnections() {
   CONNECT(angleSpinBox, SIGNAL(valueChanged(double)), this, SLOT(spinBoxValueChanged(double)));
   CONNECT(obliqueSpinBox, SIGNAL(valueChanged(double)), this, SLOT(obliqueSpinBoxValueChanged(double)));
   CONNECT(autoBtn, SIGNAL(toggled(bool)), this, SLOT(modeChanged(bool)));
-  CONNECT(obliqueAutoBtn, SIGNAL(toggled(bool)), this, SLOT(obliqueModeChanged(bool)));
+  CONNECT(obliqueOffBtn, &QPushButton::clicked, this, [this] { obliqueModeChanged(MODE_DISABLED); });
+  CONNECT(obliqueAutoBtn, &QPushButton::clicked, this, [this] { obliqueModeChanged(MODE_AUTO); });
+  CONNECT(obliqueManualBtn, &QPushButton::clicked, this, [this] { obliqueModeChanged(MODE_MANUAL); });
   CONNECT(topEdgeCheckBox, SIGNAL(toggled(bool)), this, SLOT(topEdgeToggled(bool)));
-  CONNECT(autoObliqueCheckBox, SIGNAL(toggled(bool)), this, SLOT(autoObliqueCheckBoxToggled(bool)));
   CONNECT(applyDeskewBtn, SIGNAL(clicked()), this, SLOT(showDeskewDialog()));
 }
 
@@ -307,7 +326,7 @@ void OptionsWidget::setupUiConnections() {
 /*========================== OptionsWidget::UiData =========================*/
 
 OptionsWidget::UiData::UiData()
-    : m_effDeskewAngle(0.0), m_effObliqueAngle(0.0), m_mode(MODE_AUTO), m_obliqueMode(MODE_MANUAL) {}
+    : m_effDeskewAngle(0.0), m_effObliqueAngle(0.0), m_mode(MODE_AUTO), m_obliqueMode(MODE_DISABLED) {}
 
 OptionsWidget::UiData::~UiData() = default;
 }  // namespace deskew

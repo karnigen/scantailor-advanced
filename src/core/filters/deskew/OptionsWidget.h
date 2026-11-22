@@ -88,11 +88,7 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
 
   void modeChanged(bool autoMode);
 
-  void obliqueModeChanged(bool autoMode);
-
   void topEdgeToggled(bool checked);
-
-  void autoObliqueCheckBoxToggled(bool checked);
 
   void showDeskewDialog();
 
@@ -101,6 +97,8 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
   void appliedToAllPages(const std::set<PageId>& pages, bool applyDeskew, bool applyOblique);
 
  private:
+  void obliqueModeChanged(AutoManualMode mode);
+
   void updateModeIndication(AutoManualMode mode);
 
   void updateObliqueModeIndication(AutoManualMode mode);

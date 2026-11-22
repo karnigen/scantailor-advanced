@@ -7,8 +7,8 @@
 #include <DeviationProvider.h>
 
 #include <QMutex>
+#include <cstdint>
 #include <memory>
-#include <optional>
 #include <set>
 #include <unordered_map>
 
@@ -23,6 +23,12 @@ class Settings {
   DECLARE_NON_COPYABLE(Settings)
 
  public:
+  struct RecomputeRequest {
+    bool deskew = false;
+    bool oblique = false;
+    std::uint64_t generation = 0;
+  };
+
   Settings();
 
   virtual ~Settings();
@@ -47,9 +53,13 @@ class Settings {
 
   bool algoContentBased() const;
 
-  void setPendingAutoOblique(const PageId& pageId, bool enabled);
+  void requestRecompute(const PageId& pageId, bool deskew, bool oblique);
 
-  std::optional<bool> takePendingAutoOblique(const PageId& pageId);
+  RecomputeRequest pendingRecompute(const PageId& pageId) const;
+
+  void clearRecomputeRequest(const PageId& pageId, std::uint64_t generation);
+
+  void cancelRecomputeRequest(const PageId& pageId);
 
  private:
   using PerPageParams = std::unordered_map<PageId, Params>;
@@ -58,7 +68,8 @@ class Settings {
   PerPageParams m_perPageParams;
   DeviationProvider<PageId> m_deviationProvider;
   bool m_algoContentBased;
-  std::unordered_map<PageId, bool> m_pendingAutoOblique;
+  std::unordered_map<PageId, RecomputeRequest> m_pendingRecompute;
+  std::uint64_t m_recomputeGeneration = 0;
 };
 }  // namespace deskew
 #endif  // ifndef SCANTAILOR_DESKEW_SETTINGS_H_

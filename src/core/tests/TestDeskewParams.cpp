@@ -6,6 +6,7 @@
 #include <ImageTransformation.h>
 #include <filters/deskew/Dependencies.h>
 #include <filters/deskew/Params.h>
+#include <filters/deskew/Utils.h>
 
 #include <QDomDocument>
 #include <QPolygonF>
@@ -85,6 +86,39 @@ BOOST_AUTO_TEST_CASE(params_oblique_mode_attribute_roundtrip_xml) {
   BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.75, 1e-6);
 }
 
+BOOST_AUTO_TEST_CASE(params_disabled_oblique_mode_roundtrip_xml) {
+  const Dependencies deps;
+  const Params original(-0.5, 0.75, deps, MODE_AUTO, MODE_DISABLED);
+
+  QDomDocument doc;
+  const QDomElement el = original.toXml(doc, "deskew-params");
+  doc.appendChild(el);
+
+  BOOST_CHECK(el.attribute("oblique-mode") == "manual");
+  BOOST_CHECK(el.attribute("oblique-disabled") == "1");
+  BOOST_CHECK_SMALL(original.obliqueAngle(), 1e-9);
+  const Params restored(doc.documentElement());
+  BOOST_CHECK(restored.mode() == MODE_AUTO);
+  BOOST_CHECK(restored.obliqueMode() == MODE_DISABLED);
+  BOOST_CHECK(!restored.autoOblique());
+}
+
+BOOST_AUTO_TEST_CASE(params_legacy_auto_oblique_off_preserves_manual_angle) {
+  QDomDocument doc;
+  QDomElement el(doc.createElement("params"));
+  el.setAttribute("mode", "auto");
+  el.setAttribute("angle", "0");
+  el.setAttribute("oblique", "0.75");
+  el.setAttribute("autoOblique", "0");
+  const Dependencies deps;
+  el.appendChild(deps.toXml(doc, "dependencies"));
+  doc.appendChild(el);
+
+  const Params restored(doc.documentElement());
+  BOOST_CHECK(restored.obliqueMode() == MODE_MANUAL);
+  BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.75, 1e-6);
+}
+
 /** Selective Apply To… merge semantics (issue #117): deskew-only must not overwrite oblique. */
 BOOST_AUTO_TEST_CASE(apply_merge_deskew_only_preserves_oblique) {
   const Dependencies deps;
@@ -145,6 +179,15 @@ BOOST_AUTO_TEST_CASE(params_missing_autoOblique_attribute_defaults_true) {
 BOOST_AUTO_TEST_CASE(default_params_deskew_auto_oblique_off_by_default) {
   const DefaultParams::DeskewParams deskew;
   BOOST_CHECK(!deskew.isAutoOblique());
+}
+
+BOOST_AUTO_TEST_CASE(new_page_oblique_mode_follows_global_default) {
+  DefaultParams::DeskewParams deskewParams;
+  deskewParams.setAutoOblique(false);
+  BOOST_CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_DISABLED);
+
+  deskewParams.setAutoOblique(true);
+  BOOST_CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_AUTO);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
