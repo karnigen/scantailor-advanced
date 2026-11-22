@@ -97,27 +97,24 @@ QDomDocument makeMigrationProject(const QString& projectDir) {
   colorWithValueEl.setAttribute("fillOutsidePageBox", "0");
   filtersEl.appendChild(colorWithValueEl);
 
-  QDomElement deskewWithAutoObliqueEl(doc.createElement("deskew"));
-  QDomElement autoObliqueParamsEl(doc.createElement("params"));
-  autoObliqueParamsEl.setAttribute("autoOblique", "0");
-  deskewWithAutoObliqueEl.appendChild(autoObliqueParamsEl);
-  filtersEl.appendChild(deskewWithAutoObliqueEl);
-
-  QDomElement deskewWithAutomaticObliqueEl(doc.createElement("deskew"));
-  QDomElement automaticObliqueParamsEl(doc.createElement("params"));
-  automaticObliqueParamsEl.setAttribute("autoOblique", "1");
-  deskewWithAutomaticObliqueEl.appendChild(automaticObliqueParamsEl);
-  filtersEl.appendChild(deskewWithAutomaticObliqueEl);
-
-  QDomElement deskewWithModeEl(doc.createElement("deskew"));
-  QDomElement modeParamsEl(doc.createElement("params"));
-  modeParamsEl.setAttribute("mode", "manual");
-  deskewWithModeEl.appendChild(modeParamsEl);
-  filtersEl.appendChild(deskewWithModeEl);
-
-  QDomElement deskewWithDefaultModeEl(doc.createElement("deskew"));
-  deskewWithDefaultModeEl.appendChild(doc.createElement("params"));
-  filtersEl.appendChild(deskewWithDefaultModeEl);
+  QDomElement deskewEl(doc.createElement("deskew"));
+  int deskewPageId = 1;
+  const auto appendDeskewPage = [&](const QString& attribute, const QString& value) {
+    QDomElement pageEl(doc.createElement("page"));
+    pageEl.setAttribute("id", deskewPageId++);
+    QDomElement paramsEl(doc.createElement("params"));
+    if (!attribute.isNull()) {
+      paramsEl.setAttribute(attribute, value);
+    }
+    pageEl.appendChild(paramsEl);
+    deskewEl.appendChild(pageEl);
+  };
+  appendDeskewPage("autoOblique", "0");
+  appendDeskewPage("autoOblique", "1");
+  appendDeskewPage("mode", "manual");
+  appendDeskewPage(QString(), QString());
+  appendDeskewPage("oblique-mode", "manual");
+  filtersEl.appendChild(deskewEl);
 
   projectEl.appendChild(filtersEl);
 
@@ -290,5 +287,47 @@ BOOST_AUTO_TEST_CASE(test_v3_save_writes_v4_with_relative_paths_and_preserves_ba
   const QDomElement directoryEl(rootEl.namedItem("directories").firstChildElement("directory"));
   BOOST_CHECK(directoryEl.attribute("path") == "../source");
 }
+
+#if defined(Q_OS_UNIX)
+BOOST_AUTO_TEST_CASE(test_v3_save_keeps_absolute_paths_when_relative_paths_cross_symlinks) {
+  QTemporaryDir tempDir;
+  BOOST_REQUIRE(tempDir.isValid());
+  const QDir rootDir(tempDir.path());
+  const QString realProjectDir(rootDir.filePath("real/project"));
+  BOOST_REQUIRE(QDir().mkpath(realProjectDir));
+  const QString sourceDir(rootDir.filePath("real/source"));
+  BOOST_REQUIRE(QDir().mkpath(sourceDir));
+  const QString outputDir(rootDir.filePath("real/output"));
+  BOOST_REQUIRE(QDir().mkpath(outputDir));
+
+  const QString projectAlias(rootDir.filePath("project-link"));
+  BOOST_REQUIRE(QFile::link(realProjectDir, projectAlias));
+
+  const QString sourcePath(QDir(sourceDir).filePath("page.tif"));
+  BOOST_REQUIRE(writeFile(sourcePath, QByteArray()));
+  const QString projectPath(QDir(projectAlias).filePath("project.ScanTailor"));
+  const QByteArray originalV3("<project version=\"3\"/>");
+  BOOST_REQUIRE(writeFile(projectPath, originalV3));
+
+  const ImageInfo imageInfo(ImageId(sourcePath, 0), ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
+  const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(), outputDir,
+                                                        Qt::LeftToRight);
+  const ProjectWriter writer(pages, SelectedPage(), outputFileNameGenerator);
+  const std::vector<ProjectWriter::FilterPtr> filters;
+
+  QString errorMessage;
+  BOOST_REQUIRE_MESSAGE(writer.write(projectPath, filters, &errorMessage), errorMessage.toStdString());
+
+  QFile savedProject(projectPath);
+  BOOST_REQUIRE(savedProject.open(QIODevice::ReadOnly));
+  QDomDocument savedDoc;
+  BOOST_REQUIRE(savedDoc.setContent(&savedProject));
+  const QDomElement rootEl(savedDoc.documentElement());
+  BOOST_CHECK(QDir::isAbsolutePath(rootEl.attribute("outputDirectory")));
+  const QDomElement directoryEl(rootEl.namedItem("directories").firstChildElement("directory"));
+  BOOST_CHECK(QDir::isAbsolutePath(directoryEl.attribute("path")));
+}
+#endif
 
 BOOST_AUTO_TEST_SUITE_END()

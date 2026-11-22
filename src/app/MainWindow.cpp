@@ -1398,14 +1398,20 @@ void MainWindow::fixedDpiSubmitted() {
 }
 
 void MainWindow::saveProjectTriggered() {
+  saveProjectInteractive();
+}
+
+bool MainWindow::saveProjectInteractive() {
   if (m_projectFile.isEmpty()) {
     saveProjectAsTriggered();
-    return;
+    return !m_projectFile.isEmpty();
   }
 
-  if (saveProjectWithFeedback(m_projectFile)) {
-    updateWindowTitle();
+  if (!saveProjectWithFeedback(m_projectFile)) {
+    return false;
   }
+  updateWindowTitle();
+  return true;
 }
 
 void MainWindow::saveProjectAsTriggered() {
@@ -1764,8 +1770,10 @@ bool MainWindow::closeProjectInteractive() {
   if (m_projectFile.isEmpty()) {
     switch (promptProjectSave()) {
       case SAVE:
-        saveProjectTriggered();
-        // fall through
+        if (!saveProjectInteractive()) {
+          return false;
+        }
+        break;
       case DONT_SAVE:
         break;
       case CANCEL:
@@ -1786,8 +1794,10 @@ bool MainWindow::closeProjectInteractive() {
     QFile::remove(backupFilePath);
     switch (promptProjectSave()) {
       case SAVE:
-        saveProjectTriggered();
-        // fall through
+        if (!saveProjectInteractive()) {
+          return false;
+        }
+        break;
       case DONT_SAVE:
         break;
       case CANCEL:

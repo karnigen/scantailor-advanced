@@ -77,26 +77,33 @@ ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const 
 
   const QDomNodeList deskewFilters(doc.elementsByTagName("deskew"));
   for (int i = 0; i < deskewFilters.size(); ++i) {
-    const QDomElement paramsEl(deskewFilters.at(i).namedItem("params").toElement());
-    if (paramsEl.isNull() || paramsEl.hasAttribute("oblique-mode")) {
-      continue;
-    }
-
-    const bool automatic = paramsEl.hasAttribute("autoOblique") ? paramsEl.attribute("autoOblique") != "0"
-                                                                : paramsEl.attribute("mode") != "manual";
-    if (paramsEl.hasAttribute("autoOblique")) {
-      ++report.obliqueModesFromAutoOblique;
-      if (automatic) {
-        ++report.obliqueAutoModesFromAutoOblique;
-      } else {
-        ++report.obliqueManualModesFromAutoOblique;
+    const QDomElement deskewEl(deskewFilters.at(i).toElement());
+    for (QDomNode pageNode = deskewEl.firstChild(); !pageNode.isNull(); pageNode = pageNode.nextSibling()) {
+      if (!pageNode.isElement() || pageNode.nodeName() != "page") {
+        continue;
       }
-    } else {
-      ++report.obliqueModesFromDeskewMode;
-      if (automatic) {
-        ++report.obliqueAutoModesFromDeskewMode;
+
+      const QDomElement paramsEl(pageNode.namedItem("params").toElement());
+      if (paramsEl.isNull() || paramsEl.hasAttribute("oblique-mode")) {
+        continue;
+      }
+
+      const bool automatic = paramsEl.hasAttribute("autoOblique") ? paramsEl.attribute("autoOblique") != "0"
+                                                                  : paramsEl.attribute("mode") != "manual";
+      if (paramsEl.hasAttribute("autoOblique")) {
+        ++report.obliqueModesFromAutoOblique;
+        if (automatic) {
+          ++report.obliqueAutoModesFromAutoOblique;
+        } else {
+          ++report.obliqueManualModesFromAutoOblique;
+        }
       } else {
-        ++report.obliqueManualModesFromDeskewMode;
+        ++report.obliqueModesFromDeskewMode;
+        if (automatic) {
+          ++report.obliqueAutoModesFromDeskewMode;
+        } else {
+          ++report.obliqueManualModesFromDeskewMode;
+        }
       }
     }
   }

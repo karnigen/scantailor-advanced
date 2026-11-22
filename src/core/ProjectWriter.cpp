@@ -76,6 +76,12 @@ static QString toRelativeIfPossible(const QString& projectDirPath, const QString
   if (QDir::isAbsolutePath(rel)) {
     return absolutePath;
   }
+
+  const QString canonicalAbsolutePath(QFileInfo(absolutePath).canonicalFilePath());
+  const QString canonicalRelativePath(QFileInfo(projectDir.filePath(rel)).canonicalFilePath());
+  if (canonicalAbsolutePath.isEmpty() || canonicalAbsolutePath != canonicalRelativePath) {
+    return absolutePath;
+  }
   return rel;
 }
 
