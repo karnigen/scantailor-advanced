@@ -16,8 +16,10 @@
 #include <QScrollBar>
 #include <QSortFilterProxyModel>
 #include <QStackedLayout>
+#include <QTimer>
 #include <QtWidgets/QInputDialog>
 #include <boost/lambda/lambda.hpp>
+#include <exception>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -275,8 +277,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
           SLOT(filterSelectionChanged(const QItemSelection&)));
   connect(filterList, SIGNAL(launchBatchProcessing()), this, SLOT(startBatchProcessing()));
 
-  connect(m_workerThreadPool.get(), SIGNAL(taskResult(const BackgroundTaskPtr&, const FilterResultPtr&)), this,
-          SLOT(filterResult(const BackgroundTaskPtr&, const FilterResultPtr&)));
+  connect(m_workerThreadPool.get(), &WorkerThreadPool::taskResult, this, &MainWindow::filterResult);
 
   connect(m_thumbSequence.get(),
           SIGNAL(newSelectionLeader(const PageInfo&, const QRectF&, ThumbnailSequence::SelectionFlags)), this,
@@ -1215,6 +1216,8 @@ void MainWindow::startBatchProcessing() {
     return;
   }
 
+  m_batchFailures.clear();
+  m_batchSkippedPages.clear();
   m_interactiveQueue->cancelAndClear();
 
   m_batchQueue = std::make_unique<ProcessingTaskQueue>();
@@ -1260,6 +1263,11 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
     return;
   }
 
+  const QStringList batchFailures(std::move(m_batchFailures));
+  const QStringList batchSkippedPages(std::move(m_batchSkippedPages));
+  m_batchFailures.clear();
+  m_batchSkippedPages.clear();
+
   const PageInfo page(m_batchQueue->selectedPage());
   if (!page.isNull()) {
     m_thumbSequence->setSelection(page.id());
@@ -1281,9 +1289,33 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
   }
 
   resetThumbSequence(currentPageOrderProvider());
+
+  if ((!batchFailures.isEmpty() || !batchSkippedPages.isEmpty()) && mainArea != CLEAR_MAIN_AREA) {
+    QTimer::singleShot(0, this, [this, batchFailures, batchSkippedPages]() {
+      QMessageBox messageBox(QMessageBox::Warning, tr("Batch processing"),
+                             tr("Batch processing finished with %1 failure(s) and %2 skipped page(s).")
+                                 .arg(batchFailures.size())
+                                 .arg(batchSkippedPages.size()),
+                             QMessageBox::Ok, this);
+      QStringList details;
+      if (!batchFailures.isEmpty()) {
+        details.append(tr("Failed pages:\n%1").arg(batchFailures.join(QLatin1Char('\n'))));
+      }
+      if (!batchSkippedPages.isEmpty()) {
+        details.append(tr("Skipped pages:\n%1").arg(batchSkippedPages.join(QLatin1Char('\n'))));
+      }
+      messageBox.setDetailedText(details.join(QStringLiteral("\n\n")));
+      messageBox.exec();
+    });
+  }
 }
 
-void MainWindow::filterResult(const BackgroundTaskPtr& task, const FilterResultPtr& result) {
+void MainWindow::filterResult(const BackgroundTaskPtr& task,
+                              const FilterResultPtr& result,
+                              const QString& errorMessage) {
+  const bool isBatchTask = m_batchQueue && task->type() == BackgroundTask::BATCH;
+  const PageInfo batchPage = isBatchTask ? m_batchQueue->pageInfoForTask(task) : PageInfo();
+
   // Cancelled or not, we must mark it as finished.
   m_interactiveQueue->processingFinished(task);
   if (m_batchQueue) {
@@ -1294,23 +1326,117 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task, const FilterResultP
     return;
   }
 
-  if (!isBatchProcessingInProgress()) {
-    if (!result->filter()) {
-      // Error loading file.  No special action is necessary.
-    } else if (result->filter() != m_stages->filterAt(m_curFilter)) {
-      // Error from one of the previous filters.
-      const int idx = m_stages->findFilter(result->filter());
-      assert(idx >= 0);
-      m_curFilter = idx;
+  bool batchFailureRecorded = false;
+  bool batchPageSkipped = false;
+  QString batchPageName;
+  const auto recordBatchFailure = [this, isBatchTask, &batchFailureRecorded, &batchPageName](const QString& details) {
+    if (!isBatchTask || batchFailureRecorded) {
+      return;
+    }
+    const QString pageName = batchPageName.isEmpty() ? tr("Unknown page") : batchPageName;
+    m_batchFailures.append(tr("%1: %2").arg(pageName, details));
+    batchFailureRecorded = true;
+  };
 
-      ScopedIncDec<int> selectionGuard(m_ignoreSelectionChanges);
-      filterList->selectRow(idx);
+  const auto showFailure = [this](const QString& message) {
+    const QString details = message.isEmpty() ? tr("An unknown error occurred.") : message;
+    setImageWidget(new ErrorWidget(tr("Background processing failed:\n%1").arg(details), Qt::PlainText),
+                   TRANSFER_OWNERSHIP);
+    setOptionsWidget(new FilterOptionsWidget, TRANSFER_OWNERSHIP);
+  };
+
+  try {
+    if (isBatchTask) {
+      batchPageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+      if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
+        batchPageName += tr(" (page %1)").arg(batchPage.imageId().page());
+      }
+      if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
+        batchPageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
+      }
+
+      const QString failureDescription = result ? result->failureDescription() : QString();
+      const QString skippedDescription = result ? result->skippedDescription() : QString();
+      if (!skippedDescription.isEmpty()) {
+        m_batchSkippedPages.append(tr("%1: %2").arg(batchPageName, skippedDescription));
+        batchPageSkipped = true;
+      }
+      if (!result || !failureDescription.isEmpty() || !errorMessage.isEmpty()) {
+        const QString details = !failureDescription.isEmpty()
+                                    ? failureDescription
+                                    : (errorMessage.isEmpty() ? tr("The page could not be processed.") : errorMessage);
+        recordBatchFailure(details);
+      }
+    }
+
+    if (!result) {
+      showFailure(errorMessage);
+    } else {
+      if (!isBatchProcessingInProgress()) {
+        if (!result->filter()) {
+          // Error loading file.  No special action is necessary.
+        } else if (result->filter() != m_stages->filterAt(m_curFilter)) {
+          // Error from one of the previous filters.
+          const int idx = m_stages->findFilter(result->filter());
+          assert(idx >= 0);
+          m_curFilter = idx;
+
+          ScopedIncDec<int> selectionGuard(m_ignoreSelectionChanges);
+          filterList->selectRow(idx);
+        }
+      }
+
+      // This needs to be done even if batch processing is taking place,
+      // for instance because thumbnail invalidation is done from here.
+      result->updateUI(this);
+    }
+  } catch (const std::bad_alloc&) {
+    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+  } catch (const std::exception& e) {
+    qCritical("Failed to update the UI for a background task: %s", e.what());
+    if (isBatchTask && !batchFailureRecorded && !batchPageSkipped) {
+      try {
+        recordBatchFailure(tr("Failed to update the page: %1").arg(QString::fromUtf8(e.what())));
+      } catch (const std::bad_alloc&) {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& reportError) {
+        qWarning("Failed to add a background task UI error to the batch summary: %s", reportError.what());
+      } catch (...) {
+        qWarning("Failed to add a background task UI error to the batch summary.");
+      }
+    }
+    try {
+      showFailure(QString());
+    } catch (const std::bad_alloc&) {
+      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    } catch (const std::exception& error) {
+      qWarning("Failed to display a background task error: %s", error.what());
+    } catch (...) {
+      qWarning("Failed to display a background task error: unknown exception.");
+    }
+  } catch (...) {
+    qCritical("Failed to update the UI for a background task with an unknown exception.");
+    if (isBatchTask && !batchFailureRecorded && !batchPageSkipped) {
+      try {
+        recordBatchFailure(tr("An unknown exception occurred while updating the page."));
+      } catch (const std::bad_alloc&) {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& reportError) {
+        qWarning("Failed to add a background task UI error to the batch summary: %s", reportError.what());
+      } catch (...) {
+        qWarning("Failed to add a background task UI error to the batch summary.");
+      }
+    }
+    try {
+      showFailure(QString());
+    } catch (const std::bad_alloc&) {
+      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    } catch (const std::exception& error) {
+      qWarning("Failed to display a background task error: %s", error.what());
+    } catch (...) {
+      qWarning("Failed to display a background task error: unknown exception.");
     }
   }
-
-  // This needs to be done even if batch processing is taking place,
-  // for instance because thumbnail invalidation is done from here.
-  result->updateUI(this);
 
   if (isBatchProcessingInProgress()) {
     if (m_batchQueue->allProcessed()) {

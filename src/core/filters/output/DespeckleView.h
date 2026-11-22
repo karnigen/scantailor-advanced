@@ -9,6 +9,7 @@
 
 #include <QImage>
 #include <QStackedWidget>
+#include <QString>
 #include <memory>
 
 #include "DespeckleLevel.h"
@@ -62,6 +63,8 @@ class DespeckleView : public QStackedWidget {
   void despeckleDone(const DespeckleState& despeckleState,
                      const DespeckleVisualization& visualization,
                      DebugImages* dbg);
+
+  void despeckleFailed(const std::shared_ptr<TaskCancelHandle>& cancelHandle, const QString& message);
 
   void cancelBackgroundTask();
 

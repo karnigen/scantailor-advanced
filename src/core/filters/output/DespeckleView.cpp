@@ -14,6 +14,7 @@
 #include "DebugImagesImpl.h"
 #include "Despeckle.h"
 #include "DespeckleVisualization.h"
+#include "ErrorWidget.h"
 #include "ImageViewBase.h"
 #include "OutputMargins.h"
 #include "ProcessingIndicationWidget.h"
@@ -41,7 +42,7 @@ class DespeckleView::TaskCancelHandle : public TaskStatus {
 };
 
 
-class DespeckleView::DespeckleTask : public AbstractCommand<BackgroundExecutor::TaskResultPtr> {
+class DespeckleView::DespeckleTask : public BackgroundExecutor::Task {
  public:
   DespeckleTask(DespeckleView* owner,
                 const DespeckleState& despeckleState,
@@ -50,6 +51,8 @@ class DespeckleView::DespeckleTask : public AbstractCommand<BackgroundExecutor::
                 bool debug);
 
   BackgroundExecutor::TaskResultPtr operator()() override;
+
+  void handleException(const QString& message) override;
 
  private:
   QPointer<DespeckleView> m_owner;
@@ -67,7 +70,6 @@ class DespeckleView::DespeckleResult : public AbstractCommand<void> {
                   const DespeckleState& despeckleState,
                   const DespeckleVisualization& visualization,
                   std::unique_ptr<DebugImages> debugImages);
-
   // This method is called from the main thread.
   void operator()() override;
 
@@ -180,6 +182,18 @@ void DespeckleView::despeckleDone(const DespeckleState& despeckleState,
   emit imageViewCreated(dynamic_cast<ImageViewBase*>(widget.get()));
 }
 
+void DespeckleView::despeckleFailed(const std::shared_ptr<TaskCancelHandle>& cancelHandle, const QString& message) {
+  if (m_cancelHandle != cancelHandle || cancelHandle->isCancelled()) {
+    return;
+  }
+
+  m_cancelHandle.reset();
+  removeImageViewWidget();
+  const QString details = message.isEmpty() ? tr("An unknown error occurred.") : message;
+  auto* const errorWidget = new ErrorWidget(tr("Despeckling failed:\n%1").arg(details), Qt::PlainText);
+  setCurrentIndex(addWidget(errorWidget));
+}
+
 void DespeckleView::cancelBackgroundTask() {
   if (m_cancelHandle) {
     m_cancelHandle->cancel();
@@ -231,6 +245,12 @@ BackgroundExecutor::TaskResultPtr DespeckleView::DespeckleTask::operator()() {
   }
 }
 
+void DespeckleView::DespeckleTask::handleException(const QString& message) {
+  if (m_owner) {
+    m_owner->despeckleFailed(m_cancelHandle, message);
+  }
+}
+
 /*======================== DespeckleResult ===========================*/
 
 DespeckleView::DespeckleResult::DespeckleResult(QPointer<DespeckleView> owner,
@@ -245,7 +265,7 @@ DespeckleView::DespeckleResult::DespeckleResult(QPointer<DespeckleView> owner,
       m_visualization(visualization) {}
 
 void DespeckleView::DespeckleResult::operator()() {
-  if (m_cancelHandle->isCancelled()) {
+  if (!m_cancelHandle || m_cancelHandle->isCancelled()) {
     return;
   }
 

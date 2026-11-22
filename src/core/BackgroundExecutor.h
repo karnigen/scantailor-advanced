@@ -5,7 +5,9 @@
 #define SCANTAILOR_CORE_BACKGROUNDEXECUTOR_H_
 
 #include <memory>
+#include <utility>
 
+#include <QString>
 #include "AbstractCommand.h"
 #include "NonCopyable.h"
 #include "PayloadEvent.h"
@@ -15,7 +17,13 @@ class BackgroundExecutor {
 
  public:
   using TaskResultPtr = std::shared_ptr<AbstractCommand<void>>;
-  using TaskPtr = std::shared_ptr<AbstractCommand<TaskResultPtr>>;
+
+  class Task : public AbstractCommand<TaskResultPtr> {
+   public:
+    virtual void handleException(const QString& message) = 0;
+  };
+
+  using TaskPtr = std::shared_ptr<Task>;
 
   BackgroundExecutor();
 
@@ -48,7 +56,8 @@ class BackgroundExecutor {
   class Dispatcher;
 
   using TaskEvent = PayloadEvent<TaskPtr>;
-  using ResultEvent = PayloadEvent<TaskResultPtr>;
+  using ResultEvent = PayloadEvent<std::pair<TaskPtr, TaskResultPtr>>;
+  using FailureEvent = PayloadEvent<std::pair<TaskPtr, QString>>;
 
   std::unique_ptr<Impl> m_impl;
 };

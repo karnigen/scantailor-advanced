@@ -35,15 +35,19 @@ class LoadFileTask::ErrorResult : public FilterResult {
   Q_DECLARE_TR_FUNCTIONS(LoadFileTask)
  public:
   ErrorResult(const QString& filePath, bool dimensionsKnown);
+  ErrorResult(const QString& filePath, const QString& errorDetails);
 
   void updateUI(FilterUiInterface* ui) override;
+  QString failureDescription() const override;
 
   std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
 
  private:
   QString m_filePath;
+  QString m_errorDetails;
   bool m_fileExists;
   bool m_dimensionsKnown;
+  bool m_processingError = false;
 };
 
 namespace {
@@ -218,25 +222,31 @@ class LargeImageResult : public FilterResult {
       : m_filePath(filePath), m_limitInfo(limitInfo) {}
 
   void updateUI(FilterUiInterface* ui) override {
-    QString message;
-    if (!m_limitInfo.canRaiseLimit()) {
-      message = tr("This image is too large for the maximum configurable image allocation limit.");
-    } else if (ImageAllocationLimit::hasEnvironmentOverride()) {
-      message = tr(
-          "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
-          "variable and restart the application to load it.");
-    } else {
-      message = tr(
-          "This image is larger than the current image allocation limit. Review the limit in the options "
-          "panel to allow loading it.");
-    }
-    ui->setImageWidget(new ErrorWidget(message), ui->TRANSFER_OWNERSHIP);
+    ui->setImageWidget(new ErrorWidget(limitMessage()), ui->TRANSFER_OWNERSHIP);
     ui->setOptionsWidget(new LargeImageOptionsWidget(m_filePath, m_limitInfo), ui->TRANSFER_OWNERSHIP);
   }
+
+  QString failureDescription() const override { return QString(); }
+
+  QString skippedDescription() const override { return tr("The page was skipped: %1").arg(limitMessage()); }
 
   std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
 
  private:
+  QString limitMessage() const {
+    if (!m_limitInfo.canRaiseLimit()) {
+      return tr("This image is too large for the maximum configurable image allocation limit.");
+    }
+    if (ImageAllocationLimit::hasEnvironmentOverride()) {
+      return tr(
+          "This image exceeds the allocation limit set by QT_IMAGEIO_MAXALLOC. Change the environment "
+          "variable and restart the application to load it.");
+    }
+    return tr(
+        "This image is larger than the current image allocation limit. Review the limit in the options "
+        "panel to allow loading it.");
+  }
+
   QString m_filePath;
   ImageAllocationLimitInfo m_limitInfo;
 };
@@ -250,6 +260,10 @@ class ThumbnailInvalidationResult : public FilterResult {
     m_result->updateUI(ui);
     ui->invalidateThumbnail(m_pageId);
   }
+
+  QString failureDescription() const override { return m_result->failureDescription(); }
+
+  QString skippedDescription() const override { return m_result->skippedDescription(); }
 
   std::shared_ptr<AbstractFilter> filter() override { return m_result->filter(); }
 
@@ -279,10 +293,10 @@ LoadFileTask::LoadFileTask(Type type,
 LoadFileTask::~LoadFileTask() = default;
 
 FilterResultPtr LoadFileTask::operator()() {
-  ImageAllocationLimitInfo limitInfo;
-  QImage image = ImageLoader::load(m_imageId, &limitInfo);
-
   try {
+    ImageAllocationLimitInfo limitInfo;
+    QImage image = ImageLoader::load(m_imageId, &limitInfo);
+
     throwIfCancelled();
 
     if (image.isNull()) {
@@ -304,6 +318,10 @@ FilterResultPtr LoadFileTask::operator()() {
   } catch (const CancelledException&) {
     return nullptr;
   }
+}
+
+FilterResultPtr LoadFileTask::exceptionResult(const QString& message) {
+  return std::make_shared<ErrorResult>(m_imageId.filePath(), message);
 }
 
 void LoadFileTask::updateImageSizeIfChanged(const QImage& image) {
@@ -345,6 +363,13 @@ LoadFileTask::ErrorResult::ErrorResult(const QString& filePath, const bool dimen
       m_fileExists(QFile::exists(filePath)),
       m_dimensionsKnown(dimensionsKnown) {}
 
+LoadFileTask::ErrorResult::ErrorResult(const QString& filePath, const QString& errorDetails)
+    : m_filePath(QDir::toNativeSeparators(filePath)),
+      m_errorDetails(errorDetails),
+      m_fileExists(QFile::exists(filePath)),
+      m_dimensionsKnown(false),
+      m_processingError(true) {}
+
 void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
   class ErrWidget : public ErrorWidget {
    public:
@@ -362,15 +387,11 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
 
   QString errMsg;
   Qt::TextFormat fmt = Qt::AutoText;
-  if (m_fileExists) {
-    if (m_dimensionsKnown) {
-      errMsg = tr("The following file could not be loaded:\n%1").arg(m_filePath);
-    } else {
-      errMsg = tr("The image could not be loaded because its dimensions were unavailable for allocation checking:\n%1"
-                  "\nVerify that the file is valid. If you suspect it exceeds Qt's allocation limit, you can increase "
-                  "the saved image limit in Settings and restart.")
-                   .arg(m_filePath);
-    }
+  if (m_processingError) {
+    errMsg = failureDescription();
+    fmt = Qt::PlainText;
+  } else if (m_fileExists) {
+    errMsg = failureDescription();
     fmt = Qt::PlainText;
   } else {
     errMsg = tr("The following file doesn't exist:<br>%1<br>"
@@ -382,3 +403,20 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
   ui->setImageWidget(new ErrWidget(ui->relinkingDialogRequester(), errMsg, fmt), ui->TRANSFER_OWNERSHIP);
   ui->setOptionsWidget(new FilterOptionsWidget, ui->TRANSFER_OWNERSHIP);
 }  // LoadFileTask::ErrorResult::updateUI
+
+QString LoadFileTask::ErrorResult::failureDescription() const {
+  if (m_processingError) {
+    const QString details = m_errorDetails.isEmpty() ? tr("An unknown error occurred.") : m_errorDetails;
+    return tr("An error occurred while processing this page:\n%1\n\nFile: %2").arg(details, m_filePath);
+  }
+  if (m_fileExists && m_dimensionsKnown) {
+    return tr("The following file could not be loaded:\n%1").arg(m_filePath);
+  }
+  if (m_fileExists) {
+    return tr("The image could not be loaded because its dimensions were unavailable for allocation checking:\n%1"
+              "\nVerify that the file is valid. If you suspect it exceeds Qt's allocation limit, you can increase "
+              "the saved image limit in Settings and restart.")
+        .arg(m_filePath);
+  }
+  return tr("The following file doesn't exist:\n%1").arg(m_filePath);
+}

@@ -11,3 +11,10 @@ A commit, successful build, completed task, or previous instruction does not gra
 
 Never add a `Co-authored-by` trailer or any other added co-author attribution to commit messages
 unless the user explicitly asks for it.
+
+## Build and tooling
+
+Use the repository's `build-vcpkg.sh` and vcpkg manifest for configuring, building, and testing.
+Do not install project dependencies system-wide or use system package managers for this repository.
+Use locally managed Python tools through `uv tool run`; for example, run `clang-format` with
+`uv tool run clang-format@23.1.5`.

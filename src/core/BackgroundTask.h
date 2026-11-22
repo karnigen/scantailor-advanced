@@ -5,6 +5,7 @@
 #define SCANTAILOR_CORE_BACKGROUNDTASK_H_
 
 #include <QAtomicInt>
+#include <QString>
 #include <exception>
 #include <memory>
 
@@ -34,6 +35,8 @@ class BackgroundTask : public AbstractCommand<FilterResultPtr>, public TaskStatu
    * \brief If cancelled, throws CancelledException.
    */
   void throwIfCancelled() const override;
+
+  virtual FilterResultPtr exceptionResult(const QString& message) = 0;
 
  private:
   QAtomicInt m_cancelFlag;

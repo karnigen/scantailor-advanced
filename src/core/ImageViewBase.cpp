@@ -33,7 +33,7 @@
 using namespace core;
 using namespace imageproc;
 
-class ImageViewBase::HqTransformTask : public AbstractCommand<std::shared_ptr<AbstractCommand<void>>>, public QObject {
+class ImageViewBase::HqTransformTask : public BackgroundExecutor::Task, public QObject {
   DECLARE_NON_COPYABLE(HqTransformTask)
 
  public:
@@ -44,6 +44,8 @@ class ImageViewBase::HqTransformTask : public AbstractCommand<std::shared_ptr<Ab
   bool isCancelled() const { return m_result->isCancelled(); }
 
   std::shared_ptr<AbstractCommand<void>> operator()() override;
+
+  void handleException(const QString& message) override;
 
  private:
   class Result : public AbstractCommand<void> {
@@ -65,7 +67,7 @@ class ImageViewBase::HqTransformTask : public AbstractCommand<std::shared_ptr<Ab
     mutable QAtomicInt m_cancelFlag;
   };
 
-
+  QPointer<ImageViewBase> m_imageView;
   std::shared_ptr<Result> m_result;
   QImage m_image;
   QTransform m_xform;
@@ -216,6 +218,7 @@ void ImageViewBase::hqTransformSetEnabled(const bool enabled) {
   } else if (enabled && !m_hqTransformEnabled) {
     // Turning on.
     m_hqTransformEnabled = true;
+    m_hqTransformFailed = false;
     update();
   }
 }
@@ -920,6 +923,14 @@ bool ImageViewBase::validateHqPixmap() const {
 
 void ImageViewBase::scheduleHqVersionRebuild() {
   const QTransform xform(m_imageToVirtual * m_virtualToWidget);
+  const qint64 sourceId = m_image.cacheKey();
+
+  if (m_hqTransformFailed) {
+    if (m_failedHqXform == xform && m_failedHqSourceId == sourceId) {
+      return;
+    }
+    m_hqTransformFailed = false;
+  }
 
   if (!m_timer.isActive() || (m_potentialHqXform != xform)) {
     if (m_hqTransformTask) {
@@ -964,7 +975,17 @@ void ImageViewBase::hqVersionBuilt(const QPoint& origin, const QImage& image) {
   m_hqPixmap = QPixmap::fromImage(image);
   m_hqPixmapPos = origin;
   m_hqTransformTask.reset();
+  m_hqTransformFailed = false;
   update();
+}
+
+void ImageViewBase::hqVersionFailed(HqTransformTask* task, const QTransform& xform) {
+  if (m_hqTransformTask.get() == task) {
+    m_hqTransformTask.reset();
+    m_failedHqXform = xform;
+    m_failedHqSourceId = m_hqSourceId;
+    m_hqTransformFailed = true;
+  }
 }
 
 void ImageViewBase::updateStatusTipAndCursor() {
@@ -1016,7 +1037,11 @@ ImageViewBase::HqTransformTask::HqTransformTask(ImageViewBase* imageView,
                                                 const QImage& image,
                                                 const QTransform& xform,
                                                 const QSize& targetSize)
-    : m_result(std::make_shared<Result>(imageView)), m_image(image), m_xform(xform), m_targetSize(targetSize) {}
+    : m_imageView(imageView),
+      m_result(std::make_shared<Result>(imageView)),
+      m_image(image),
+      m_xform(xform),
+      m_targetSize(targetSize) {}
 
 std::shared_ptr<AbstractCommand<void>> ImageViewBase::HqTransformTask::operator()() {
   if (isCancelled()) {
@@ -1037,6 +1062,12 @@ std::shared_ptr<AbstractCommand<void>> ImageViewBase::HqTransformTask::operator(
 
   m_result->setData(targetRect.topLeft(), hqImage);
   return m_result;
+}
+
+void ImageViewBase::HqTransformTask::handleException(const QString&) {
+  if (m_imageView) {
+    m_imageView->hqVersionFailed(this, m_xform);
+  }
 }
 
 /*================ ImageViewBase::HqTransformTask::Result ================*/

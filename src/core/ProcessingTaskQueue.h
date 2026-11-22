@@ -29,6 +29,8 @@ class ProcessingTaskQueue {
 
   void processingFinished(const BackgroundTaskPtr& task);
 
+  PageInfo pageInfoForTask(const BackgroundTaskPtr& task) const;
+
   /**
    * \brief Returns the page to be visually selected.
    *

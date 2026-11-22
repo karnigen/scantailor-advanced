@@ -71,6 +71,15 @@ void ProcessingTaskQueue::processingFinished(const BackgroundTaskPtr& task) {
   }
 }  // ProcessingTaskQueue::processingFinished
 
+PageInfo ProcessingTaskQueue::pageInfoForTask(const BackgroundTaskPtr& task) const {
+  for (const Entry& entry : m_queue) {
+    if (entry.task == task) {
+      return entry.pageInfo;
+    }
+  }
+  return PageInfo();
+}
+
 PageInfo ProcessingTaskQueue::selectedPage() const {
   return m_selectedPage;
 }

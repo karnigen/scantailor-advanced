@@ -299,6 +299,7 @@ class ImageViewBase : public QAbstractScrollArea {
   void scheduleHqVersionRebuild();
 
   void hqVersionBuilt(const QPoint& origin, const QImage& image);
+  void hqVersionFailed(HqTransformTask* task, const QTransform& xform);
 
   void updateStatusTipAndCursor();
 
@@ -457,6 +458,9 @@ class ImageViewBase : public QAbstractScrollArea {
   int m_ignoreResizeEvents;
 
   bool m_hqTransformEnabled;
+  bool m_hqTransformFailed = false;
+  QTransform m_failedHqXform;
+  qint64 m_failedHqSourceId = 0;
 
   ImageViewInfoProvider m_infoProvider;
 };

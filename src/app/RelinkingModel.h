@@ -25,7 +25,7 @@ class RelinkingModel : public QAbstractListModel {
   DECLARE_NON_COPYABLE(RelinkingModel)
 
  public:
-  enum Status { Exists, Missing, StatusUpdatePending };
+  enum Status { Exists, Missing, StatusUpdatePending, StatusUpdateFailed };
 
   enum { TypeRole = Qt::UserRole, UncommittedPathRole, UncommittedStatusRole };
 

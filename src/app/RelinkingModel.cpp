@@ -114,6 +114,11 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
       return item.uncommittedStatus;
     case UncommittedPathRole:
       return item.uncommittedPath;
+    case Qt::ToolTipRole:
+      if (item.uncommittedStatus == StatusUpdateFailed) {
+        return tr("Could not determine whether this path exists.");
+      }
+      break;
     case Qt::DisplayRole:
       if (item.uncommittedPath.startsWith(QChar('/')) && !item.uncommittedPath.startsWith(QLatin1String("//"))) {
         // "//" indicates a network path
@@ -387,9 +392,27 @@ void RelinkingModel::StatusUpdateThread::run() try {
     {
       const MutexUnlocker unlocker(&m_mutex);
 
-      const bool exists = QFile::exists(task.path);
-      const StatusUpdateResponse response(task.path, task.row, exists ? Exists : Missing);
-      QCoreApplication::postEvent(m_owner, new PayloadEvent<StatusUpdateResponse>(response));
+      Status status = StatusUpdateFailed;
+      try {
+        status = QFile::exists(task.path) ? Exists : Missing;
+      } catch (const std::bad_alloc&) {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& e) {
+        qWarning("Failed to check relinked path '%s': %s", qPrintable(task.path), e.what());
+      } catch (...) {
+        qWarning("Failed to check relinked path '%s': unknown exception.", qPrintable(task.path));
+      }
+
+      try {
+        const StatusUpdateResponse response(task.path, task.row, status);
+        QCoreApplication::postEvent(m_owner, new PayloadEvent<StatusUpdateResponse>(response));
+      } catch (const std::bad_alloc&) {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& e) {
+        qWarning("Failed to post relinked path status: %s", e.what());
+      } catch (...) {
+        qWarning("Failed to post relinked path status: unknown exception.");
+      }
     }
 
     m_pathBeingProcessed.clear();
@@ -398,6 +421,10 @@ void RelinkingModel::StatusUpdateThread::run() try {
 
 catch (const std::bad_alloc&) {
   OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+} catch (const std::exception& e) {
+  qCritical("Relinking status thread failed: %s", e.what());
+} catch (...) {
+  qCritical("Relinking status thread failed with an unknown exception.");
 }
 
 /*================================ Item =================================*/

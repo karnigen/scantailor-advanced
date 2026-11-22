@@ -28,8 +28,7 @@ static const QRgb maskColor = 0xff587ff4;
 
 using namespace imageproc;
 
-class PictureZoneEditor::MaskTransformTask : public AbstractCommand<std::shared_ptr<AbstractCommand<void>>>,
-                                             public QObject {
+class PictureZoneEditor::MaskTransformTask : public BackgroundExecutor::Task, public QObject {
   DECLARE_NON_COPYABLE(MaskTransformTask)
 
  public:
@@ -43,6 +42,8 @@ class PictureZoneEditor::MaskTransformTask : public AbstractCommand<std::shared_
   bool isCancelled() const { return m_result->isCancelled(); }
 
   std::shared_ptr<AbstractCommand<void>> operator()() override;
+
+  void handleException(const QString&) override;
 
  private:
   class Result : public AbstractCommand<void> {
@@ -64,7 +65,7 @@ class PictureZoneEditor::MaskTransformTask : public AbstractCommand<std::shared_
     mutable QAtomicInt m_cancelFlag;
   };
 
-
+  QPointer<PictureZoneEditor> m_zoneEditor;
   std::shared_ptr<Result> m_result;
   BinaryImage m_origMask;
   QTransform m_xform;
@@ -164,6 +165,14 @@ bool PictureZoneEditor::validateScreenPictureMask() const {
 }
 
 void PictureZoneEditor::schedulePictureMaskRebuild() {
+  const QTransform xform(virtualToWidget());
+  if (m_pictureMaskBuildFailed) {
+    if (m_failedPictureMaskXform == xform) {
+      return;
+    }
+    m_pictureMaskBuildFailed = false;
+  }
+
   if (!m_pictureMaskRebuildTimer.isActive() || (m_potentialPictureMaskXform != virtualToWidget())) {
     if (m_maskTransformTask) {
       m_maskTransformTask->cancel();
@@ -202,7 +211,16 @@ void PictureZoneEditor::screenPictureMaskBuilt(const QPoint& origin, const QImag
   m_pictureMaskAnimationPhase = 270;
 
   m_maskTransformTask.reset();
+  m_pictureMaskBuildFailed = false;
   update();
+}
+
+void PictureZoneEditor::screenPictureMaskBuildFailed(MaskTransformTask* task, const QTransform& xform) {
+  if (m_maskTransformTask.get() == task) {
+    m_maskTransformTask.reset();
+    m_failedPictureMaskXform = xform;
+    m_pictureMaskBuildFailed = true;
+  }
 }
 
 void PictureZoneEditor::paintOverPictureMask(QPainter& painter) {
@@ -302,7 +320,11 @@ PictureZoneEditor::MaskTransformTask::MaskTransformTask(PictureZoneEditor* zoneE
                                                         const BinaryImage& mask,
                                                         const QTransform& xform,
                                                         const QSize& targetSize)
-    : m_result(std::make_shared<Result>(zoneEditor)), m_origMask(mask), m_xform(xform), m_targetSize(targetSize) {}
+    : m_zoneEditor(zoneEditor),
+      m_result(std::make_shared<Result>(zoneEditor)),
+      m_origMask(mask),
+      m_xform(xform),
+      m_targetSize(targetSize) {}
 
 std::shared_ptr<AbstractCommand<void>> PictureZoneEditor::MaskTransformTask::operator()() {
   if (isCancelled()) {
@@ -321,6 +343,12 @@ std::shared_ptr<AbstractCommand<void>> PictureZoneEditor::MaskTransformTask::ope
 
   m_result->setData(targetRect.topLeft(), mask);
   return m_result;
+}
+
+void PictureZoneEditor::MaskTransformTask::handleException(const QString&) {
+  if (m_zoneEditor) {
+    m_zoneEditor->screenPictureMaskBuildFailed(this, m_xform);
+  }
 }
 
 /*===================== MaskTransformTask::Result ===================*/

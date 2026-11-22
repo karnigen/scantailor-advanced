@@ -34,7 +34,7 @@ class WorkerThreadPool : public QObject {
 
  signals:
 
-  void taskResult(const BackgroundTaskPtr& task, const FilterResultPtr& result);
+  void taskResult(const BackgroundTaskPtr& task, const FilterResultPtr& result, const QString& errorMessage);
 
  private:
   class TaskResultEvent;
