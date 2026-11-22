@@ -26,7 +26,7 @@ Settings::~Settings() = default;
 void Settings::clear() {
   QMutexLocker locker(&m_mutex);
   m_perPageParams.clear();
-  m_pendingAutoOblique.clear();
+  m_pendingRecompute.clear();
   m_deviationProvider.clear();
 }
 
@@ -43,14 +43,14 @@ void Settings::performRelinking(const AbstractRelinker& relinker) {
 
   m_perPageParams.swap(newParams);
 
-  std::unordered_map<PageId, bool> newPending;
-  for (const auto& kv : m_pendingAutoOblique) {
+  std::unordered_map<PageId, RecomputeRequest> newPending;
+  for (const auto& kv : m_pendingRecompute) {
     const RelinkablePath oldPath(kv.first.imageId().filePath(), RelinkablePath::File);
     PageId newPageId(kv.first);
     newPageId.imageId().setFilePath(relinker.substitutionPathFor(oldPath));
     newPending[newPageId] = kv.second;
   }
-  m_pendingAutoOblique.swap(newPending);
+  m_pendingRecompute.swap(newPending);
 
   m_deviationProvider.clear();
   for (const PerPageParams::value_type& kv : m_perPageParams) {
@@ -75,6 +75,13 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
 
   auto it(m_perPageParams.find(pageId));
   if (it != m_perPageParams.end()) {
+    const auto pendingIt = m_pendingRecompute.find(pageId);
+    if (pendingIt != m_pendingRecompute.end()
+        && ((pendingIt->second.deskew && it->second.mode() == MODE_AUTO)
+            || (pendingIt->second.oblique && it->second.obliqueMode() == MODE_AUTO))) {
+      return std::make_unique<Params>(it->second.deskewAngle(), it->second.obliqueAngle(), Dependencies(),
+                                      it->second.mode(), it->second.obliqueMode());
+    }
     return std::make_unique<Params>(it->second);
   } else {
     return nullptr;
@@ -108,19 +115,33 @@ bool Settings::algoContentBased() const {
   return m_algoContentBased;
 }
 
-void Settings::setPendingAutoOblique(const PageId& pageId, const bool enabled) {
+void Settings::requestRecompute(const PageId& pageId, const bool deskew, const bool oblique) {
   QMutexLocker locker(&m_mutex);
-  Utils::mapSetValue(m_pendingAutoOblique, pageId, enabled);
+  RecomputeRequest& request = m_pendingRecompute[pageId];
+  request.deskew = request.deskew || deskew;
+  request.oblique = request.oblique || oblique;
+  request.generation = ++m_recomputeGeneration;
 }
 
-std::optional<bool> Settings::takePendingAutoOblique(const PageId& pageId) {
+Settings::RecomputeRequest Settings::pendingRecompute(const PageId& pageId) const {
   QMutexLocker locker(&m_mutex);
-  const auto it = m_pendingAutoOblique.find(pageId);
-  if (it == m_pendingAutoOblique.end()) {
-    return std::nullopt;
+  const auto it = m_pendingRecompute.find(pageId);
+  if (it == m_pendingRecompute.end()) {
+    return {};
   }
-  const bool value = it->second;
-  m_pendingAutoOblique.erase(it);
-  return value;
+  return it->second;
+}
+
+void Settings::clearRecomputeRequest(const PageId& pageId, const std::uint64_t generation) {
+  QMutexLocker locker(&m_mutex);
+  const auto it = m_pendingRecompute.find(pageId);
+  if (it != m_pendingRecompute.end() && it->second.generation == generation) {
+    m_pendingRecompute.erase(it);
+  }
+}
+
+void Settings::cancelRecomputeRequest(const PageId& pageId) {
+  QMutexLocker locker(&m_mutex);
+  m_pendingRecompute.erase(pageId);
 }
 }  // namespace deskew

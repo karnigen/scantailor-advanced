@@ -6,10 +6,10 @@
 #include <Constants.h>
 #include <core/IconProvider.h>
 
+#include <algorithm>
+
 #include <QAction>
 #include <QPainter>
-#include <QScrollBar>
-#include <QStyle>
 #include <QWheelEvent>
 #include <boost/bind/bind.hpp>
 
@@ -100,7 +100,7 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
   painter.setWorldMatrixEnabled(false);
   painter.setRenderHints(QPainter::Antialiasing, false);
 
-  const QRectF contentArea(getContentAreaRect());
+  const QRectF contentArea(getOccupiedWidgetRect());
   const QPointF center(getImageRotationOrigin());
 
   // Draw the semi-transparent grid.
@@ -202,6 +202,9 @@ void ImageView::handleMoveRequest(int idx, const QPointF& pos) {
   if (idx < 2) {
     const QRectF arcSquare(getRotationArcSquare());
     const double arcRadius = 0.5 * arcSquare.width();
+    if (arcRadius <= 0.0) {
+      return;
+    }
     const double absY = pos.y();
     double relY = absY - arcSquare.center().y();
     relY = qBound(-arcRadius, relY, arcRadius);
@@ -221,6 +224,9 @@ void ImageView::handleMoveRequest(int idx, const QPointF& pos) {
   } else {
     const QRectF arcSquare(getObliqueArcSquare());
     const double arcRadius = 0.5 * arcSquare.height();
+    if (arcRadius <= 0.0) {
+      return;
+    }
     const double absX = pos.x();
     double relX = absX - arcSquare.center().x();
     relX = qBound(-arcRadius, relX, arcRadius);
@@ -249,43 +255,34 @@ void ImageView::dragFinished() {
  * Get the point at the center of the widget content area, in widget coordinates.
  */
 QPointF ImageView::getImageRotationOrigin() const {
-  const QRectF contentArea(getContentAreaRect());
+  const QRectF contentArea(getOccupiedWidgetRect());
   return QPointF(std::floor(0.5 * contentArea.width()) + 0.5 + contentArea.x(),
                  std::floor(0.5 * contentArea.height()) + 0.5 + contentArea.y());
-}
-
-QRectF ImageView::getContentAreaRect() const {
-  const double hMargin
-      = 0.5 * m_handlePixmap.width()
-        + (verticalScrollBar()->isVisible()
-               ? verticalScrollBar()->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, verticalScrollBar())
-               : 0.0);
-  const double vMargin
-      = 0.5 * m_handlePixmap.height()
-        + (horizontalScrollBar()->isVisible()
-               ? horizontalScrollBar()->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, horizontalScrollBar())
-               : 0.0);
-
-  QRectF content(maxViewportRect());
-  content.adjust(hMargin, vMargin, -hMargin, -vMargin);
-  if (content.isEmpty()) {
-    return maxViewportRect();
-  }
-  return content;
 }
 
 /**
  * Get the square in widget coordinates where two rotation arcs will be drawn.
  */
 QRectF ImageView::getRotationArcSquare() const {
-  const QRectF reducedScreenRect(getContentAreaRect());
+  const double halfHandleWidth = 0.5 * m_handlePixmap.width();
+  const double halfHandleHeight = 0.5 * m_handlePixmap.height();
+  const QRectF viewportRect(QPointF(0, 0), viewport()->size());
+  const QRectF safeViewportRect(
+      viewportRect.adjusted(halfHandleWidth, halfHandleHeight, -halfHandleWidth, -halfHandleHeight));
+  QRectF controlBounds(getOccupiedWidgetRect().intersected(safeViewportRect));
+  if (controlBounds.isEmpty()) {
+    controlBounds = safeViewportRect;
+  }
+  if (controlBounds.isEmpty()) {
+    return QRectF(controlBounds.center(), QSizeF());
+  }
 
   QSizeF arcSize(1.0, m_maxRotationSin);
-  arcSize.scale(reducedScreenRect.size(), Qt::KeepAspectRatio);
+  arcSize.scale(controlBounds.size(), Qt::KeepAspectRatio);
   arcSize.setHeight(arcSize.width());
 
   QRectF arcSquare(QPointF(0, 0), arcSize);
-  arcSquare.moveCenter(reducedScreenRect.center());
+  arcSquare.moveCenter(controlBounds.center());
   return arcSquare;
 }
 
@@ -302,16 +299,20 @@ std::pair<QPointF, QPointF> ImageView::getRotationHandles(const QRectF& arcSquar
 }
 
 QRectF ImageView::getObliqueArcSquare() const {
-  const QRectF reducedScreenRect(getContentAreaRect());
-
+  const double halfHandleWidth = 0.5 * m_handlePixmap.width();
+  const double halfHandleHeight = 0.5 * m_handlePixmap.height();
+  const QRectF viewportRect(QPointF(0, 0), viewport()->size());
+  const QRectF controlBounds(
+      viewportRect.adjusted(halfHandleWidth, halfHandleHeight, -halfHandleWidth, -halfHandleHeight));
+  if (controlBounds.isEmpty()) {
+    return QRectF(controlBounds.center(), QSizeF());
+  }
   const double obliqueSin = std::sin(m_maxObliqueDeg * constants::DEG2RAD);
-  QSizeF arcSize(obliqueSin, 1.0);
-  arcSize.scale(reducedScreenRect.size(), Qt::KeepAspectRatio);
-  arcSize.setWidth(arcSize.height());
+  const double arcRadius = std::min(0.5 * controlBounds.height(), 0.5 * controlBounds.width() / obliqueSin);
+  const QSizeF arcSize(2.0 * arcRadius, 2.0 * arcRadius);
 
   QRectF arcSquare(QPointF(0, 0), arcSize);
-  arcSquare.moveRight(reducedScreenRect.right());
-  arcSquare.moveCenter(QPointF(arcSquare.center().x(), reducedScreenRect.center().y()));
+  arcSquare.moveCenter(QPointF(controlBounds.right() - obliqueSin * arcRadius, controlBounds.center().y()));
   return arcSquare;
 }
 

@@ -6,17 +6,86 @@
 #include <ImageTransformation.h>
 #include <filters/deskew/Dependencies.h>
 #include <filters/deskew/Params.h>
+#include <filters/deskew/Settings.h>
+#include <filters/deskew/Utils.h>
 
 #include <QDomDocument>
 #include <QPolygonF>
 #include <QRectF>
 #include <QTransform>
 #include <boost/test/unit_test.hpp>
+#include <memory>
 
 namespace Tests {
 using namespace deskew;
 
 BOOST_AUTO_TEST_SUITE(DeskewParamsTestSuite)
+
+BOOST_AUTO_TEST_CASE(dependencies_track_deskew_algorithm_and_xml) {
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies contentBased(outline, OrthogonalRotation(), true);
+  const Dependencies topEdge(outline, OrthogonalRotation(), false);
+
+  BOOST_CHECK(contentBased.matches(contentBased));
+  BOOST_CHECK(!contentBased.matches(topEdge));
+
+  QDomDocument doc;
+  const QDomElement el = contentBased.toXml(doc, "dependencies");
+  doc.appendChild(el);
+
+  BOOST_CHECK(el.attribute("algoContentBased") == "1");
+  BOOST_CHECK(contentBased.matches(Dependencies(doc.documentElement())));
+}
+
+BOOST_AUTO_TEST_CASE(legacy_dependencies_are_stale_for_deskew_algorithm) {
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies legacy(outline, OrthogonalRotation());
+  const Dependencies current(outline, OrthogonalRotation(), true);
+
+  QDomDocument doc;
+  const QDomElement el = legacy.toXml(doc, "dependencies");
+  doc.appendChild(el);
+
+  const Dependencies restoredLegacy(doc.documentElement());
+  BOOST_CHECK(!el.hasAttribute("algoContentBased"));
+  BOOST_CHECK(!current.matches(restoredLegacy));
+}
+
+BOOST_AUTO_TEST_CASE(pending_recompute_is_persisted_as_stale_dependencies) {
+  Settings settings;
+  const PageId pageId(ImageId(QStringLiteral("pending-recompute.tif")));
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies currentDependencies(outline, OrthogonalRotation(), true);
+  settings.setPageParams(pageId, Params(1.0, 0.0, currentDependencies, MODE_AUTO, MODE_DISABLED));
+  settings.requestRecompute(pageId, true, false);
+
+  const std::unique_ptr<Params> pendingParams(settings.getPageParams(pageId));
+  BOOST_REQUIRE(pendingParams);
+  BOOST_CHECK(!currentDependencies.matches(pendingParams->dependencies()));
+
+  QDomDocument doc;
+  const QDomElement el = pendingParams->toXml(doc, "params");
+  doc.appendChild(el);
+  const Params restored(doc.documentElement());
+  BOOST_CHECK(!currentDependencies.matches(restored.dependencies()));
+}
+
+BOOST_AUTO_TEST_CASE(pending_oblique_recompute_is_persisted_as_stale_dependencies) {
+  Settings settings;
+  const PageId pageId(ImageId(QStringLiteral("pending-oblique-recompute.tif")));
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies currentDependencies(outline, OrthogonalRotation(), true);
+  settings.setPageParams(pageId, Params(1.0, 0.0, currentDependencies, MODE_MANUAL, MODE_AUTO));
+  settings.requestRecompute(pageId, false, true);
+
+  const std::unique_ptr<Params> pendingParams(settings.getPageParams(pageId));
+  BOOST_REQUIRE(pendingParams);
+  BOOST_CHECK(!currentDependencies.matches(pendingParams->dependencies()));
+}
 
 BOOST_AUTO_TEST_CASE(params_oblique_roundtrip_xml) {
   const double deskewDeg = 1.5;
@@ -85,6 +154,39 @@ BOOST_AUTO_TEST_CASE(params_oblique_mode_attribute_roundtrip_xml) {
   BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.75, 1e-6);
 }
 
+BOOST_AUTO_TEST_CASE(params_disabled_oblique_mode_roundtrip_xml) {
+  const Dependencies deps;
+  const Params original(-0.5, 0.75, deps, MODE_AUTO, MODE_DISABLED);
+
+  QDomDocument doc;
+  const QDomElement el = original.toXml(doc, "deskew-params");
+  doc.appendChild(el);
+
+  BOOST_CHECK(el.attribute("oblique-mode") == "manual");
+  BOOST_CHECK(el.attribute("oblique-disabled") == "1");
+  BOOST_CHECK_SMALL(original.obliqueAngle(), 1e-9);
+  const Params restored(doc.documentElement());
+  BOOST_CHECK(restored.mode() == MODE_AUTO);
+  BOOST_CHECK(restored.obliqueMode() == MODE_DISABLED);
+  BOOST_CHECK(!restored.autoOblique());
+}
+
+BOOST_AUTO_TEST_CASE(params_legacy_auto_oblique_off_preserves_manual_angle) {
+  QDomDocument doc;
+  QDomElement el(doc.createElement("params"));
+  el.setAttribute("mode", "auto");
+  el.setAttribute("angle", "0");
+  el.setAttribute("oblique", "0.75");
+  el.setAttribute("autoOblique", "0");
+  const Dependencies deps;
+  el.appendChild(deps.toXml(doc, "dependencies"));
+  doc.appendChild(el);
+
+  const Params restored(doc.documentElement());
+  BOOST_CHECK(restored.obliqueMode() == MODE_MANUAL);
+  BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.75, 1e-6);
+}
+
 /** Selective Apply To… merge semantics (issue #117): deskew-only must not overwrite oblique. */
 BOOST_AUTO_TEST_CASE(apply_merge_deskew_only_preserves_oblique) {
   const Dependencies deps;
@@ -145,6 +247,15 @@ BOOST_AUTO_TEST_CASE(params_missing_autoOblique_attribute_defaults_true) {
 BOOST_AUTO_TEST_CASE(default_params_deskew_auto_oblique_off_by_default) {
   const DefaultParams::DeskewParams deskew;
   BOOST_CHECK(!deskew.isAutoOblique());
+}
+
+BOOST_AUTO_TEST_CASE(new_page_oblique_mode_follows_global_default) {
+  DefaultParams::DeskewParams deskewParams;
+  deskewParams.setAutoOblique(false);
+  BOOST_CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_DISABLED);
+
+  deskewParams.setAutoOblique(true);
+  BOOST_CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_AUTO);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

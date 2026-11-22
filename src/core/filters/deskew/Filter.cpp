@@ -34,7 +34,7 @@ Filter::Filter(const PageSelectionAccessor& pageSelectionAccessor)
 Filter::~Filter() = default;
 
 QString Filter::getName() const {
-  return QCoreApplication::translate("deskew::Filter", "Deskew");
+  return QCoreApplication::translate("deskew::Filter", "Deskew and Oblique");
 }
 
 PageView Filter::getView() const {

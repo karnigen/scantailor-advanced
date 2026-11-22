@@ -24,11 +24,21 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout">
       <item>
+       <widget class="QLabel" name="deskewModeLabel">
+        <property name="text">
+         <string>Rotation correction</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout">
         <item>
          <widget class="QPushButton" name="autoBtn">
           <property name="text">
            <string>Auto</string>
+          </property>
+          <property name="toolTip">
+           <string>Automatically estimate and correct page rotation.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>
@@ -37,7 +47,7 @@
            <bool>true</bool>
           </property>
           <property name="autoExclusive">
-           <bool>true</bool>
+           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -46,11 +56,14 @@
           <property name="text">
            <string>Manual</string>
           </property>
+          <property name="toolTip">
+           <string>Use the rotation angle below. Editing the angle switches to Manual.</string>
+          </property>
           <property name="checkable">
            <bool>true</bool>
           </property>
           <property name="autoExclusive">
-           <bool>true</bool>
+           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -72,6 +85,13 @@
       <item>
        <layout class="QHBoxLayout">
         <item>
+         <widget class="QLabel" name="deskewAngleLabel">
+          <property name="text">
+           <string>Rotation (°):</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <spacer>
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -89,6 +109,9 @@
           <property name="alignment">
            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
           </property>
+           <property name="keyboardTracking">
+            <bool>false</bool>
+           </property>
           <property name="singleStep">
            <double>0.010000000000000</double>
           </property>
@@ -109,22 +132,24 @@
         </item>
        </layout>
       </item>
-      <item>
-       <widget class="QCheckBox" name="autoObliqueCheckBox">
-        <property name="toolTip">
-         <string>When deskew mode is Auto, run automatic oblique (shear) correction. Disable for pages that only need rotation.</string>
-        </property>
-        <property name="text">
-         <string>Automatic oblique correction</string>
-        </property>
-       </widget>
-      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="CollapsibleGroupBox" name="obliqueGroupBox">
+     <property name="title">
+      <string>Oblique (vertical shear)</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <layout class="QVBoxLayout" name="obliqueVerticalLayout">
       <item>
        <layout class="QHBoxLayout">
         <item>
          <widget class="QLabel" name="obliqueLabel">
           <property name="text">
-           <string>Oblique (°):</string>
+           <string>Oblique shear (°):</string>
           </property>
          </widget>
         </item>
@@ -133,6 +158,9 @@
           <property name="alignment">
            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
           </property>
+           <property name="keyboardTracking">
+            <bool>false</bool>
+           </property>
           <property name="minimum">
            <double>-5.000000000000000</double>
           </property>
@@ -147,11 +175,30 @@
        </layout>
       </item>
       <item>
+       <widget class="QLabel" name="obliqueModeLabel">
+        <property name="text">
+         <string>Correction mode</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="horizontalLayout_oblique_mode">
         <item>
-         <widget class="QLabel" name="obliqueModeLabel">
+         <widget class="QPushButton" name="obliqueOffBtn">
           <property name="text">
-           <string>Oblique mode</string>
+           <string>Off</string>
+          </property>
+          <property name="toolTip">
+           <string>Do not apply shear. Rotation correction can still be used.</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+          <property name="autoExclusive">
+           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -161,7 +208,7 @@
            <string>Auto</string>
           </property>
           <property name="toolTip">
-           <string>Automatically estimate oblique (shear) correction.</string>
+           <string>Automatically estimate and apply vertical shear after rotation.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>
@@ -170,7 +217,7 @@
            <bool>false</bool>
           </property>
           <property name="autoExclusive">
-           <bool>true</bool>
+           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -180,20 +227,23 @@
            <string>Manual</string>
           </property>
           <property name="toolTip">
-           <string>Keep the oblique angle set in the spin box.</string>
+           <string>Use the oblique shear angle shown above.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>
           </property>
           <property name="autoExclusive">
-           <bool>true</bool>
+           <bool>false</bool>
           </property>
          </widget>
         </item>
        </layout>
       </item>
-      <item>
-       <layout class="QHBoxLayout" name="horizontalLayout">
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
          <spacer name="horizontalSpacer_9">
           <property name="orientation">
@@ -229,9 +279,6 @@
         </item>
        </layout>
       </item>
-     </layout>
-    </widget>
-   </item>
    <item>
     <spacer>
      <property name="orientation">

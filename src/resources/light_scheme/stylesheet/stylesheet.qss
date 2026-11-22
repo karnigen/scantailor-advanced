@@ -55,6 +55,14 @@ QPushButton:checked:disabled, QToolButton:checked:disabled {
   background-color: #fafafa;
 }
 
+QPushButton#autoBtn:checked:disabled,
+QPushButton#manualBtn:checked:disabled,
+QPushButton#obliqueOffBtn:checked:disabled,
+QPushButton#obliqueAutoBtn:checked:disabled,
+QPushButton#obliqueManualBtn:checked:disabled {
+  background-color: #bfbfbf;
+}
+
 QPushButton:flat, QToolButton:flat {
   border: none;
 }

@@ -6,6 +6,8 @@
 
 #include <QPolygonF>
 
+#include <optional>
+
 #include "OrthogonalRotation.h"
 
 class QDomDocument;
@@ -26,6 +28,8 @@ class Dependencies {
 
   Dependencies(const QPolygonF& pageOutline, OrthogonalRotation rotation);
 
+  Dependencies(const QPolygonF& pageOutline, OrthogonalRotation rotation, bool algoContentBased);
+
   explicit Dependencies(const QDomElement& depsEl);
 
   ~Dependencies();
@@ -37,6 +41,7 @@ class Dependencies {
  private:
   QPolygonF m_pageOutline;
   OrthogonalRotation m_rotation;
+  std::optional<bool> m_algoContentBased;
 };
 }  // namespace deskew
 #endif  // ifndef SCANTAILOR_DESKEW_DEPENDENCIES_H_
