@@ -88,7 +88,8 @@ Task::~Task() = default;
 FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
   status.throwIfCancelled();
 
-  const Dependencies deps(data.xform().preCropArea(), data.xform().preRotation());
+  const bool algoContentBased = m_settings->algoContentBased();
+  const Dependencies deps(data.xform().preCropArea(), data.xform().preRotation(), algoContentBased);
 
   std::unique_ptr<Params> params(m_settings->getPageParams(m_pageId));
   const Settings::RecomputeRequest pendingRecompute = m_settings->pendingRecompute(m_pageId);
@@ -178,8 +179,8 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
         SkewFinder skewFinder;
         skewFinder.setResolutionRatio((double) rotatedDpm.horizontal() / rotatedDpm.vertical());
         if (recomputeDeskew && deskewMode == MODE_AUTO) {
-          const Skew skew(m_settings->algoContentBased() ? skewFinder.findSkew(rotatedImage)
-                                                         : skewFinder.findSkewFromTopEdge(rotatedImage));
+          const Skew skew(algoContentBased ? skewFinder.findSkew(rotatedImage)
+                                           : skewFinder.findSkewFromTopEdge(rotatedImage));
           deskewAngle = skew.confidence() >= Skew::GOOD_CONFIDENCE ? -skew.angle() : 0.0;
         }
 

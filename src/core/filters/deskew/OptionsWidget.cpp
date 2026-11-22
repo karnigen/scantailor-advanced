@@ -300,8 +300,10 @@ double OptionsWidget::degreesToSpinBox(const double degrees) {
 
 void OptionsWidget::topEdgeToggled(bool checked) {
   m_settings->setAlgoContentBased(!checked);
-  if (autoBtn->isChecked()) {
-    m_settings->requestRecompute(m_pageId, true, false);
+  const bool recomputeDeskew = autoBtn->isChecked();
+  const bool recomputeOblique = obliqueAutoBtn->isChecked();
+  if (recomputeDeskew || recomputeOblique) {
+    m_settings->requestRecompute(m_pageId, recomputeDeskew, recomputeOblique);
     emit reloadRequested();
   }
 }

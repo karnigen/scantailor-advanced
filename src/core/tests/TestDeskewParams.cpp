@@ -19,6 +19,38 @@ using namespace deskew;
 
 BOOST_AUTO_TEST_SUITE(DeskewParamsTestSuite)
 
+BOOST_AUTO_TEST_CASE(dependencies_track_deskew_algorithm_and_xml) {
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies contentBased(outline, OrthogonalRotation(), true);
+  const Dependencies topEdge(outline, OrthogonalRotation(), false);
+
+  BOOST_CHECK(contentBased.matches(contentBased));
+  BOOST_CHECK(!contentBased.matches(topEdge));
+
+  QDomDocument doc;
+  const QDomElement el = contentBased.toXml(doc, "dependencies");
+  doc.appendChild(el);
+
+  BOOST_CHECK(el.attribute("algoContentBased") == "1");
+  BOOST_CHECK(contentBased.matches(Dependencies(doc.documentElement())));
+}
+
+BOOST_AUTO_TEST_CASE(legacy_dependencies_are_stale_for_deskew_algorithm) {
+  QPolygonF outline;
+  outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
+  const Dependencies legacy(outline, OrthogonalRotation());
+  const Dependencies current(outline, OrthogonalRotation(), true);
+
+  QDomDocument doc;
+  const QDomElement el = legacy.toXml(doc, "dependencies");
+  doc.appendChild(el);
+
+  const Dependencies restoredLegacy(doc.documentElement());
+  BOOST_CHECK(!el.hasAttribute("algoContentBased"));
+  BOOST_CHECK(!current.matches(restoredLegacy));
+}
+
 BOOST_AUTO_TEST_CASE(params_oblique_roundtrip_xml) {
   const double deskewDeg = 1.5;
   const double obliqueDeg = 2.25;

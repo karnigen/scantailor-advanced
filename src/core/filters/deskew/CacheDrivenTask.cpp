@@ -25,7 +25,7 @@ CacheDrivenTask::~CacheDrivenTask() = default;
 void CacheDrivenTask::process(const PageInfo& pageInfo,
                               AbstractFilterDataCollector* collector,
                               const ImageTransformation& xform) {
-  const Dependencies deps(xform.preCropArea(), xform.preRotation());
+  const Dependencies deps(xform.preCropArea(), xform.preRotation(), m_settings->algoContentBased());
   std::unique_ptr<Params> params(m_settings->getPageParams(pageInfo.id()));
   if (!params
       || (!deps.matches(params->dependencies())

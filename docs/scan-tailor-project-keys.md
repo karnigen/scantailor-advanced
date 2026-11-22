@@ -28,6 +28,7 @@ Runtime validation and migration must be verified with real project files.
 | `<deskew><params angle>` | Present | Present | Deskew angle in degrees. |
 | `<deskew><params mode>` | `auto` or `manual` | `auto` or `manual` | Deskew algorithm/parameter mode. |
 | `<deskew><params oblique>` | Present | Present | Oblique/shear angle in degrees. |
+| `<deskew><params><dependencies algoContentBased>` | Not written | `1` or `0` when known | Records which deskew algorithm produced the automatic angles. Missing data is treated as stale so automatic results are recomputed. |
 | `<deskew><params oblique-mode>` | Not written | `auto` or `manual` | Separate mode for automatic or manual oblique correction. Off is stored as `manual` plus `oblique-disabled="1"` so older readers do not enable shear. |
 | `<deskew><params oblique-disabled>` | Not written | `1` only for Off | Distinguishes Off from Manual at 0°. The current reader checks this before `oblique-mode`. |
 | `<deskew><params autoOblique>` | Legacy boolean in an intermediate v4 implementation | Reader compatibility fallback | Legacy `1`/`0` representation for automatic oblique correction. The current reader prefers `oblique-disabled`, then `oblique-mode`, then `autoOblique`, then `mode`. |
