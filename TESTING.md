@@ -64,13 +64,10 @@ The UX tests use `QApplication` and can simulate interaction (clicks and keyboar
 
 ## UI/UX tests and user workflows
 
-There are currently no automated interface or end-to-end workflow tests. To improve UX and workflow coverage, consider:
+The existing `qt_tests` suite already covers widget-level interactions, including simulated mouse clicks, keyboard input, and state/signal checks. Extend that suite for additional UX coverage rather than creating a duplicate test executable. Complete end-to-end user workflows are not currently covered. To improve UX and workflow coverage, consider:
 
-1. **Qt Test**: Add a test executable that uses `QTest` to:
-   - Create widgets and dialogs without showing a window.
-   - Simulate events (clicks and keyboard input) and check state.
-
-2. **Integration tests**: Add scripts or tests that:
+1. **Extend Qt Test coverage**: Add tests to the existing `qt_tests` suite for additional widgets and dialogs.
+2. **Integration tests**: Add tests or scripts that:
    - Open sample projects.
    - Run filters and check results on disk or in memory.
 
@@ -89,8 +86,10 @@ genhtml coverage.info --output-directory coverage_html
 
 ## Disabling tests
 
-If Boost or test dependencies are unavailable:
+If the Boost `unit_test_framework` component is unavailable, or you do not need to build the test executables:
 
 ```bash
 cmake .. -DBUILD_TESTS=OFF
 ```
+
+This removes the requirement for Boost's `unit_test_framework` component only; the application still requires Boost headers and Qt.
