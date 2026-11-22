@@ -22,7 +22,10 @@ ProjectReader::ProjectReader(const QDomDocument& doc, const QString& projectFile
   QDomElement projectEl(m_doc.documentElement());
 
   m_version = projectEl.attribute("version");
-  if (m_version.isNull() || (m_version.toInt() != PROJECT_VERSION)) {
+  m_migrationReport = ProjectMigration::analyze(m_doc, projectFilePath);
+  bool versionOk = false;
+  const int version = m_version.toInt(&versionOk);
+  if (m_version.isNull() || !versionOk || version < 3 || version > PROJECT_VERSION) {
     return;
   }
 

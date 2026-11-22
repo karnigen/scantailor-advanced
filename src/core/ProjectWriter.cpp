@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QTextStream>
 #include <QtXml>
 
@@ -16,6 +17,7 @@
 #include "PageId.h"
 #include "PageInfo.h"
 #include "PageView.h"
+#include "ProjectMigration.h"
 #include "ProjectPages.h"
 #include "version.h"
 
@@ -71,13 +73,28 @@ static QString toRelativeIfPossible(const QString& projectDirPath, const QString
   }
   const QDir projectDir(projectDirPath);
   const QString rel(projectDir.relativeFilePath(absolutePath));
-  if (QDir::isAbsolutePath(rel) || rel.startsWith("..")) {
+  if (QDir::isAbsolutePath(rel)) {
+    return absolutePath;
+  }
+
+  const QString canonicalAbsolutePath(QFileInfo(absolutePath).canonicalFilePath());
+  const QString canonicalRelativePath(QFileInfo(projectDir.filePath(rel)).canonicalFilePath());
+  if (canonicalAbsolutePath.isEmpty() || canonicalAbsolutePath != canonicalRelativePath) {
     return absolutePath;
   }
   return rel;
 }
 
-bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>& filters) const {
+bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>& filters, QString* errorMessage) const {
+  if (errorMessage) {
+    errorMessage->clear();
+  }
+
+  QString backupFilePath;
+  if (!ProjectMigration::createBackupForFormat3(filePath, &backupFilePath, errorMessage)) {
+    return false;
+  }
+
   const QString projectDirPath(QFileInfo(filePath).absolutePath());
 
   QDomDocument doc;
@@ -102,13 +119,31 @@ bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>&
     filtersEl.appendChild((*it)->saveSettings(*this, doc));
   }
 
-  QFile file(filePath);
-  if (file.open(QIODevice::WriteOnly)) {
-    QTextStream strm(&file);
-    doc.save(strm, 2);
-    return true;
+  QSaveFile file(filePath);
+  if (!file.open(QIODevice::WriteOnly)) {
+    if (errorMessage) {
+      *errorMessage = file.errorString();
+    }
+    return false;
   }
-  return false;
+
+  QTextStream strm(&file);
+  doc.save(strm, 2);
+  strm.flush();
+  if (strm.status() != QTextStream::Ok) {
+    file.cancelWriting();
+    if (errorMessage) {
+      *errorMessage = QString("Could not serialize project data.");
+    }
+    return false;
+  }
+  if (!file.commit()) {
+    if (errorMessage) {
+      *errorMessage = file.errorString();
+    }
+    return false;
+  }
+  return true;
 }  // ProjectWriter::write
 
 QDomElement ProjectWriter::processDirectories(QDomDocument& doc, const QString& projectDirPath) const {

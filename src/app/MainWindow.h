@@ -233,6 +233,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   SavePromptResult promptProjectSave();
 
+  bool saveProjectInteractive();
+
   static bool compareFiles(const QString& fpath1, const QString& fpath2);
 
   std::shared_ptr<const PageOrderProvider> currentPageOrderProvider() const;

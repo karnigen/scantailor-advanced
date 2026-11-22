@@ -45,6 +45,7 @@
 #include "ProcessingIndicationWidget.h"
 #include "ProcessingTaskQueue.h"
 #include "ProjectCreationContext.h"
+#include "ProjectMigration.h"
 #include "ProjectOpeningContext.h"
 #include "ProjectPages.h"
 #include "ProjectReader.h"
@@ -1397,14 +1398,20 @@ void MainWindow::fixedDpiSubmitted() {
 }
 
 void MainWindow::saveProjectTriggered() {
+  saveProjectInteractive();
+}
+
+bool MainWindow::saveProjectInteractive() {
   if (m_projectFile.isEmpty()) {
     saveProjectAsTriggered();
-    return;
+    return !m_projectFile.isEmpty();
   }
 
-  if (saveProjectWithFeedback(m_projectFile)) {
-    updateWindowTitle();
+  if (!saveProjectWithFeedback(m_projectFile)) {
+    return false;
   }
+  updateWindowTitle();
+  return true;
 }
 
 void MainWindow::saveProjectAsTriggered() {
@@ -1763,8 +1770,10 @@ bool MainWindow::closeProjectInteractive() {
   if (m_projectFile.isEmpty()) {
     switch (promptProjectSave()) {
       case SAVE:
-        saveProjectTriggered();
-        // fall through
+        if (!saveProjectInteractive()) {
+          return false;
+        }
+        break;
       case DONT_SAVE:
         break;
       case CANCEL:
@@ -1785,8 +1794,10 @@ bool MainWindow::closeProjectInteractive() {
     QFile::remove(backupFilePath);
     switch (promptProjectSave()) {
       case SAVE:
-        saveProjectTriggered();
-        // fall through
+        if (!saveProjectInteractive()) {
+          return false;
+        }
+        break;
       case DONT_SAVE:
         break;
       case CANCEL:
@@ -1804,7 +1815,17 @@ bool MainWindow::closeProjectInteractive() {
   }
 
   switch (promptProjectSave()) {
-    case SAVE:
+    case SAVE: {
+      QString backupPath;
+      QString errorMessage;
+      if (!ProjectMigration::createBackupForFormat3(m_projectFile, &backupPath, &errorMessage)) {
+        QMessageBox::warning(
+            this, tr("Error"),
+            tr("The original format-3 project could not be preserved, so it was not overwritten.\n\n%1")
+                .arg(errorMessage));
+        return false;
+      }
+    }
       if (!Utils::overwritingRename(backupFilePath, m_projectFile)) {
         QMessageBox::warning(this, tr("Error"), tr("Error saving the project file!"));
         return false;
@@ -1829,8 +1850,11 @@ void MainWindow::closeProjectWithoutSaving() {
 bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
-  if (!writer.write(projectFile, m_stages->filters())) {
-    QMessageBox::warning(this, tr("Error"), tr("Error saving the project file!"));
+  QString errorMessage;
+  if (!writer.write(projectFile, m_stages->filters(), &errorMessage)) {
+    const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
+                                                   : tr("Error saving the project file!\n\n%1").arg(errorMessage);
+    QMessageBox::warning(this, tr("Error"), message);
     return false;
   }
   return true;
