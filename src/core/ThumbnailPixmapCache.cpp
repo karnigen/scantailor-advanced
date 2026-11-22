@@ -771,8 +771,7 @@ bool ThumbnailPixmapCache::Impl::postLoadResult(const LoadQueue::iterator& lqIt,
 
   try {
     auto event = std::make_unique<LoadResultEvent>(lqIt, image, status);
-    QCoreApplication::postEvent(this, event.get());
-    event.release();
+    QCoreApplication::postEvent(this, event.release());
     return true;
   } catch (const std::bad_alloc&) {
     if (reportFailure) {
