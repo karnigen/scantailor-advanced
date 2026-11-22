@@ -28,6 +28,7 @@ bool ImageAllocationLimit::exceeds(const QSize& imageSize, const int bitsPerPixe
     info = &localInfo;
   }
   *info = ImageAllocationLimitInfo();
+  info->dimensionsKnown = imageSize.width() > 0 && imageSize.height() > 0;
   if (imageSize.width() <= 0 || imageSize.height() <= 0 || bitsPerPixel <= 0) {
     return false;
   }
@@ -53,10 +54,6 @@ bool ImageAllocationLimit::exceeds(const QSize& imageSize, const int bitsPerPixe
 
   const std::uint64_t requiredBytes = rowBytes * height;
   const std::uint64_t requiredLimitMb = (requiredBytes + kBytesPerMiB - 1) / kBytesPerMiB;
-  if (requiredLimitMb > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
-    return true;
-  }
-
   info->requiredLimitMb = static_cast<int>(requiredLimitMb);
   info->exceeded = info->requiredLimitMb > currentLimitMb;
   return info->exceeded;
@@ -64,6 +61,25 @@ bool ImageAllocationLimit::exceeds(const QSize& imageSize, const int bitsPerPixe
 
 int ImageAllocationLimit::setLimitMb(const int limitMb) {
   QWriteLocker lock(&readWriteLock());
-  QImageReader::setAllocationLimit(limitMb);
+  if (limitMb >= 0 && limitMb <= image_allocation_limit::kMaxLimitMb) {
+    QImageReader::setAllocationLimit(limitMb);
+  }
   return QImageReader::allocationLimit();
+}
+
+bool ImageAllocationLimit::trySetLimitMb(const int limitMb, int* effectiveLimitMb) {
+  if (limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
+    return false;
+  }
+
+  QReadWriteLock& lock = readWriteLock();
+  if (!lock.tryLockForWrite()) {
+    return false;
+  }
+  QImageReader::setAllocationLimit(limitMb);
+  if (effectiveLimitMb) {
+    *effectiveLimitMb = QImageReader::allocationLimit();
+  }
+  lock.unlock();
+  return true;
 }

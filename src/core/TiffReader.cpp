@@ -12,6 +12,8 @@
 #include <QReadLocker>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 #include "Dpm.h"
 #include "ImageMetadata.h"
@@ -290,7 +292,8 @@ QImage TiffReader::readImage(QIODevice& device, const int pageNum, ImageAllocati
     TiffBuffer<uint32_t> tmpBuffer;
     const uint32_t* srcLine = nullptr;
 
-    if (image.bytesPerLine() == 4 * info.width) {
+    const std::uint64_t expectedBytesPerLine = static_cast<std::uint64_t>(info.width) * sizeof(uint32_t);
+    if (static_cast<std::uint64_t>(image.bytesPerLine()) == expectedBytesPerLine) {
       // We can avoid creating a temporary buffer in this case.
       if (!TIFFReadRGBAImageOriented(tif.handle(), info.width, info.height, (uint32_t*) image.bits(),
                                      ORIENTATION_TOPLEFT, 0)) {
@@ -298,7 +301,13 @@ QImage TiffReader::readImage(QIODevice& device, const int pageNum, ImageAllocati
       }
       srcLine = (const uint32_t*) image.bits();
     } else {
-      TiffBuffer<uint32_t>(info.width * info.height).swap(tmpBuffer);
+      const std::uint64_t pixelCount = static_cast<std::uint64_t>(info.width) * static_cast<std::uint64_t>(info.height);
+      const std::uint64_t maxPixelCount
+          = static_cast<std::uint64_t>(std::numeric_limits<tsize_t>::max()) / sizeof(uint32_t);
+      if (pixelCount > maxPixelCount) {
+        throw std::bad_alloc();
+      }
+      TiffBuffer<uint32_t>(static_cast<tsize_t>(pixelCount)).swap(tmpBuffer);
       if (!TIFFReadRGBAImageOriented(tif.handle(), info.width, info.height, tmpBuffer.data(), ORIENTATION_TOPLEFT, 0)) {
         return QImage();
       }

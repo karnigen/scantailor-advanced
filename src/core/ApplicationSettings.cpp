@@ -4,6 +4,7 @@
 #include "ApplicationSettings.h"
 
 #include <tiff.h>
+#include "ImageAllocationLimit.h"
 
 #include <QLocale>
 #include <QtCore/QSettings>
@@ -261,9 +262,16 @@ void ApplicationSettings::setOutputShowGuidesEnabled(bool enabled) {
 }
 
 int ApplicationSettings::getImageAllocationLimitMb() const {
-  return m_settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt();
+  QSettings settings;
+  bool valueOk = false;
+  const int limitMb = settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt(&valueOk);
+  return valueOk && limitMb >= 0 && limitMb <= image_allocation_limit::kMaxLimitMb ? limitMb : 0;
 }
 
 void ApplicationSettings::setImageAllocationLimitMb(int limitMb) {
-  m_settings.setValue(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), limitMb);
+  if (limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
+    return;
+  }
+  QSettings settings;
+  settings.setValue(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), limitMb);
 }

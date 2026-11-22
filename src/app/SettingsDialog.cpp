@@ -4,6 +4,7 @@
 #include "SettingsDialog.h"
 
 #include <core/ApplicationSettings.h>
+#include <core/ImageAllocationLimit.h>
 #include <tiff.h>
 
 #include <QtCore/QDir>
@@ -75,6 +76,8 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   ui.marginsDeviationThresholdSB->setValue(settings.getMarginsDeviationThreshold());
 
   ui.autoSaveProjectCB->setChecked(settings.isAutoSaveProjectEnabled());
+  ui.imageAllocationLimitSB->setMaximum(image_allocation_limit::kMaxLimitMb);
+  ui.imageAllocationLimitSB->setValue(settings.getImageAllocationLimitMb());
 
   ui.thumbnailQualitySB->setValue(settings.getThumbnailQuality().width());
   ui.thumbnailSizeSB->setValue(settings.getMaxLogicalThumbnailSize().toSize().width());
@@ -92,6 +95,7 @@ void SettingsDialog::commitChanges() {
 
   settings.setOpenGlEnabled(ui.enableOpenglCb->isChecked());
   settings.setAutoSaveProjectEnabled(ui.autoSaveProjectCB->isChecked());
+  settings.setImageAllocationLimitMb(ui.imageAllocationLimitSB->value());
   settings.setHighlightDeviationEnabled(ui.highlightDeviationCB->isChecked());
   settings.setColorScheme(ui.colorSchemeBox->currentData().toString());
 

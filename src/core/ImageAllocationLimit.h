@@ -7,22 +7,32 @@
 #include <QReadWriteLock>
 #include <QSize>
 
+namespace image_allocation_limit {
+constexpr int kMaxLimitMb = 8 * 1024;
+}
+
 struct ImageAllocationLimitInfo {
   QSize imageSize;
   int currentLimitMb = 0;
   int requiredLimitMb = 0;
   bool exceeded = false;
+  bool dimensionsKnown = false;
 
-  bool canRaiseLimit() const { return exceeded && requiredLimitMb > 0; }
+  bool canRaiseLimit() const {
+    return exceeded && requiredLimitMb > 0 && requiredLimitMb <= image_allocation_limit::kMaxLimitMb;
+  }
 };
 
 class ImageAllocationLimit {
  public:
   static bool hasEnvironmentOverride();
 
+  // Callers must hold a read lock across this check and the image decode.
   static bool exceeds(const QSize& imageSize, int bitsPerPixel, ImageAllocationLimitInfo* info);
 
   static int setLimitMb(int limitMb);
+
+  static bool trySetLimitMb(int limitMb, int* effectiveLimitMb);
 
   static QReadWriteLock& readWriteLock();
 };
