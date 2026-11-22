@@ -77,11 +77,19 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
   ui.autoSaveProjectCB->setChecked(settings.isAutoSaveProjectEnabled());
   ui.imageAllocationLimitSB->setMaximum(image_allocation_limit::kMaxLimitMb);
+  const int defaultImageAllocationLimitMb = ImageAllocationLimit::defaultLimitMb();
+  if (ImageAllocationLimit::hasEnvironmentOverride()) {
+    ui.imageAllocationLimitSB->setSpecialValueText(tr("Default"));
+  } else if (defaultImageAllocationLimitMb > 0) {
+    ui.imageAllocationLimitSB->setSpecialValueText(tr("Default (%1 MiB)").arg(defaultImageAllocationLimitMb));
+  } else {
+    ui.imageAllocationLimitSB->setSpecialValueText(tr("Default (unlimited)"));
+  }
   const int imageAllocationLimitAtOpen = settings.getImageAllocationLimitMb();
   ui.imageAllocationLimitSB->setValue(imageAllocationLimitAtOpen);
-  ui.imageAllocationLimitHelpLabel->setVisible(false);
+  ui.imageAllocationLimitHelpContainer->setVisible(false);
   connect(ui.imageAllocationLimitSB, &QSpinBox::valueChanged, this, [this, imageAllocationLimitAtOpen](int value) {
-    ui.imageAllocationLimitHelpLabel->setVisible(value != imageAllocationLimitAtOpen);
+    ui.imageAllocationLimitHelpContainer->setVisible(value != imageAllocationLimitAtOpen);
   });
 
   ui.thumbnailQualitySB->setValue(settings.getThumbnailQuality().width());
@@ -89,22 +97,27 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
   ui.singleColumnThumbnailsCB->setChecked(settings.isSingleColumnThumbnailDisplayEnabled());
   ui.cancelingSelectionQuestionCB->setChecked(settings.isCancelingSelectionQuestionEnabled());
-
-  connect(ui.buttonBox, SIGNAL(accepted()), SLOT(commitChanges()));
 }
 
 SettingsDialog::~SettingsDialog() = default;
 
-void SettingsDialog::commitChanges() {
+void SettingsDialog::accept() {
+  if (commitChanges()) {
+    QDialog::accept();
+  }
+}
+
+bool SettingsDialog::commitChanges() {
   ApplicationSettings& settings = ApplicationSettings::getInstance();
+
+  if (!settings.setImageAllocationLimitMb(ui.imageAllocationLimitSB->value())) {
+    QMessageBox::warning(this, tr("Settings"),
+                         tr("The image size limit could not be saved. Check application settings and try again."));
+    return false;
+  }
 
   settings.setOpenGlEnabled(ui.enableOpenglCb->isChecked());
   settings.setAutoSaveProjectEnabled(ui.autoSaveProjectCB->isChecked());
-  if (!settings.setImageAllocationLimitMb(ui.imageAllocationLimitSB->value())) {
-    QMessageBox::warning(this, tr("Settings"),
-                         tr("The remembered image allocation limit could not be saved. Check application settings "
-                            "and try again."));
-  }
   settings.setHighlightDeviationEnabled(ui.highlightDeviationCB->isChecked());
   settings.setColorScheme(ui.colorSchemeBox->currentData().toString());
 
@@ -136,6 +149,7 @@ void SettingsDialog::commitChanges() {
   settings.setCancelingSelectionQuestionEnabled(ui.cancelingSelectionQuestionCB->isChecked());
 
   emit settingsChanged();
+  return true;
 }
 
 void SettingsDialog::blackOnWhiteDetectionToggled(bool checked) {

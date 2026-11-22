@@ -12,6 +12,7 @@
 #include <core/StyledIconPack.h>
 
 #include <QCommandLineParser>
+#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -93,10 +94,15 @@ int main(int argc, char* argv[]) {
   }
   QSettings settings;
 
+  ImageAllocationLimit::defaultLimitMb();
   if (!ImageAllocationLimit::hasEnvironmentOverride()) {
     const int imageAllocationLimitMb = ApplicationSettings::getInstance().getImageAllocationLimitMb();
     if (imageAllocationLimitMb > 0) {
-      ImageAllocationLimit::setLimitMb(imageAllocationLimitMb);
+      int effectiveLimitMb = 0;
+      if (ImageAllocationLimit::setLimitMb(imageAllocationLimitMb, &effectiveLimitMb)
+          != ImageAllocationLimit::UpdateResult::Applied) {
+        qWarning() << "The saved image allocation limit was rejected.";
+      }
     }
   }
 

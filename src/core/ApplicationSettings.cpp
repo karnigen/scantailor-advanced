@@ -264,14 +264,12 @@ void ApplicationSettings::setOutputShowGuidesEnabled(bool enabled) {
 
 int ApplicationSettings::getImageAllocationLimitMb() const {
   QSettings settings;
-  settings.sync();
+  bool valueOk = false;
+  const int limitMb = settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt(&valueOk);
   if (settings.status() != QSettings::NoError) {
     qWarning() << "Unable to read the saved image allocation limit; using Qt's default.";
     return 0;
   }
-
-  bool valueOk = false;
-  const int limitMb = settings.value(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY), 0).toInt(&valueOk);
   if (!valueOk || limitMb < 0 || limitMb > image_allocation_limit::kMaxLimitMb) {
     if (settings.contains(getKey(IMAGE_ALLOCATION_LIMIT_MB_KEY))) {
       qWarning() << "Invalid saved image allocation limit; using Qt's default.";

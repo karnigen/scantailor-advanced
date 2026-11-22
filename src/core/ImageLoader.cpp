@@ -12,12 +12,6 @@
 #include "ImageId.h"
 #include "TiffReader.h"
 
-namespace {
-
-constexpr int kConservativeUnknownFormatBitsPerPixel = 128;
-
-}  // namespace
-
 QImage ImageLoader::load(const ImageId& imageId) {
   return load(imageId.filePath(), imageId.zeroBasedPage());
 }
@@ -73,7 +67,7 @@ QImage ImageLoader::load(QIODevice& ioDev, const int pageNum, ImageAllocationLim
   }
   const QImage::Format format = reader.imageFormat();
   const int bitsPerPixel = format == QImage::Format_Invalid
-                               ? kConservativeUnknownFormatBitsPerPixel
+                               ? static_cast<int>(QImage::toPixelFormat(QImage::Format_RGBA32FPx4).bitsPerPixel())
                                : qMax(32, static_cast<int>(QImage::toPixelFormat(format).bitsPerPixel()));
   if (ImageAllocationLimit::exceeds(reader.size(), bitsPerPixel, limitInfo)) {
     return QImage();

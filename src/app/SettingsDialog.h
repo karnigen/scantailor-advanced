@@ -15,12 +15,16 @@ class SettingsDialog : public QDialog {
 
   ~SettingsDialog() override;
 
+ public slots:
+  void accept() override;
+
  signals:
   void settingsChanged();
 
- private slots:
-  void commitChanges();
+ private:
+  bool commitChanges();
 
+ private slots:
   void blackOnWhiteDetectionToggled(bool checked);
 
  private:

@@ -80,7 +80,7 @@ Higher limits can exhaust memory.</string>
                <number>256</number>
               </property>
               <property name="specialValueText">
-               <string>Default (128 MiB)</string>
+               <string>Default</string>
               </property>
               <property name="suffix">
                <string> MiB</string>
@@ -90,27 +90,48 @@ Higher limits can exhaust memory.</string>
            </layout>
           </item>
           <item>
-           <widget class="QLabel" name="imageAllocationLimitHelpLabel">
-            <property name="wordWrap">
-             <bool>true</bool>
-            </property>
-            <property name="text">
-             <string>Restart the application to apply this change.</string>
-            </property>
+           <widget class="QWidget" name="imageAllocationLimitHelpContainer">
+            <layout class="QVBoxLayout" name="imageAllocationLimitHelpLayout">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLabel" name="imageAllocationLimitHelpLabel">
+               <property name="wordWrap">
+                <bool>true</bool>
+               </property>
+               <property name="text">
+                <string>Restart the application to apply this change.</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="imageAllocationLimitSpacing">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>1</width>
+                 <height>8</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
            </widget>
-          </item>
-          <item>
-           <spacer name="imageAllocationLimitSpacing">
-            <property name="orientation">
-             <enum>Qt::Vertical</enum>
-            </property>
-            <property name="sizeHint" stdset="0">
-             <size>
-              <width>1</width>
-              <height>8</height>
-             </size>
-            </property>
-           </spacer>
           </item>
           <item>
            <layout class="QHBoxLayout" name="horizontalLayout">

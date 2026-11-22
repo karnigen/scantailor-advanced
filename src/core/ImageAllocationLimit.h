@@ -25,16 +25,20 @@ struct ImageAllocationLimitInfo {
 
 class ImageAllocationLimit {
  public:
-  enum class TrySetResult { Applied, Busy, Invalid };
+  enum class UpdateResult { Applied, Busy, Invalid };
 
   static bool hasEnvironmentOverride();
+
+  // Captures Qt's limit before a saved application limit is applied.
+  static int defaultLimitMb();
 
   // Callers must hold a read lock across this check and the image decode.
   static bool exceeds(const QSize& imageSize, int bitsPerPixel, ImageAllocationLimitInfo* info);
 
-  static int setLimitMb(int limitMb);
+  static UpdateResult setLimitMb(int limitMb, int* effectiveLimitMb);
 
-  static TrySetResult trySetLimitMb(int limitMb, int* effectiveLimitMb);
+  // Non-blocking; Busy means retry later, while Invalid means the value is outside the supported range.
+  static UpdateResult trySetLimitMb(int limitMb, int* effectiveLimitMb);
 
   static QReadWriteLock& readWriteLock();
 };

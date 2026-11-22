@@ -172,13 +172,13 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     }
 
     int effectiveLimitMb = 0;
-    const ImageAllocationLimit::TrySetResult result
+    const ImageAllocationLimit::UpdateResult result
         = ImageAllocationLimit::trySetLimitMb(m_pendingLimitMb, &effectiveLimitMb);
-    if (result == ImageAllocationLimit::TrySetResult::Busy) {
+    if (result == ImageAllocationLimit::UpdateResult::Busy) {
       QTimer::singleShot(kLimitUpdateRetryIntervalMs, this, [this]() { applyLimitWhenAvailable(); });
       return;
     }
-    if (result == ImageAllocationLimit::TrySetResult::Invalid) {
+    if (result == ImageAllocationLimit::UpdateResult::Invalid) {
       finishLimitUpdate(tr("The requested allocation limit is invalid and was not applied."));
       return;
     }
@@ -196,7 +196,8 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
         return;
       }
     }
-    m_waitingForLimitUpdate = false;
+    finishLimitUpdate(m_initialExplanation);
+    m_limitButton->setEnabled(false);
     emit reloadRequested();
   }
 
