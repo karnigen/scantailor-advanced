@@ -1327,6 +1327,7 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
   }
 
   bool batchFailureRecorded = false;
+  bool batchPageSkipped = false;
   QString batchPageName;
   const auto recordBatchFailure = [this, isBatchTask, &batchFailureRecorded, &batchPageName](const QString& details) {
     if (!isBatchTask || batchFailureRecorded) {
@@ -1346,8 +1347,6 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 
   try {
     if (isBatchTask) {
-      const QString failureDescription = result ? result->failureDescription() : QString();
-      const QString skippedDescription = result ? result->skippedDescription() : QString();
       batchPageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
       if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
         batchPageName += tr(" (page %1)").arg(batchPage.imageId().page());
@@ -1355,8 +1354,12 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
       if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
         batchPageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
       }
+
+      const QString failureDescription = result ? result->failureDescription() : QString();
+      const QString skippedDescription = result ? result->skippedDescription() : QString();
       if (!skippedDescription.isEmpty()) {
         m_batchSkippedPages.append(tr("%1: %2").arg(batchPageName, skippedDescription));
+        batchPageSkipped = true;
       }
       if (!result || !failureDescription.isEmpty() || !errorMessage.isEmpty()) {
         const QString details = !failureDescription.isEmpty()
@@ -1391,7 +1394,7 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     OutOfMemoryHandler::instance().handleOutOfMemorySituation();
   } catch (const std::exception& e) {
     qCritical("Failed to update the UI for a background task: %s", e.what());
-    if (isBatchTask && !batchFailureRecorded) {
+    if (isBatchTask && !batchFailureRecorded && !batchPageSkipped) {
       try {
         recordBatchFailure(tr("Failed to update the page: %1").arg(QString::fromUtf8(e.what())));
       } catch (const std::bad_alloc&) {
@@ -1413,7 +1416,7 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     }
   } catch (...) {
     qCritical("Failed to update the UI for a background task with an unknown exception.");
-    if (isBatchTask && !batchFailureRecorded) {
+    if (isBatchTask && !batchFailureRecorded && !batchPageSkipped) {
       try {
         recordBatchFailure(tr("An unknown exception occurred while updating the page."));
       } catch (const std::bad_alloc&) {
