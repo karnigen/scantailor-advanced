@@ -16,6 +16,7 @@
 #include <QScrollBar>
 #include <QSortFilterProxyModel>
 #include <QStackedLayout>
+#include <QTimer>
 #include <QtWidgets/QInputDialog>
 #include <boost/lambda/lambda.hpp>
 #include <exception>
@@ -1290,20 +1291,22 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
   resetThumbSequence(currentPageOrderProvider());
 
   if ((!batchFailures.isEmpty() || !batchSkippedPages.isEmpty()) && mainArea != CLEAR_MAIN_AREA) {
-    QMessageBox messageBox(QMessageBox::Warning, tr("Batch processing"),
-                           tr("Batch processing finished with %1 failure(s) and %2 skipped page(s).")
-                               .arg(batchFailures.size())
-                               .arg(batchSkippedPages.size()),
-                           QMessageBox::Ok, this);
-    QStringList details;
-    if (!batchFailures.isEmpty()) {
-      details.append(tr("Failed pages:\n%1").arg(batchFailures.join(QLatin1Char('\n'))));
-    }
-    if (!batchSkippedPages.isEmpty()) {
-      details.append(tr("Skipped pages:\n%1").arg(batchSkippedPages.join(QLatin1Char('\n'))));
-    }
-    messageBox.setDetailedText(details.join(QStringLiteral("\n\n")));
-    messageBox.exec();
+    QTimer::singleShot(0, this, [this, batchFailures, batchSkippedPages]() {
+      QMessageBox messageBox(QMessageBox::Warning, tr("Batch processing"),
+                             tr("Batch processing finished with %1 failure(s) and %2 skipped page(s).")
+                                 .arg(batchFailures.size())
+                                 .arg(batchSkippedPages.size()),
+                             QMessageBox::Ok, this);
+      QStringList details;
+      if (!batchFailures.isEmpty()) {
+        details.append(tr("Failed pages:\n%1").arg(batchFailures.join(QLatin1Char('\n'))));
+      }
+      if (!batchSkippedPages.isEmpty()) {
+        details.append(tr("Skipped pages:\n%1").arg(batchSkippedPages.join(QLatin1Char('\n'))));
+      }
+      messageBox.setDetailedText(details.join(QStringLiteral("\n\n")));
+      messageBox.exec();
+    });
   }
 }
 
@@ -1323,6 +1326,17 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     return;
   }
 
+  bool batchFailureRecorded = false;
+  QString batchPageName;
+  const auto recordBatchFailure = [this, isBatchTask, &batchFailureRecorded, &batchPageName](const QString& details) {
+    if (!isBatchTask || batchFailureRecorded) {
+      return;
+    }
+    const QString pageName = batchPageName.isEmpty() ? tr("Unknown page") : batchPageName;
+    m_batchFailures.append(tr("%1: %2").arg(pageName, details));
+    batchFailureRecorded = true;
+  };
+
   const auto showFailure = [this](const QString& message) {
     const QString details = message.isEmpty() ? tr("An unknown error occurred.") : message;
     setImageWidget(new ErrorWidget(tr("Background processing failed:\n%1").arg(details), Qt::PlainText),
@@ -1334,21 +1348,21 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     if (isBatchTask) {
       const QString failureDescription = result ? result->failureDescription() : QString();
       const QString skippedDescription = result ? result->skippedDescription() : QString();
-      QString pageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+      batchPageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
       if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
-        pageName += tr(" (page %1)").arg(batchPage.imageId().page());
+        batchPageName += tr(" (page %1)").arg(batchPage.imageId().page());
       }
       if (!batchPage.isNull() && batchPage.id().subPage() != PageId::SINGLE_PAGE) {
-        pageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
+        batchPageName += tr(" (%1)").arg(batchPage.id().subPageAsString());
       }
       if (!skippedDescription.isEmpty()) {
-        m_batchSkippedPages.append(tr("%1: %2").arg(pageName, skippedDescription));
+        m_batchSkippedPages.append(tr("%1: %2").arg(batchPageName, skippedDescription));
       }
       if (!result || !failureDescription.isEmpty() || !errorMessage.isEmpty()) {
         const QString details = !failureDescription.isEmpty()
                                     ? failureDescription
                                     : (errorMessage.isEmpty() ? tr("The page could not be processed.") : errorMessage);
-        m_batchFailures.append(tr("%1: %2").arg(pageName, details));
+        recordBatchFailure(details);
       }
     }
 
@@ -1377,6 +1391,17 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     OutOfMemoryHandler::instance().handleOutOfMemorySituation();
   } catch (const std::exception& e) {
     qCritical("Failed to update the UI for a background task: %s", e.what());
+    if (isBatchTask && !batchFailureRecorded) {
+      try {
+        recordBatchFailure(tr("Failed to update the page: %1").arg(QString::fromUtf8(e.what())));
+      } catch (const std::bad_alloc&) {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& reportError) {
+        qWarning("Failed to add a background task UI error to the batch summary: %s", reportError.what());
+      } catch (...) {
+        qWarning("Failed to add a background task UI error to the batch summary.");
+      }
+    }
     try {
       showFailure(QString());
     } catch (const std::bad_alloc&) {
@@ -1388,6 +1413,17 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     }
   } catch (...) {
     qCritical("Failed to update the UI for a background task with an unknown exception.");
+    if (isBatchTask && !batchFailureRecorded) {
+      try {
+        recordBatchFailure(tr("An unknown exception occurred while updating the page."));
+      } catch (const std::bad_alloc&) {
+        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      } catch (const std::exception& reportError) {
+        qWarning("Failed to add a background task UI error to the batch summary: %s", reportError.what());
+      } catch (...) {
+        qWarning("Failed to add a background task UI error to the batch summary.");
+      }
+    }
     try {
       showFailure(QString());
     } catch (const std::bad_alloc&) {

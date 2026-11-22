@@ -12,12 +12,15 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QThread>
+#include <algorithm>
+#include <atomic>
 #include <boost/foreach.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index_container.hpp>
 #include <exception>
+#include <memory>
 
 #include "AtomicFileOverwriter.h"
 #include "ImageId.h"
@@ -28,6 +31,20 @@
 using namespace ::boost;
 using namespace ::boost::multi_index;
 using namespace imageproc;
+
+namespace {
+
+void handleOutOfMemoryNoThrow() {
+  try {
+    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+  } catch (const std::exception& e) {
+    qCritical("Out-of-memory handler failed: %s", e.what());
+  } catch (...) {
+    qCritical("Out-of-memory handler failed with an unknown exception.");
+  }
+}
+
+}  // namespace
 
 class ThumbnailPixmapCache::Item {
  public:
@@ -148,7 +165,10 @@ class ThumbnailPixmapCache::Impl : public QThread {
 
   void queuedToInProgress(const LoadQueue::iterator& lqIt);
 
-  void postLoadResult(const LoadQueue::iterator& lqIt, const QImage& image, ThumbnailLoadResult::Status status);
+  bool postLoadResult(const LoadQueue::iterator& lqIt,
+                      const QImage& image,
+                      ThumbnailLoadResult::Status status,
+                      bool retryUntilShutdown = true);
 
   void processLoadResult(LoadResultEvent* result);
 
@@ -160,7 +180,7 @@ class ThumbnailPixmapCache::Impl : public QThread {
 
   void cachePixmapUnlocked(const ImageId& imageId, const QPixmap& pixmap);
 
-  void cachePixmapLocked(const ImageId& imageId, const QPixmap& pixmap);
+  bool cachePixmapLocked(const ImageId& imageId, const QPixmap& pixmap, LoadQueue::iterator& resultIterator);
 
   mutable QMutex m_mutex;
   BackgroundLoader m_backgroundLoader;
@@ -210,7 +230,7 @@ class ThumbnailPixmapCache::Impl : public QThread {
   int m_totalLoadAttempts;
 
   bool m_threadStarted;
-  bool m_shuttingDown;
+  std::atomic_bool m_shuttingDown;
 };
 
 
@@ -314,14 +334,13 @@ ThumbnailPixmapCache::Impl::Impl(const QString& thumbDir,
 }
 
 ThumbnailPixmapCache::Impl::~Impl() {
+  m_shuttingDown.store(true);
   {
     const QMutexLocker locker(&m_mutex);
 
     if (!m_threadStarted) {
       return;
     }
-
-    m_shuttingDown = true;
   }
 
   quit();
@@ -352,7 +371,7 @@ ThumbnailPixmapCache::Status ThumbnailPixmapCache::Impl::request(
 
   QMutexLocker locker(&m_mutex);
 
-  if (m_shuttingDown) {
+  if (m_shuttingDown.load()) {
     return LOAD_FAILED;
   }
 
@@ -433,7 +452,7 @@ ThumbnailPixmapCache::Status ThumbnailPixmapCache::Impl::request(
 }  // ThumbnailPixmapCache::Impl::request
 
 void ThumbnailPixmapCache::Impl::ensureThumbnailExists(const ImageId& imageId, const QImage& image) {
-  if (m_shuttingDown) {
+  if (m_shuttingDown.load()) {
     return;
   }
 
@@ -461,7 +480,7 @@ void ThumbnailPixmapCache::Impl::ensureThumbnailExists(const ImageId& imageId, c
 }
 
 void ThumbnailPixmapCache::Impl::recreateThumbnail(const ImageId& imageId, const QImage& image) {
-  if (m_shuttingDown) {
+  if (m_shuttingDown.load()) {
     return;
   }
 
@@ -520,7 +539,7 @@ void ThumbnailPixmapCache::Impl::run() {
   try {
     backgroundProcessing();
   } catch (const std::bad_alloc&) {
-    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    handleOutOfMemoryNoThrow();
   } catch (const std::exception& e) {
     qCritical("Thumbnail background thread failed: %s", e.what());
   } catch (...) {
@@ -540,6 +559,7 @@ void ThumbnailPixmapCache::Impl::backgroundProcessing() {
   while (true) {
     LoadQueue::iterator lqIt;
     bool loadInProgress = false;
+    bool requestExpired = false;
     try {
       // We are going to initialize these while holding the mutex.
       ImageId imageId;
@@ -549,7 +569,7 @@ void ThumbnailPixmapCache::Impl::backgroundProcessing() {
       {
         const QMutexLocker locker(&m_mutex);
 
-        if (m_shuttingDown || m_items.empty()) {
+        if (m_shuttingDown.load() || m_items.empty()) {
           break;
         }
 
@@ -575,65 +595,44 @@ void ThumbnailPixmapCache::Impl::backgroundProcessing() {
           // request expiration is described in
           // ThumbnailLoadResult::REQUEST_EXPIRED
           // documentation.
+          requestExpired = true;
+        } else {
+          // Expired requests don't count as load attempts.
+          ++m_totalLoadAttempts;
 
-          postLoadResult(lqIt, QImage(), ThumbnailLoadResult::REQUEST_EXPIRED);
-          continue;
+          // Copy those while holding the mutex.
+          thumbDir = m_thumbDir;
+          maxThumbSize = m_maxThumbSize;
         }
-
-        // Expired requests don't count as load attempts.
-        ++m_totalLoadAttempts;
-
-        // Copy those while holding the mutex.
-        thumbDir = m_thumbDir;
-        maxThumbSize = m_maxThumbSize;
       }  // mutex scope
+      if (requestExpired) {
+        postLoadResult(lqIt, QImage(), ThumbnailLoadResult::REQUEST_EXPIRED);
+        continue;
+      }
+
       const QImage image(loadSaveThumbnail(imageId, thumbDir, maxThumbSize));
 
       const ThumbnailLoadResult::Status status
           = image.isNull() ? ThumbnailLoadResult::LOAD_FAILED : ThumbnailLoadResult::LOADED;
       postLoadResult(lqIt, image, status);
     } catch (const std::bad_alloc&) {
-      OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+      handleOutOfMemoryNoThrow();
       if (!loadInProgress) {
         break;
       }
-      try {
-        postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOAD_FAILED);
-      } catch (const std::bad_alloc&) {
-        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
-      } catch (const std::exception& e) {
-        qWarning("Failed to report a thumbnail allocation failure: %s", e.what());
-      } catch (...) {
-        qWarning("Failed to report a thumbnail allocation failure: unknown exception.");
-      }
+      postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOAD_FAILED);
     } catch (const std::exception& e) {
       qWarning("Thumbnail loading failed: %s", e.what());
       if (!loadInProgress) {
         break;
       }
-      try {
-        postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOAD_FAILED);
-      } catch (const std::bad_alloc&) {
-        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
-      } catch (const std::exception& reportError) {
-        qWarning("Failed to report a thumbnail load failure: %s", reportError.what());
-      } catch (...) {
-        qWarning("Failed to report a thumbnail load failure: unknown exception.");
-      }
+      postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOAD_FAILED);
     } catch (...) {
       qWarning("Thumbnail loading failed with an unknown exception.");
       if (!loadInProgress) {
         break;
       }
-      try {
-        postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOAD_FAILED);
-      } catch (const std::bad_alloc&) {
-        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
-      } catch (const std::exception& reportError) {
-        qWarning("Failed to report a thumbnail load failure: %s", reportError.what());
-      } catch (...) {
-        qWarning("Failed to report a thumbnail load failure: unknown exception.");
-      }
+      postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOAD_FAILED);
     }
   }
 }  // ThumbnailPixmapCache::Impl::backgroundProcessing
@@ -714,11 +713,48 @@ void ThumbnailPixmapCache::Impl::queuedToInProgress(const LoadQueue::iterator& l
   // LOADED items.
 }
 
-void ThumbnailPixmapCache::Impl::postLoadResult(const LoadQueue::iterator& lqIt,
+bool ThumbnailPixmapCache::Impl::postLoadResult(const LoadQueue::iterator& lqIt,
                                                 const QImage& image,
-                                                const ThumbnailLoadResult::Status status) {
-  auto* e = new LoadResultEvent(lqIt, image, status);
-  QCoreApplication::postEvent(this, e);
+                                                const ThumbnailLoadResult::Status status,
+                                                const bool retryUntilShutdown) {
+  unsigned long retryDelayMs = 10;
+  bool loggedFailure = false;
+  bool outOfMemoryHandled = false;
+  while (!m_shuttingDown.load()) {
+    try {
+      auto event = std::make_unique<LoadResultEvent>(lqIt, image, status);
+      QCoreApplication::postEvent(this, event.get());
+      event.release();
+      return true;
+    } catch (const std::bad_alloc&) {
+      if (!loggedFailure) {
+        qWarning("Failed to post a thumbnail result because memory is exhausted; retrying.");
+        loggedFailure = true;
+      }
+      if (!outOfMemoryHandled) {
+        handleOutOfMemoryNoThrow();
+        outOfMemoryHandled = true;
+      }
+    } catch (const std::exception& e) {
+      if (!loggedFailure) {
+        qWarning("Failed to post a thumbnail result: %s; retrying.", e.what());
+        loggedFailure = true;
+      }
+    } catch (...) {
+      if (!loggedFailure) {
+        qWarning("Failed to post a thumbnail result with an unknown exception; retrying.");
+        loggedFailure = true;
+      }
+    }
+
+    if (!retryUntilShutdown || m_shuttingDown.load()) {
+      return false;
+    }
+
+    QThread::msleep(retryDelayMs);
+    retryDelayMs = std::min(retryDelayMs * 2, 1000UL);
+  }
+  return false;
 }
 
 void ThumbnailPixmapCache::Impl::processLoadResult(LoadResultEvent* result) {
@@ -729,7 +765,7 @@ void ThumbnailPixmapCache::Impl::processLoadResult(LoadResultEvent* result) {
   try {
     pixmap = QPixmap::fromImage(result->image());
   } catch (const std::bad_alloc&) {
-    OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+    handleOutOfMemoryNoThrow();
     status = ThumbnailLoadResult::LOAD_FAILED;
   } catch (const std::exception& e) {
     qWarning("Failed to create a thumbnail pixmap: %s", e.what());
@@ -745,7 +781,7 @@ void ThumbnailPixmapCache::Impl::processLoadResult(LoadResultEvent* result) {
   {
     const QMutexLocker locker(&m_mutex);
 
-    if (m_shuttingDown) {
+    if (m_shuttingDown.load()) {
       return;
     }
 
@@ -800,7 +836,7 @@ void ThumbnailPixmapCache::Impl::processLoadResult(LoadResultEvent* result) {
       try {
         (*sh)(loadResult);
       } catch (const std::bad_alloc&) {
-        OutOfMemoryHandler::instance().handleOutOfMemorySituation();
+        handleOutOfMemoryNoThrow();
       } catch (const std::exception& e) {
         qWarning("Thumbnail completion handler failed: %s", e.what());
       } catch (...) {
@@ -857,13 +893,24 @@ void ThumbnailPixmapCache::Impl::removeLoadedItemsLocked() {
 }
 
 void ThumbnailPixmapCache::Impl::cachePixmapUnlocked(const ImageId& imageId, const QPixmap& pixmap) {
-  const QMutexLocker locker(&m_mutex);
-  cachePixmapLocked(imageId, pixmap);
+  LoadQueue::iterator resultIterator;
+  bool needsResultPost = false;
+  {
+    const QMutexLocker locker(&m_mutex);
+    needsResultPost = cachePixmapLocked(imageId, pixmap, resultIterator);
+  }
+
+  if (needsResultPost && !postLoadResult(resultIterator, QImage(), ThumbnailLoadResult::LOADED, false)) {
+    LoadResultEvent fallback(resultIterator, QImage(), ThumbnailLoadResult::LOAD_FAILED);
+    processLoadResult(&fallback);
+  }
 }
 
-void ThumbnailPixmapCache::Impl::cachePixmapLocked(const ImageId& imageId, const QPixmap& pixmap) {
-  if (m_shuttingDown) {
-    return;
+bool ThumbnailPixmapCache::Impl::cachePixmapLocked(const ImageId& imageId,
+                                                   const QPixmap& pixmap,
+                                                   LoadQueue::iterator& resultIterator) {
+  if (m_shuttingDown.load()) {
+    return false;
   }
 
   const Item::Status newStatus = pixmap.isNull() ? Item::LOAD_FAILED : Item::LOADED;
@@ -888,7 +935,7 @@ void ThumbnailPixmapCache::Impl::cachePixmapLocked(const ImageId& imageId, const
     rqIt->pixmap = pixmap;
 
     assert(rqIt->completionHandlers.empty());
-    return;
+    return false;
   }
 
   switch (kIt->status) {
@@ -896,7 +943,7 @@ void ThumbnailPixmapCache::Impl::cachePixmapLocked(const ImageId& imageId, const
       // There is no point in replacing LOADED items.
     case Item::IN_PROGRESS:
       // It's unsafe to touch IN_PROGRESS items.
-      return;
+      return false;
     default:
       break;
   }
@@ -914,8 +961,8 @@ void ThumbnailPixmapCache::Impl::cachePixmapLocked(const ImageId& imageId, const
 
     lqIt->pixmap = pixmap;
     queuedToInProgress(lqIt);
-    postLoadResult(lqIt, QImage(), ThumbnailLoadResult::LOADED);
-    return;
+    resultIterator = lqIt;
+    return true;
   }
 
   assert(kIt->status == Item::LOAD_FAILED);
@@ -928,6 +975,7 @@ void ThumbnailPixmapCache::Impl::cachePixmapLocked(const ImageId& imageId, const
     m_removeQueue.relocate(m_endOfLoadedItems, rqIt);
     ++m_numLoadedItems;
   }
+  return false;
 }  // ThumbnailPixmapCache::Impl::cachePixmapLocked
 
 const QSize& ThumbnailPixmapCache::Impl::getMaxThumbSize() const {
