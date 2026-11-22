@@ -11,6 +11,7 @@
 #include "ImageId.h"
 #include "ImageMetadata.h"
 #include "NonCopyable.h"
+#include "PageId.h"
 
 class ThumbnailPixmapCache;
 class PageInfo;
@@ -46,6 +47,7 @@ class LoadFileTask : public BackgroundTask {
 
   std::shared_ptr<ThumbnailPixmapCache> m_thumbnailCache;
   ImageId m_imageId;
+  PageId m_pageId;
   ImageMetadata m_imageMetadata;
   const std::shared_ptr<ProjectPages> m_pages;
   const std::shared_ptr<fix_orientation::Task> m_nextTask;

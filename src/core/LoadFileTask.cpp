@@ -11,7 +11,6 @@
 #include <QFile>
 #include <QLabel>
 #include <QMessageBox>
-#include <QPointer>
 #include <QPushButton>
 #include <QTextDocument>
 #include <QTimer>
@@ -100,14 +99,12 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
  private:
   void requestLimitIncrease() {
     if (!m_limitInfo.canRaiseLimit()) {
-      QMessageBox::warning(window(), tr("Image Too Large"),
-                           tr("The image dimensions exceed the maximum limit that can be configured."));
+      m_explanation->setText(tr("The image dimensions exceed the maximum limit that can be configured."));
       return;
     }
 
     if (ImageAllocationLimit::hasEnvironmentOverride()) {
-      QMessageBox::warning(
-          window(), tr("Image Too Large"),
+      m_explanation->setText(
           tr("QT_IMAGEIO_MAXALLOC overrides the allocation limit. Change this environment variable and restart the "
              "application to load this image."));
       return;
@@ -122,25 +119,26 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
                           .arg(m_limitInfo.requiredLimitMb)
                           .arg(m_limitInfo.currentLimitMb);
 
-    QPointer<LargeImageOptionsWidget> self(this);
-    QWidget* const dialogParent = window();
-    QMessageBox dialog(QMessageBox::Warning, tr("Image Too Large"), message, QMessageBox::Cancel, dialogParent);
-    QPushButton* const onceButton = dialog.addButton(tr("Allow for This Run"), QMessageBox::AcceptRole);
-    QPushButton* const rememberButton = dialog.addButton(tr("Remember This Limit"), QMessageBox::AcceptRole);
-    dialog.setDefaultButton(QMessageBox::Cancel);
-    dialog.exec();
+    auto* const dialog
+        = new QMessageBox(QMessageBox::Warning, tr("Image Too Large"), message, QMessageBox::Cancel, window());
+    QPushButton* const onceButton = dialog->addButton(tr("Allow for This Run"), QMessageBox::AcceptRole);
+    QPushButton* const rememberButton = dialog->addButton(tr("Remember This Limit"), QMessageBox::AcceptRole);
+    dialog->setDefaultButton(QMessageBox::Cancel);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::finished, this, [this, dialog, onceButton, rememberButton](int) {
+      m_limitButton->setEnabled(true);
+      const QAbstractButton* const clickedButton = dialog->clickedButton();
+      if (clickedButton == onceButton || clickedButton == rememberButton) {
+        beginLimitUpdate(clickedButton == rememberButton);
+      }
+    });
+    m_limitButton->setEnabled(false);
+    dialog->open();
+  }
 
-    if (!self) {
-      return;
-    }
-
-    if (dialog.clickedButton() != onceButton && dialog.clickedButton() != rememberButton) {
-      return;
-    }
-
-    const int requiredLimitMb = m_limitInfo.requiredLimitMb;
-    m_pendingLimitMb = requiredLimitMb;
-    m_rememberLimit = dialog.clickedButton() == rememberButton;
+  void beginLimitUpdate(const bool rememberLimit) {
+    m_pendingLimitMb = m_limitInfo.requiredLimitMb;
+    m_rememberLimit = rememberLimit;
     m_waitingForLimitUpdate = true;
     m_limitUpdateTimer.start();
     m_limitButton->setText(tr("Cancel"));
@@ -183,20 +181,20 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
       return;
     }
     if (effectiveLimitMb > 0 && effectiveLimitMb < m_pendingLimitMb) {
-      finishLimitUpdate(
-          tr("The requested allocation limit could not be applied. QT_IMAGEIO_MAXALLOC may override the limit."));
+      finishLimitUpdate(tr("The effective allocation limit is still below the image's estimated requirement."));
       return;
     }
-    if (m_rememberLimit && !ApplicationSettings::getInstance().setImageAllocationLimitMb(m_pendingLimitMb)) {
-      QPointer<LargeImageOptionsWidget> self(this);
-      QMessageBox::warning(window(), tr("Image Too Large"),
-                           tr("The allocation limit was applied for this run, but could not be saved to application "
-                              "settings."));
-      if (!self) {
-        return;
-      }
+    QString completionMessage;
+    if (!m_rememberLimit) {
+      completionMessage = tr("The allocation limit was raised for this run. Reloading the image...");
+    } else if (ApplicationSettings::getInstance().setImageAllocationLimitMb(m_pendingLimitMb)) {
+      completionMessage = tr("The allocation limit was saved and applied. Reloading the image...");
+    } else {
+      completionMessage = tr(
+          "The allocation limit was applied for this run, but could not be saved to application settings. "
+          "Reloading the image...");
     }
-    finishLimitUpdate(m_initialExplanation);
+    finishLimitUpdate(completionMessage);
     m_limitButton->setEnabled(false);
     emit reloadRequested();
   }
@@ -243,6 +241,23 @@ class LargeImageResult : public FilterResult {
   ImageAllocationLimitInfo m_limitInfo;
 };
 
+class ThumbnailInvalidationResult : public FilterResult {
+ public:
+  ThumbnailInvalidationResult(FilterResultPtr result, PageId pageId)
+      : m_result(std::move(result)), m_pageId(std::move(pageId)) {}
+
+  void updateUI(FilterUiInterface* ui) override {
+    m_result->updateUI(ui);
+    ui->invalidateThumbnail(m_pageId);
+  }
+
+  std::shared_ptr<AbstractFilter> filter() override { return m_result->filter(); }
+
+ private:
+  FilterResultPtr m_result;
+  PageId m_pageId;
+};
+
 }  // namespace
 
 
@@ -254,6 +269,7 @@ LoadFileTask::LoadFileTask(Type type,
     : BackgroundTask(type),
       m_thumbnailCache(std::move(thumbnailCache)),
       m_imageId(page.imageId()),
+      m_pageId(page.id()),
       m_imageMetadata(page.metadata()),
       m_pages(std::move(pages)),
       m_nextTask(std::move(nextTask)) {
@@ -279,7 +295,11 @@ FilterResultPtr LoadFileTask::operator()() {
       updateImageSizeIfChanged(image);
       overrideDpi(image);
       m_thumbnailCache->ensureThumbnailExists(m_imageId, image);
-      return m_nextTask->process(*this, FilterData(image));
+      FilterResultPtr result = m_nextTask->process(*this, FilterData(image));
+      if (!result) {
+        return nullptr;
+      }
+      return std::make_shared<ThumbnailInvalidationResult>(std::move(result), m_pageId);
     }
   } catch (const CancelledException&) {
     return nullptr;
@@ -347,7 +367,8 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
       errMsg = tr("The following file could not be loaded:\n%1").arg(m_filePath);
     } else {
       errMsg = tr("The image could not be loaded because its dimensions were unavailable for allocation checking:\n%1"
-                  "\nIf you trust this file, you can increase the saved image limit in Settings and restart.")
+                  "\nVerify that the file is valid. If you suspect it exceeds Qt's allocation limit, you can increase "
+                  "the saved image limit in Settings and restart.")
                    .arg(m_filePath);
     }
     fmt = Qt::PlainText;
