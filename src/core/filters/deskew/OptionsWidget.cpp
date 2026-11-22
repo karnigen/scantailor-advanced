@@ -106,6 +106,10 @@ void OptionsWidget::appliedToAllPages(const std::set<PageId>& pages, const bool 
 }
 
 void OptionsWidget::manualDeskewAngleSetExternally(const double degrees) {
+  if (degrees == m_uiData.effectiveDeskewAngle()) {
+    return;
+  }
+
   m_uiData.setEffectiveDeskewAngle(degrees);
   m_uiData.setMode(MODE_MANUAL);
   updateModeIndication(MODE_MANUAL);
@@ -120,6 +124,10 @@ void OptionsWidget::manualDeskewAngleSetExternally(const double degrees) {
 }
 
 void OptionsWidget::manualObliqueAngleSetExternally(const double degrees) {
+  if (degrees == m_uiData.effectiveObliqueAngle()) {
+    return;
+  }
+
   auto block = m_connectionManager.getScopedBlock();
 
   m_settings->cancelRecomputeRequest(m_pageId);
@@ -293,6 +301,7 @@ double OptionsWidget::degreesToSpinBox(const double degrees) {
 void OptionsWidget::topEdgeToggled(bool checked) {
   m_settings->setAlgoContentBased(!checked);
   if (autoBtn->isChecked()) {
+    m_settings->requestRecompute(m_pageId, true, false);
     emit reloadRequested();
   }
 }

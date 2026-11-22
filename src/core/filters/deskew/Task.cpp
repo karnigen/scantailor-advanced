@@ -151,13 +151,13 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
       recomputeOblique = false;
     }
 
-    bool canStoreParams = true;
     if ((recomputeDeskew && deskewMode == MODE_AUTO) || (recomputeOblique && obliqueMode == MODE_AUTO)) {
       const QRectF imageArea(data.xform().transformBack().mapRect(data.xform().resultingRect()));
       const QRect boundedImageArea(imageArea.toRect().intersected(data.origImage().rect()));
 
       status.throwIfCancelled();
 
+      // Keep the previous/default angles when no source pixels are available.
       if (boundedImageArea.isValid()) {
         BinaryImage rotatedImage(orthogonalRotation(
             BinaryImage(data.grayImageBlackOnWhite(), boundedImageArea, data.bwThresholdBlackOnWhite()),
@@ -212,8 +212,6 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
           const std::optional<double> obliqueDeg = findObliqueDegrees(horizontalMask, skewFinder, 5.0);
           obliqueAngle = obliqueDeg ? -*obliqueDeg : 0.0;
         }
-      } else {
-        canStoreParams = false;
       }
     }
 
@@ -222,12 +220,10 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
     uiData.setMode(deskewMode);
     uiData.setObliqueMode(obliqueMode);
 
-    if (canStoreParams) {
-      status.throwIfCancelled();
-      Params newParams(deskewAngle, obliqueAngle, deps, deskewMode, obliqueMode);
-      m_settings->setPageParams(m_pageId, newParams);
-      m_settings->clearRecomputeRequest(m_pageId, pendingRecompute.generation);
-    }
+    status.throwIfCancelled();
+    Params newParams(deskewAngle, obliqueAngle, deps, deskewMode, obliqueMode);
+    m_settings->setPageParams(m_pageId, newParams);
+    m_settings->clearRecomputeRequest(m_pageId, pendingRecompute.generation);
   }
 
   ImageTransformation newXform(data.xform());

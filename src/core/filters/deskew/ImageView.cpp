@@ -200,6 +200,9 @@ void ImageView::handleMoveRequest(int idx, const QPointF& pos) {
   if (idx < 2) {
     const QRectF arcSquare(getRotationArcSquare());
     const double arcRadius = 0.5 * arcSquare.width();
+    if (arcRadius <= 0.0) {
+      return;
+    }
     const double absY = pos.y();
     double relY = absY - arcSquare.center().y();
     relY = qBound(-arcRadius, relY, arcRadius);
@@ -219,6 +222,9 @@ void ImageView::handleMoveRequest(int idx, const QPointF& pos) {
   } else {
     const QRectF arcSquare(getObliqueArcSquare());
     const double arcRadius = 0.5 * arcSquare.height();
+    if (arcRadius <= 0.0) {
+      return;
+    }
     const double absX = pos.x();
     double relX = absX - arcSquare.center().x();
     relX = qBound(-arcRadius, relX, arcRadius);
