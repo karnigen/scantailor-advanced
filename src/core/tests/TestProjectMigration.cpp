@@ -273,9 +273,10 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
+  const bool writeSucceeded = writer.write(projectPath, filters, &errorMessage);
   {
     INFO(errorMessage.toStdString());
-    REQUIRE(writer.write(projectPath, filters, &errorMessage));
+    REQUIRE(writeSucceeded);
   }
   CHECK(readFile(projectPath + ".v3.bak") == originalV3);
 
@@ -319,9 +320,10 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_keeps_absolute_paths_whe
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
+  const bool writeSucceeded = writer.write(projectPath, filters, &errorMessage);
   {
     INFO(errorMessage.toStdString());
-    REQUIRE(writer.write(projectPath, filters, &errorMessage));
+    REQUIRE(writeSucceeded);
   }
 
   QFile savedProject(projectPath);

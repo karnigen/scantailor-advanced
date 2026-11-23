@@ -4,72 +4,170 @@
 #include <GrayImage.h>
 #include <Scale.h>
 
-#include <QImage>
 #include <QSize>
+#include <algorithm>
+#include <array>
 #include <catch2/catch_test_macros.hpp>
-#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 
-#include "Utils.h"
-
 namespace imageproc {
 namespace tests {
-using namespace utils;
 
+static GrayImage makeGrayImageFromPixels(const QSize& size, const uint8_t* pixels) {
+  GrayImage image(size);
+  for (int y = 0; y < size.height(); ++y) {
+    uint8_t* row = image.data() + y * image.stride();
+    for (int x = 0; x < size.width(); ++x) {
+      row[x] = pixels[y * size.width() + x];
+    }
+  }
+  return image;
+}
+
+static GrayImage makeNoiseImage() {
+  std::array<uint8_t, 100 * 100> pixels{};
+  uint32_t state = 0x12345678;
+  for (uint8_t& pixel : pixels) {
+    state = state * 1664525u + 1013904223u;
+    pixel = static_cast<uint8_t>(state >> 24);
+  }
+  return makeGrayImageFromPixels(QSize(100, 100), pixels.data());
+}
+
+// Exact source-pixel overlap weights in destination-coordinate units.
+static int areaAverage(const GrayImage& image, const QSize& size, const int x, const int y) {
+  const int left = x * image.width();
+  const int right = (x + 1) * image.width();
+  const int top = y * image.height();
+  const int bottom = (y + 1) * image.height();
+  int weightedSum = 0;
+  for (int sy = top / size.height(); sy < (bottom + size.height() - 1) / size.height(); ++sy) {
+    const int weightY = std::min(bottom, (sy + 1) * size.height()) - std::max(top, sy * size.height());
+    for (int sx = left / size.width(); sx < (right + size.width() - 1) / size.width(); ++sx) {
+      const int weightX = std::min(right, (sx + 1) * size.width()) - std::max(left, sx * size.width());
+      weightedSum += image.data()[sy * image.stride() + sx] * weightX * weightY;
+    }
+  }
+  const int totalWeight = image.width() * image.height();
+  return (weightedSum + totalWeight / 2) / totalWeight;
+}
 
 TEST_CASE("ScaleTestSuite / test_null_image") {
   const GrayImage nullImg;
   CHECK(scaleToGray(nullImg, QSize(1, 1)).isNull());
 }
 
-static bool fuzzyCompare(const QImage& img1, const QImage& img2) {
-  REQUIRE(img1.size() == img2.size());
+TEST_CASE("ScaleTestSuite / test_downscale_integer_ratio_averages_source_blocks") {
+  const uint8_t pixels[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+  const GrayImage image = makeGrayImageFromPixels(QSize(4, 4), pixels);
+  const GrayImage scaled = scaleToGray(image, QSize(2, 2));
+  const uint8_t expected[] = {3, 5, 11, 13};
 
-  const int width = img1.width();
-  const int height = img1.height();
-  const uint8_t* line1 = img1.bits();
-  const uint8_t* line2 = img2.bits();
-  const int line1Bpl = img1.bytesPerLine();
-  const int line2Bpl = img2.bytesPerLine();
+  for (int y = 0; y < 2; ++y) {
+    const uint8_t* row = scaled.data() + y * scaled.stride();
+    for (int x = 0; x < 2; ++x) {
+      CHECK(row[x] == expected[y * 2 + x]);
+    }
+  }
+}
 
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      if (std::abs(int(line1[x]) - int(line2[x])) > 1) {
-        return false;
+TEST_CASE("ScaleTestSuite / test_downscale_fractional_ratio_averages_source_coverage") {
+  const uint8_t pixels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+  const GrayImage image = makeGrayImageFromPixels(QSize(3, 3), pixels);
+  const GrayImage scaled = scaleToGray(image, QSize(2, 2));
+  const uint8_t expected[] = {2, 4, 6, 8};
+
+  for (int y = 0; y < 2; ++y) {
+    const uint8_t* row = scaled.data() + y * scaled.stride();
+    for (int x = 0; x < 2; ++x) {
+      CHECK(row[x] == expected[y * 2 + x]);
+    }
+  }
+}
+
+TEST_CASE("ScaleTestSuite / test_integer_upscale_with_different_axis_factors") {
+  const uint8_t pixels[] = {17, 83, 145, 231};
+  const GrayImage image = makeGrayImageFromPixels(QSize(2, 2), pixels);
+
+  for (const QSize size : {QSize(2, 4), QSize(4, 2), QSize(4, 6), QSize(6, 4)}) {
+    const GrayImage scaled = scaleToGray(image, size);
+    REQUIRE(scaled.size() == size);
+    const int xscale = size.width() / image.width();
+    const int yscale = size.height() / image.height();
+    for (int y = 0; y < size.height(); ++y) {
+      const uint8_t* row = scaled.data() + y * scaled.stride();
+      for (int x = 0; x < size.width(); ++x) {
+        CAPTURE(size, x, y);
+        CHECK(row[x] == pixels[(y / yscale) * image.width() + x / xscale]);
       }
     }
-    line1 += line1Bpl;
-    line2 += line2Bpl;
   }
-  return true;
 }
 
-static bool checkScale(const GrayImage& img, const QSize& newSize) {
-  const GrayImage scaled1(scaleToGray(img, newSize));
-  const GrayImage scaled2(img.toQImage().scaled(newSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
-  return fuzzyCompare(scaled1, scaled2);
-}
-
-TEST_CASE("ScaleTestSuite / test_random_image") {
-  GrayImage img(QSize(100, 100));
-  uint8_t* line = img.data();
-  for (int y = 0; y < img.height(); ++y) {
-    for (int x = 0; x < img.width(); ++x) {
-      line[x] = static_cast<uint8_t>(rand() % 256);
+TEST_CASE("ScaleTestSuite / test_downscale_high_contrast_against_area_reference") {
+  const GrayImage image = makeNoiseImage();
+  for (const QSize size : {QSize(50, 50), QSize(80, 80)}) {
+    const GrayImage scaled = scaleToGray(image, size);
+    REQUIRE(scaled.size() == size);
+    for (int y = 0; y < size.height(); ++y) {
+      const uint8_t* row = scaled.data() + y * scaled.stride();
+      for (int x = 0; x < size.width(); ++x) {
+        CAPTURE(size, x, y);
+        CHECK(row[x] == areaAverage(image, size, x, y));
+      }
     }
-    line += img.stride();
+  }
+}
+
+struct QtDifference {
+  int maxDifference = 0;
+  int pixelsAboveOne = 0;
+  int totalDifference = 0;
+};
+
+static QtDifference compareWithQt(const GrayImage& image, const QSize& size, const QImage::Format format) {
+  const GrayImage actual = scaleToGray(image, size);
+  const QImage qtScaled
+      = image.toQImage().convertToFormat(format).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  const GrayImage qt(qtScaled);
+  REQUIRE(actual.size() == size);
+  REQUIRE(qt.size() == size);
+
+  QtDifference difference;
+  for (int y = 0; y < size.height(); ++y) {
+    for (int x = 0; x < size.width(); ++x) {
+      const int delta = std::abs(int(actual.data()[y * actual.stride() + x]) - int(qt.data()[y * qt.stride() + x]));
+      difference.maxDifference = std::max(difference.maxDifference, delta);
+      difference.pixelsAboveOne += delta > 1;
+      difference.totalDifference += delta;
+    }
+  }
+  return difference;
+}
+
+static void checkQtCompatibility(const GrayImage& image, const QSize& size, const QImage::Format format) {
+  const QtDifference difference = compareWithQt(image, size, format);
+  const double meanDifference = double(difference.totalDifference) / (size.width() * size.height());
+  CAPTURE(qVersion(), format, size.width(), size.height(), difference.maxDifference, difference.pixelsAboveOne,
+          meanDifference);
+  CHECK(difference.maxDifference <= 1);
+}
+
+TEST_CASE("ScaleTestSuite / diagnostic Qt compatibility", "[.][scale-qt-diagnostic]") {
+  const GrayImage image = makeNoiseImage();
+
+  SECTION("Indexed8 input (original comparison)") {
+    for (const QSize size : {QSize(50, 50), QSize(80, 80)}) {
+      checkQtCompatibility(image, size, QImage::Format_Indexed8);
+    }
   }
 
-  // Unfortunately scaleToGray() and QImage::scaled()
-  // produce too different results when upscaling.
-
-  CHECK(checkScale(img, QSize(50, 50)));
-  // CHECK(checkScale(img, QSize(200, 200)));
-  CHECK(checkScale(img, QSize(80, 80)));
-  // CHECK(checkScale(img, QSize(140, 140)));
-  // CHECK(checkScale(img, QSize(55, 145)));
-  // CHECK(checkScale(img, QSize(145, 55)));
+  SECTION("RGB32 input (Qt smoothScaled path)") {
+    for (const QSize size : {QSize(50, 50), QSize(80, 80)}) {
+      checkQtCompatibility(image, size, QImage::Format_RGB32);
+    }
+  }
 }
 
 }  // namespace tests

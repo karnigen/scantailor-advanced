@@ -66,6 +66,100 @@ Or run each suite individually:
 
 The UX tests use `QApplication` and can simulate interaction (clicks and keyboard input) without opening windows. They provide a foundation for adding tests for more widgets and dialogs.
 
+## Grayscale scaling: behavior and test coverage
+
+`scaleToGray` is used for more than thumbnails: it also feeds background
+estimation, page-split detection, dewarping, and the picture-area mask used in
+output processing. Changes to its pixels can therefore affect subsequent
+thresholding, detected boundaries, and output. Downscaling output is unchanged
+by this work. The only production change is the fix of the integer-upscaling
+defect described below, which previously returned uninitialized rows or read
+beyond the image when the horizontal and vertical factors differed.
+
+The original `ScaleTest` compared a 100×100 `Indexed8` noise image scaled to
+50×50 and 80×80 against `QImage::scaled(..., SmoothTransformation)`, requiring
+every pixel to be within 1 gray level. It used the process-global `rand()`,
+whose sequence depends on the platform and earlier calls. The comparison dates
+back at least to the 2016 repository history. A 2017 change restored comments
+that explicitly left Qt comparisons for upscaling and mixed scaling disabled
+because their results differed. The history examined does not establish whether
+matching Qt was a long-term requirement or whether the differences were intended
+to be addressed later.
+
+The comparison is meaningful **if Qt pixel compatibility is the requirement**,
+but Qt's smooth scaling is not an independent, stable definition of area
+averaging. In the inspected Qt 6.11.3 implementation, the chosen path depends
+on the image format, dimensions, and scale factor. For the original 100×100
+`Indexed8` inputs at these sizes, Qt uses a paint-based bilinear path; for
+`RGB32` it uses `smoothScaled`. The grayscale implementation uses block or
+area-weighted averaging for downscaling, with 1/32-pixel fixed-point coordinates
+in the generic path. Rounding and the selected Qt path can change the result.
+Neither method's quality for real scanned pages follows solely from this
+synthetic comparison.
+
+One reproducible Release build measurement on Linux with vcpkg Qt 6.11.3 used
+the deterministic 100×100 high-contrast image in `TestScale.cpp`:
+
+| Target | Qt input | Maximum difference | Mean absolute difference | Pixels differing by more than 1 |
+|---|---|---:|---:|---:|
+| 50×50 | Indexed8 | 3 | 1.1148 | 613 / 2500 |
+| 50×50 | RGB32 | 1 | 0.5148 | 0 / 2500 |
+| 80×80 | Indexed8 | 30 | 5.3700 | 5111 / 6400 |
+| 80×80 | RGB32 | 1 | 0.5072 | 0 / 6400 |
+
+For these two ratios, `scaleToGray` matched a separately calculated exact
+area-overlap reference at every pixel. The ratios have exact 1/32-pixel
+boundaries; this result does not imply exact area averages for all sizes.
+The normal suite now tests both those noise cases and small hand-calculated
+integer and fractional downscales. This replaces the original Qt equality as a
+test of the current area-averaging behavior, **not** as proof that Qt
+compatibility is unnecessary or that every scaling mode is correct.
+
+The original `Indexed8` comparison and ±1 threshold remain as an opt-in
+diagnostic, with deterministic input and difference statistics:
+
+```bash
+./build-vcpkg/imageproc_tests '[scale-qt-diagnostic]'
+```
+
+It is excluded from normal CTest runs and fails for `Indexed8` on the Qt 6.11.3
+setup above. Its outcome may differ with Qt version or platform. If Qt
+compatibility is required, resolve the difference rather than treating this
+diagnostic failure as a passing functional test.
+
+The same diagnostic also compares against `RGB32` input, which in Qt 6.11.3
+selects `smoothScaled` instead of the paint-based path used for `Indexed8`. On
+this setup the maximum difference was 1 for both target sizes. That indicates
+the original ±1 mismatch came largely from Qt's format-specific path, not from
+a general disagreement between both algorithms. It does not prove matching for
+other sizes or platforms, and it is not a reason to store application grayscale
+images as `RGB32`.
+
+**Fixed scaling defect (integer upscaling with unequal factors):** the
+integer-upscaling loop advanced its row counter by the horizontal factor
+instead of the vertical one, and advanced the source row once per output group
+regardless of the vertical factor. Scaling 2×2 to 2×4 read and wrote beyond the
+image; scaling 2×2 to 4×2 left the last row unwritten, exposing uninitialized
+memory. Both were reproduced with AddressSanitizer against the pre-fix code.
+`scaleUpIntGrayToGray` now advances by the vertical factor. A regression test
+covers 2×4, 4×2, 4×6 and 6×4 and checks exact pixel replication; the fixed code
+is clean under AddressSanitizer. Equal-factor upscaling and all downscaling
+paths are unaffected.
+
+**Format decision:** grayscale images stay in `Format_Indexed8` (one byte per
+pixel). `scaleToGray` operates directly on this buffer and never calls Qt's
+scaler, so the `Indexed8`/`RGB32` difference affects only comparisons that use
+Qt as a reference. Converting application grayscale images to `RGB32` would
+quadruple memory use and change every algorithm that consumes `GrayImage`
+without improving `scaleToGray` itself. Only thumbnails choose between the two
+scalers: already-grayscale `Indexed8` images use `scaleToGray`, other formats
+use Qt's smooth scaler, so visually identical inputs in different formats can
+produce different thumbnail pixels.
+
+Real-scan output comparisons and coverage of arbitrary ratios, mixed scaling,
+upscaling, edges, and unusual DPI values are still needed before deciding
+whether Qt pixel compatibility is a requirement.
+
 ## UI/UX tests and user workflows
 
 The existing `qt_tests` suite already covers widget-level interactions, including simulated mouse clicks, keyboard input, and state/signal checks. Extend that suite for additional UX coverage rather than creating a duplicate test executable. Complete end-to-end user workflows are not currently covered. To improve UX and workflow coverage, consider:
