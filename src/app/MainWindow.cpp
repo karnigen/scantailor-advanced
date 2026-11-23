@@ -1749,20 +1749,20 @@ void MainWindow::showKeyboardShortcuts() {
   QString html = "<html><body>";
   html += "<h2>" + tr("Menu access").toHtmlEscaped() + "</h2>";
   html += "<table width='100%' cellspacing='0' cellpadding='7'>";
-  html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Menu").toHtmlEscaped() +
-          "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th></tr>";
+  html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Menu").toHtmlEscaped() + "</th><th align='left'>"
+          + tr("Shortcut").toHtmlEscaped() + "</th></tr>";
   for (QMenu* menu : {menuFile, menuDebug, menuHelp}) {
     const QString title = menuTitleWithoutMnemonic(menu->title());
     const QString shortcut = QKeySequence::mnemonic(menu->menuAction()->text()).toString(QKeySequence::NativeText);
-    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + title.toHtmlEscaped() +
-            "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" + shortcut.toHtmlEscaped() +
-            "</b></td></tr>";
+    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + title.toHtmlEscaped()
+            + "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" + shortcut.toHtmlEscaped()
+            + "</b></td></tr>";
   }
   html += "</table><h2>" + tr("Keyboard shortcuts").toHtmlEscaped() + "</h2>";
   html += "<table width='100%' cellspacing='0' cellpadding='7'>";
-  html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Action").toHtmlEscaped() +
-          "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th><th align='left'>" +
-          tr("Context").toHtmlEscaped() + "</th></tr>";
+  html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Action").toHtmlEscaped()
+          + "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th><th align='left'>"
+          + tr("Context").toHtmlEscaped() + "</th></tr>";
 
   QList<QAction*> actions;
   QSet<QAction*> uniqueActions;
@@ -1785,16 +1785,17 @@ void MainWindow::showKeyboardShortcuts() {
       actionNames.insert(action->objectName());
     }
   }
-  std::sort(actions.begin(), actions.end(),
-            [](const QAction* left, const QAction* right) { return left->text().localeAwareCompare(right->text()) < 0; });
+  std::sort(actions.begin(), actions.end(), [](const QAction* left, const QAction* right) {
+    return left->text().localeAwareCompare(right->text()) < 0;
+  });
 
-  auto appendShortcutRow = [&html, &borderColor](const QString& label, const QStringList& shortcuts,
-                                                 const QString& context) {
-    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + label.toHtmlEscaped() +
-            "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" +
-            shortcuts.join(", ").toHtmlEscaped() + "</b></td><td style='border-bottom:1px solid " + borderColor +
-            ";'>" + context.toHtmlEscaped() + "</td></tr>";
-  };
+  auto appendShortcutRow
+      = [&html, &borderColor](const QString& label, const QStringList& shortcuts, const QString& context) {
+          html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + label.toHtmlEscaped()
+                  + "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>"
+                  + shortcuts.join(", ").toHtmlEscaped() + "</b></td><td style='border-bottom:1px solid " + borderColor
+                  + ";'>" + context.toHtmlEscaped() + "</td></tr>";
+        };
 
   for (QAction* action : actions) {
     const QList<QKeySequence> shortcuts = action->shortcuts();
@@ -1825,8 +1826,7 @@ void MainWindow::showKeyboardShortcuts() {
     }
 
     QString context;
-    if (action->objectName().startsWith("deskewRotate") ||
-        action->objectName().startsWith("selectContent")) {
+    if (action->objectName().startsWith("deskewRotate") || action->objectName().startsWith("selectContent")) {
       context = tr("Active tool");
     } else {
       switch (action->shortcutContext()) {
