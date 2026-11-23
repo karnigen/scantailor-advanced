@@ -5,24 +5,23 @@
 #include <SlicedHistogram.h>
 #include <Span.h>
 
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <vector>
 
 namespace Tests {
 using namespace imageproc;
 
-BOOST_AUTO_TEST_SUITE(ContentSpanFinderTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_empty_input) {
+TEST_CASE("ContentSpanFinderTestSuite / test_empty_input") {
   ContentSpanFinder spanFinder;
 
   std::vector<Span> spans;
   spanFinder.find(SlicedHistogram(), [&](const Span& span) { spans.push_back(span); });
 
-  BOOST_CHECK(spans.empty());
+  CHECK(spans.empty());
 }
 
-BOOST_AUTO_TEST_CASE(test_min_content_width) {
+TEST_CASE("ContentSpanFinderTestSuite / test_min_content_width") {
   SlicedHistogram hist;
   hist.setSize(9);
   hist[0] = 0;
@@ -41,12 +40,12 @@ BOOST_AUTO_TEST_CASE(test_min_content_width) {
   std::vector<Span> spans;
   spanFinder.find(hist, [&](const Span& span) { spans.push_back(span); });
 
-  BOOST_REQUIRE(spans.size() == 2);
-  BOOST_REQUIRE(spans[0] == Span(3, 3 + 3));
-  BOOST_REQUIRE(spans[1] == Span(7, 7 + 2));
+  REQUIRE(spans.size() == 2);
+  REQUIRE((spans[0] == Span(3, 3 + 3)));
+  REQUIRE((spans[1] == Span(7, 7 + 2)));
 }
 
-BOOST_AUTO_TEST_CASE(test_min_whitespace_width) {
+TEST_CASE("ContentSpanFinderTestSuite / test_min_whitespace_width") {
   SlicedHistogram hist;
   hist.setSize(9);
   hist[0] = 0;
@@ -65,12 +64,12 @@ BOOST_AUTO_TEST_CASE(test_min_whitespace_width) {
   std::vector<Span> spans;
   spanFinder.find(hist, [&](const Span& span) { spans.push_back(span); });
 
-  BOOST_REQUIRE(spans.size() == 2);
-  BOOST_REQUIRE(spans[0] == Span(1, 1 + 4));
-  BOOST_REQUIRE(spans[1] == Span(7, 7 + 2));
+  REQUIRE(spans.size() == 2);
+  REQUIRE((spans[0] == Span(1, 1 + 4)));
+  REQUIRE((spans[1] == Span(7, 7 + 2)));
 }
 
-BOOST_AUTO_TEST_CASE(test_min_content_and_whitespace_width) {
+TEST_CASE("ContentSpanFinderTestSuite / test_min_content_and_whitespace_width") {
   SlicedHistogram hist;
   hist.setSize(9);
   hist[0] = 0;
@@ -94,9 +93,8 @@ BOOST_AUTO_TEST_CASE(test_min_content_and_whitespace_width) {
   // it's still allowed to merge with content at positions 3 and 4
   // because the whitespace between them is too short as well.
 
-  BOOST_REQUIRE(spans.size() == 1);
-  BOOST_REQUIRE(spans[0] == Span(1, 1 + 4));
+  REQUIRE(spans.size() == 1);
+  REQUIRE((spans[0] == Span(1, 1 + 4)));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace Tests

@@ -6,7 +6,7 @@
 
 #include <QImage>
 #include <QSize>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -17,15 +17,14 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(ScaleTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_null_image) {
+TEST_CASE("ScaleTestSuite / test_null_image") {
   const GrayImage nullImg;
-  BOOST_CHECK(scaleToGray(nullImg, QSize(1, 1)).isNull());
+  CHECK(scaleToGray(nullImg, QSize(1, 1)).isNull());
 }
 
 static bool fuzzyCompare(const QImage& img1, const QImage& img2) {
-  BOOST_REQUIRE(img1.size() == img2.size());
+  REQUIRE(img1.size() == img2.size());
 
   const int width = img1.width();
   const int height = img1.height();
@@ -52,7 +51,7 @@ static bool checkScale(const GrayImage& img, const QSize& newSize) {
   return fuzzyCompare(scaled1, scaled2);
 }
 
-BOOST_AUTO_TEST_CASE(test_random_image) {
+TEST_CASE("ScaleTestSuite / test_random_image") {
   GrayImage img(QSize(100, 100));
   uint8_t* line = img.data();
   for (int y = 0; y < img.height(); ++y) {
@@ -65,14 +64,13 @@ BOOST_AUTO_TEST_CASE(test_random_image) {
   // Unfortunately scaleToGray() and QImage::scaled()
   // produce too different results when upscaling.
 
-  BOOST_CHECK(checkScale(img, QSize(50, 50)));
-  // BOOST_CHECK(checkScale(img, QSize(200, 200)));
-  BOOST_CHECK(checkScale(img, QSize(80, 80)));
-  // BOOST_CHECK(checkScale(img, QSize(140, 140)));
-  // BOOST_CHECK(checkScale(img, QSize(55, 145)));
-  // BOOST_CHECK(checkScale(img, QSize(145, 55)));
+  CHECK(checkScale(img, QSize(50, 50)));
+  // CHECK(checkScale(img, QSize(200, 200)));
+  CHECK(checkScale(img, QSize(80, 80)));
+  // CHECK(checkScale(img, QSize(140, 140)));
+  // CHECK(checkScale(img, QSize(55, 145)));
+  // CHECK(checkScale(img, QSize(145, 55)));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

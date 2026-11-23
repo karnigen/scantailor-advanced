@@ -6,7 +6,7 @@
 #include <SEDM.h>
 
 #include <QImage>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <iostream>
 
@@ -16,7 +16,6 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(SEDMTestSuite)
 
 bool verifySEDM(const SEDM& sedm, const uint32_t* control) {
   const uint32_t* line = sedm.data();
@@ -43,7 +42,7 @@ void dumpMatrix(const uint32_t* data, QSize size) {
   }
 }
 
-BOOST_AUTO_TEST_CASE(test1) {
+TEST_CASE("SEDMTestSuite / test1") {
   static const int inp[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0,
                             0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0,
                             0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -54,9 +53,8 @@ BOOST_AUTO_TEST_CASE(test1) {
 
   const BinaryImage img(makeBinaryImage(inp, 9, 9));
   const SEDM sedm(img, SEDM::DIST_TO_WHITE, SEDM::DIST_TO_NO_BORDERS);
-  BOOST_CHECK(verifySEDM(sedm, out));
+  CHECK(verifySEDM(sedm, out));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

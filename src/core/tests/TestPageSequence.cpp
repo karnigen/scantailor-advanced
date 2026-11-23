@@ -6,7 +6,7 @@
 #include <PageInfo.h>
 #include <PageSequence.h>
 
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <vector>
 
@@ -18,9 +18,8 @@ static PageInfo makePage(const char* path, const int imageIdx) {
   return info;
 }
 
-BOOST_AUTO_TEST_SUITE(PageSequenceTestSuite)
 
-BOOST_AUTO_TEST_CASE(select_this_page_and_following_every_other_from_first) {
+TEST_CASE("PageSequenceTestSuite / select_this_page_and_following_every_other_from_first") {
   PageSequence seq;
   std::vector<PageInfo> pages;
   for (int i = 0; i < 75; ++i) {
@@ -31,16 +30,16 @@ BOOST_AUTO_TEST_CASE(select_this_page_and_following_every_other_from_first) {
   const PageId base = pages[0].id();
   const std::set<PageId> result = seq.selectThisPageAndFollowingEveryOther(base);
 
-  BOOST_CHECK_EQUAL(result.size(), 38u);
+  CHECK((result.size()) == (38u));
   for (int i = 0; i < 75; i += 2) {
-    BOOST_CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 1);
+    CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 1);
   }
   for (int i = 1; i < 75; i += 2) {
-    BOOST_CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 0);
+    CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 0);
   }
 }
 
-BOOST_AUTO_TEST_CASE(select_this_page_and_following_every_other_from_second) {
+TEST_CASE("PageSequenceTestSuite / select_this_page_and_following_every_other_from_second") {
   PageSequence seq;
   std::vector<PageInfo> pages;
   for (int i = 0; i < 75; ++i) {
@@ -51,16 +50,16 @@ BOOST_AUTO_TEST_CASE(select_this_page_and_following_every_other_from_second) {
   const PageId base = pages[1].id();
   const std::set<PageId> result = seq.selectThisPageAndFollowingEveryOther(base);
 
-  BOOST_CHECK_EQUAL(result.size(), 37u);
+  CHECK((result.size()) == (37u));
   for (int i = 1; i < 75; i += 2) {
-    BOOST_CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 1);
+    CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 1);
   }
   for (int i = 0; i < 75; i += 2) {
-    BOOST_CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 0);
+    CHECK(result.count(pages[static_cast<size_t>(i)].id()) == 0);
   }
 }
 
-BOOST_AUTO_TEST_CASE(select_this_page_and_following_every_other_partitions_75_pages) {
+TEST_CASE("PageSequenceTestSuite / select_this_page_and_following_every_other_partitions_75_pages") {
   PageSequence seq;
   std::vector<PageInfo> pages;
   for (int i = 0; i < 75; ++i) {
@@ -74,10 +73,9 @@ BOOST_AUTO_TEST_CASE(select_this_page_and_following_every_other_partitions_75_pa
   for (int i = 0; i < 75; ++i) {
     const bool inOdd = oddFromFirst.count(pages[static_cast<size_t>(i)].id()) != 0;
     const bool inEven = evenFromSecond.count(pages[static_cast<size_t>(i)].id()) != 0;
-    BOOST_CHECK(inOdd != inEven);
+    CHECK(inOdd != inEven);
   }
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 
 }  // namespace Tests

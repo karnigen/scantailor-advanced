@@ -4,14 +4,13 @@
 #include <filters/select_content/Dependencies.h>
 
 #include <QPolygonF>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 namespace Tests {
 using namespace select_content;
 
-BOOST_AUTO_TEST_SUITE(SelectContentApplyTestSuite)
 
-BOOST_AUTO_TEST_CASE(apply_content_box_auto_forces_recompute) {
+TEST_CASE("SelectContentApplyTestSuite / apply_content_box_auto_forces_recompute") {
   QPolygonF pageOutline;
   pageOutline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 150) << QPointF(0, 150);
 
@@ -23,13 +22,16 @@ BOOST_AUTO_TEST_CASE(apply_content_box_auto_forces_recompute) {
   bool needUpdatePageBox = false;
   currentDeps.compatibleWith(storedDepsWhenApplyingAuto, &needUpdateContentBox, &needUpdatePageBox);
 
-  BOOST_REQUIRE_MESSAGE(needUpdateContentBox,
-                        "When applying 'Content Box: Auto' we store deps with MODE_DISABLED so that "
-                        "Task::process recomputes content box for each target page.");
-  BOOST_CHECK(needUpdatePageBox);
+  {
+    INFO(
+        "When applying 'Content Box: Auto' we store deps with MODE_DISABLED so that "
+        "Task::process recomputes content box for each target page.");
+    REQUIRE(needUpdateContentBox);
+  }
+  CHECK(needUpdatePageBox);
 }
 
-BOOST_AUTO_TEST_CASE(same_mode_auto_no_content_box_update) {
+TEST_CASE("SelectContentApplyTestSuite / same_mode_auto_no_content_box_update") {
   QPolygonF pageOutline;
   pageOutline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 150) << QPointF(0, 150);
 
@@ -40,11 +42,11 @@ BOOST_AUTO_TEST_CASE(same_mode_auto_no_content_box_update) {
   bool needUpdatePageBox = false;
   deps1.compatibleWith(deps2, &needUpdateContentBox, &needUpdatePageBox);
 
-  BOOST_CHECK(!needUpdateContentBox);
-  BOOST_CHECK(!needUpdatePageBox);
+  CHECK(!needUpdateContentBox);
+  CHECK(!needUpdatePageBox);
 }
 
-BOOST_AUTO_TEST_CASE(different_outlines_force_content_box_update) {
+TEST_CASE("SelectContentApplyTestSuite / different_outlines_force_content_box_update") {
   QPolygonF outlineA;
   outlineA << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 150) << QPointF(0, 150);
   QPolygonF outlineB;
@@ -57,10 +59,11 @@ BOOST_AUTO_TEST_CASE(different_outlines_force_content_box_update) {
   bool needUpdatePageBox = false;
   currentDeps.compatibleWith(storedDeps, &needUpdateContentBox, &needUpdatePageBox);
 
-  BOOST_REQUIRE_MESSAGE(needUpdateContentBox,
-                        "When outlines differ, needUpdateContentBox must be true (PR #108 review).");
-  BOOST_CHECK(needUpdatePageBox);
+  {
+    INFO("When outlines differ, needUpdateContentBox must be true (PR #108 review).");
+    REQUIRE(needUpdateContentBox);
+  }
+  CHECK(needUpdatePageBox);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace Tests

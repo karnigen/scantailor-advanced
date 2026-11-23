@@ -6,7 +6,7 @@
 
 #include <QImage>
 #include <QSize>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -17,18 +17,17 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(TransformTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_null_image) {
+TEST_CASE("TransformTestSuite / test_null_image") {
   const QImage nullImg;
   const QTransform nullXform;
   const QRect unitRect(0, 0, 1, 1);
   const QColor bgcolor(0xff, 0xff, 0xff);
   const OutsidePixels outsidePixels(OutsidePixels::assumeColor(bgcolor));
-  BOOST_CHECK(transformToGray(nullImg, nullXform, unitRect, outsidePixels).isNull());
+  CHECK(transformToGray(nullImg, nullXform, unitRect, outsidePixels).isNull());
 }
 
-BOOST_AUTO_TEST_CASE(test_random_image) {
+TEST_CASE("TransformTestSuite / test_random_image") {
   GrayImage img(QSize(100, 100));
   uint8_t* line = img.data();
   for (int y = 0; y < img.height(); ++y) {
@@ -42,9 +41,8 @@ BOOST_AUTO_TEST_CASE(test_random_image) {
   const OutsidePixels outsidePixels(OutsidePixels::assumeColor(bgcolor));
 
   const QTransform nullXform;
-  BOOST_CHECK(transformToGray(img, nullXform, img.rect(), outsidePixels) == img);
+  CHECK(transformToGray(img, nullXform, img.rect(), outsidePixels) == img);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

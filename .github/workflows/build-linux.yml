@@ -54,7 +54,6 @@ jobs:
             build-essential cmake file \
             libjpeg-dev libpng-dev \
             libtiff-dev zlib1g-dev \
-            libboost-test-dev libboost-dev \
             qt6-base-dev qt6-svg-dev \
             qt6-tools-dev qt6-tools-dev-tools \
             qt6-base-private-dev \
@@ -64,7 +63,7 @@ jobs:
       - name: Configure and build for AppImage or RPM
         if: ${{ inputs.package == 'appimage' || inputs.package == 'rpm' || inputs.package == 'all' }}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTS=OFF
           cmake --build build --config Release --parallel "$(nproc)"
 
       - name: Build RPM package

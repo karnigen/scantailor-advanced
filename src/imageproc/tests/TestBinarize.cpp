@@ -6,7 +6,7 @@
 
 #include <QImage>
 #include <QSize>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "Utils.h"
 
@@ -14,13 +14,11 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(BinarizeTestSuite)
 #if 0
-            BOOST_AUTO_TEST_CASE(test) {
+            TEST_CASE("BinarizeTestSuite / test") {
                 QImage img("test.png");
                 binarizeWolf(img).toQImage().save("out.png");
             }
 #endif
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

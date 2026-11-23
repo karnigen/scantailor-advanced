@@ -5,80 +5,78 @@
 
 #include <QLineF>
 #include <QPointF>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-BOOST_AUTO_TEST_SUITE(FoundationProximityTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_default_constructor) {
+TEST_CASE("FoundationProximityTestSuite / test_default_constructor") {
   const Proximity p;
-  BOOST_CHECK(p.dist() > 1e10);
-  BOOST_CHECK(p.sqDist() > 1e20);
+  CHECK(p.dist() > 1e10);
+  CHECK(p.sqDist() > 1e20);
 }
 
-BOOST_AUTO_TEST_CASE(test_two_points) {
+TEST_CASE("FoundationProximityTestSuite / test_two_points") {
   const QPointF a(0, 0);
   const QPointF b(3, 4);
   const Proximity p(a, b);
-  BOOST_CHECK_CLOSE(p.dist(), 5.0, 0.01);
-  BOOST_CHECK_CLOSE(p.sqDist(), 25.0, 0.01);
+  CHECK((p.dist()) == Catch::Approx(5.0).epsilon((0.01) / 100.0));
+  CHECK((p.sqDist()) == Catch::Approx(25.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_same_point) {
+TEST_CASE("FoundationProximityTestSuite / test_same_point") {
   const QPointF a(1, 2);
   const Proximity p(a, a);
-  BOOST_CHECK_SMALL(p.dist(), 1e-10);
-  BOOST_CHECK_SMALL(p.sqDist(), 1e-20);
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (p.dist()));
+  CHECK(Catch::Approx(0.0).margin(1e-20) == (p.sqDist()));
 }
 
-BOOST_AUTO_TEST_CASE(test_from_dist) {
+TEST_CASE("FoundationProximityTestSuite / test_from_dist") {
   const Proximity p = Proximity::fromDist(10.0);
-  BOOST_CHECK_CLOSE(p.dist(), 10.0, 0.01);
-  BOOST_CHECK_CLOSE(p.sqDist(), 100.0, 0.01);
+  CHECK((p.dist()) == Catch::Approx(10.0).epsilon((0.01) / 100.0));
+  CHECK((p.sqDist()) == Catch::Approx(100.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_from_sq_dist) {
+TEST_CASE("FoundationProximityTestSuite / test_from_sq_dist") {
   const Proximity p = Proximity::fromSqDist(49.0);
-  BOOST_CHECK_CLOSE(p.sqDist(), 49.0, 0.01);
-  BOOST_CHECK_CLOSE(p.dist(), 7.0, 0.01);
+  CHECK((p.sqDist()) == Catch::Approx(49.0).epsilon((0.01) / 100.0));
+  CHECK((p.dist()) == Catch::Approx(7.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_comparison_operators) {
+TEST_CASE("FoundationProximityTestSuite / test_comparison_operators") {
   const Proximity a = Proximity::fromSqDist(1.0);
   const Proximity b = Proximity::fromSqDist(4.0);
-  BOOST_CHECK(a < b);
-  BOOST_CHECK(a <= b);
-  BOOST_CHECK(b > a);
-  BOOST_CHECK(b >= a);
-  BOOST_CHECK(a != b);
-  BOOST_CHECK(!(a == b));
-  BOOST_CHECK(Proximity::fromSqDist(2.0) == Proximity::fromSqDist(2.0));
+  CHECK(a < b);
+  CHECK(a <= b);
+  CHECK(b > a);
+  CHECK(b >= a);
+  CHECK(a != b);
+  CHECK(!(a == b));
+  CHECK(Proximity::fromSqDist(2.0) == Proximity::fromSqDist(2.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_point_and_line_segment_perpendicular) {
+TEST_CASE("FoundationProximityTestSuite / test_point_and_line_segment_perpendicular") {
   const QPointF pt(5, 0);
   const QLineF segment(0, 0, 10, 0);
   QPointF pointOnSegment;
   const Proximity p = Proximity::pointAndLineSegment(pt, segment, &pointOnSegment);
-  BOOST_CHECK_CLOSE(p.dist(), 0.0, 0.01);
-  BOOST_CHECK_CLOSE(pointOnSegment.x(), 5.0, 0.01);
-  BOOST_CHECK_CLOSE(pointOnSegment.y(), 0.0, 0.01);
+  CHECK((p.dist()) == Catch::Approx(0.0).epsilon((0.01) / 100.0));
+  CHECK((pointOnSegment.x()) == Catch::Approx(5.0).epsilon((0.01) / 100.0));
+  CHECK((pointOnSegment.y()) == Catch::Approx(0.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_point_and_line_segment_endpoint_closest) {
+TEST_CASE("FoundationProximityTestSuite / test_point_and_line_segment_endpoint_closest") {
   const QPointF pt(-1, 0);
   const QLineF segment(0, 0, 10, 0);
   QPointF pointOnSegment;
   const Proximity prx = Proximity::pointAndLineSegment(pt, segment, &pointOnSegment);
-  BOOST_CHECK_CLOSE(prx.dist(), 1.0, 0.01);
-  BOOST_CHECK_CLOSE(pointOnSegment.x(), 0.0, 0.01);
-  BOOST_CHECK_CLOSE(pointOnSegment.y(), 0.0, 0.01);
+  CHECK((prx.dist()) == Catch::Approx(1.0).epsilon((0.01) / 100.0));
+  CHECK((pointOnSegment.x()) == Catch::Approx(0.0).epsilon((0.01) / 100.0));
+  CHECK((pointOnSegment.y()) == Catch::Approx(0.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_point_and_zero_length_segment) {
+TEST_CASE("FoundationProximityTestSuite / test_point_and_zero_length_segment") {
   const QPointF pt(1, 1);
   const QLineF segment(0, 0, 0, 0);
   const Proximity p = Proximity::pointAndLineSegment(pt, segment);
-  BOOST_CHECK_CLOSE(p.dist(), std::sqrt(2.0), 0.01);
+  CHECK((p.dist()) == Catch::Approx(std::sqrt(2.0)).epsilon((0.01) / 100.0));
 }
-
-BOOST_AUTO_TEST_SUITE_END()

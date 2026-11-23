@@ -11,13 +11,15 @@ cmake --build .
 ctest --output-on-failure
 ```
 
+The four C++ unit-test suites use Catch2 3 or newer; `build-vcpkg.sh --tests` installs Catch2 through vcpkg. GUI tests remain on Qt Test.
+
 Or run each suite individually:
 
 ```bash
-./core_tests --log_level=message
-./foundation_tests --log_level=message
-./math_tests --log_level=message
-./imageproc_tests --log_level=message
+./core_tests
+./foundation_tests
+./math_tests
+./imageproc_tests
 ./qt_tests
 ```
 
@@ -89,10 +91,10 @@ genhtml coverage.info --output-directory coverage_html
 
 ## Disabling tests
 
-If the Boost `unit_test_framework` component is unavailable, or you do not need to build the test executables:
+If you do not need to build the test executables:
 
 ```bash
 cmake .. -DBUILD_TESTS=OFF
 ```
 
-This removes the requirement for Boost's `unit_test_framework` component only; the application still requires Boost headers and Qt.
+This skips Catch2 and Qt Test test executables; the application still requires Qt.

@@ -481,7 +481,6 @@ Install the required dependencies:
 ```bash
 sudo apt install build-essential cmake \
   qt6-base-dev qt6-svg-dev qt6-tools-dev \
-  libboost-test-dev libboost-dev \
   libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 ```
 
@@ -489,8 +488,14 @@ Configure and build (out-of-tree build is required):
 
 ```bash
 mkdir build && cd build
-cmake ..
+cmake .. -DBUILD_TESTS=OFF
 make -j$(nproc)
+```
+
+Building the unit tests requires Catch2 3 or newer. From the project root, the vcpkg build script installs it and enables tests:
+
+```bash
+./build-vcpkg.sh --tests
 ```
 
 Release builds do not target the build machine's CPU by default, so binaries can be

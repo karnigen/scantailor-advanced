@@ -7,7 +7,7 @@
 
 #include <QImage>
 #include <algorithm>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <list>
 
 #include "Utils.h"
@@ -16,14 +16,13 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(ConnCompEraserTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_null_image) {
+TEST_CASE("ConnCompEraserTestSuite / test_null_image") {
   ConnCompEraser eraser(BinaryImage(), CONN4);
-  BOOST_CHECK(eraser.nextConnComp().isNull());
+  CHECK(eraser.nextConnComp().isNull());
 }
 
-BOOST_AUTO_TEST_CASE(test_small_image) {
+TEST_CASE("ConnCompEraserTestSuite / test_small_image") {
   static const int inp[]
       = {0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0,
          0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0};
@@ -49,10 +48,13 @@ BOOST_AUTO_TEST_CASE(test_small_image) {
     if (it != c4r.end()) {
       c4r.erase(it);
     } else {
-      BOOST_ERROR("Incorrect 4-connected block found.");
+      FAIL_CHECK("Incorrect 4-connected block found.");
     }
   }
-  BOOST_CHECK_MESSAGE(c4r.empty(), "Not all 4-connected blocks were found.");
+  {
+    INFO("Not all 4-connected blocks were found.");
+    CHECK(c4r.empty());
+  }
 
   ConnCompEraser eraser8(img, CONN8);
   while (!(cc = eraser8.nextConnComp()).isNull()) {
@@ -60,12 +62,14 @@ BOOST_AUTO_TEST_CASE(test_small_image) {
     if (it != c8r.end()) {
       c8r.erase(it);
     } else {
-      BOOST_ERROR("Incorrect 8-connected block found.");
+      FAIL_CHECK("Incorrect 8-connected block found.");
     }
   }
-  BOOST_CHECK_MESSAGE(c8r.empty(), "Not all 8-connected blocks were found.");
+  {
+    INFO("Not all 8-connected blocks were found.");
+    CHECK(c8r.empty());
+  }
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

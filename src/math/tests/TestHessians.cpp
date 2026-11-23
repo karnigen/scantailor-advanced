@@ -3,16 +3,15 @@
 
 #include <adiff/Function.h>
 
-#include <boost/test/tools/floating_point_comparison.hpp>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdlib>
 
 namespace adiff {
 namespace tests {
-BOOST_AUTO_TEST_SUITE(AutomaticDifferentiationTestSuite)
 
-BOOST_AUTO_TEST_CASE(test1) {
+TEST_CASE("AutomaticDifferentiationTestSuite / test1") {
   // F(x) = x^2  | x = 3
 
   SparseMap<2> sparseMap(1);
@@ -28,12 +27,12 @@ BOOST_AUTO_TEST_CASE(test1) {
   // Fx = 2 * x = 6
   // Fxx = 2
 
-  BOOST_REQUIRE_CLOSE(res.value, 9, 1e-06);
-  BOOST_REQUIRE_CLOSE(gradient[0], 6, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(0, 0), 2, 1e-06);
+  REQUIRE((res.value) == Catch::Approx(9).epsilon((1e-06) / 100.0));
+  REQUIRE((gradient[0]) == Catch::Approx(6).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(0, 0)) == Catch::Approx(2).epsilon((1e-06) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test2) {
+TEST_CASE("AutomaticDifferentiationTestSuite / test2") {
   // F(x, y) = x^2  | x = 3
 
   SparseMap<2> sparseMap(2);
@@ -52,16 +51,16 @@ BOOST_AUTO_TEST_CASE(test2) {
   // Fyy = 0
   // Fxy = 0
 
-  BOOST_REQUIRE_CLOSE(res.value, 9, 1e-06);
-  BOOST_REQUIRE_CLOSE(gradient[0], 6, 1e-06);
-  BOOST_REQUIRE_CLOSE(gradient[1], 0, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(0, 0), 2, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(1, 0), 0, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(0, 1), 0, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(1, 1), 0, 1e-06);
+  REQUIRE((res.value) == Catch::Approx(9).epsilon((1e-06) / 100.0));
+  REQUIRE((gradient[0]) == Catch::Approx(6).epsilon((1e-06) / 100.0));
+  REQUIRE((gradient[1]) == Catch::Approx(0).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(0, 0)) == Catch::Approx(2).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(1, 0)) == Catch::Approx(0).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(0, 1)) == Catch::Approx(0).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(1, 1)) == Catch::Approx(0).epsilon((1e-06) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test3) {
+TEST_CASE("AutomaticDifferentiationTestSuite / test3") {
   // F(x, y) = x^3 * y^2   | x = 2, y = 3
 
   SparseMap<2> sparseMap(2);
@@ -83,15 +82,14 @@ BOOST_AUTO_TEST_CASE(test3) {
   // Fyy = 2 * x^3 = 16
   // Fyx = 6 * y * x^2 = 72
 
-  BOOST_REQUIRE_CLOSE(res.value, 72, 1e-06);
-  BOOST_REQUIRE_CLOSE(gradient[0], 108, 1e-06);
-  BOOST_REQUIRE_CLOSE(gradient[1], 48, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(0, 0), 108, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(0, 1), 72, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(1, 0), 72, 1e-06);
-  BOOST_REQUIRE_CLOSE(hessian(1, 1), 16, 1e-06);
+  REQUIRE((res.value) == Catch::Approx(72).epsilon((1e-06) / 100.0));
+  REQUIRE((gradient[0]) == Catch::Approx(108).epsilon((1e-06) / 100.0));
+  REQUIRE((gradient[1]) == Catch::Approx(48).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(0, 0)) == Catch::Approx(108).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(0, 1)) == Catch::Approx(72).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(1, 0)) == Catch::Approx(72).epsilon((1e-06) / 100.0));
+  REQUIRE((hessian(1, 1)) == Catch::Approx(16).epsilon((1e-06) / 100.0));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace adiff

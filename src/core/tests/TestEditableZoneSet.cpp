@@ -3,13 +3,12 @@
 
 #include <EditableZoneSet.h>
 
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <memory>
 
-BOOST_AUTO_TEST_SUITE(EditableZoneSetTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_add_remove_preserves_order_and_uniqueness) {
+TEST_CASE("EditableZoneSetTestSuite / test_add_remove_preserves_order_and_uniqueness") {
   EditableZoneSet zones;
   const auto first = std::make_shared<EditableSpline>();
   const auto second = std::make_shared<EditableSpline>();
@@ -19,22 +18,20 @@ BOOST_AUTO_TEST_CASE(test_add_remove_preserves_order_and_uniqueness) {
   zones.addZone(first);
 
   auto it = zones.begin();
-  BOOST_REQUIRE(it != zones.end());
-  BOOST_CHECK(it->spline() == first);
+  REQUIRE(it != zones.end());
+  CHECK(it->spline() == first);
   ++it;
-  BOOST_REQUIRE(it != zones.end());
-  BOOST_CHECK(it->spline() == second);
+  REQUIRE(it != zones.end());
+  CHECK(it->spline() == second);
   ++it;
-  BOOST_CHECK(it == zones.end());
+  CHECK(it == zones.end());
 
   zones.removeZone(first);
   it = zones.begin();
-  BOOST_REQUIRE(it != zones.end());
-  BOOST_CHECK(it->spline() == second);
+  REQUIRE(it != zones.end());
+  CHECK(it->spline() == second);
   ++it;
-  BOOST_CHECK(it == zones.end());
-  BOOST_CHECK(zones.propertiesFor(first) == nullptr);
-  BOOST_CHECK(zones.propertiesFor(second) != nullptr);
+  CHECK(it == zones.end());
+  CHECK(zones.propertiesFor(first) == nullptr);
+  CHECK(zones.propertiesFor(second) != nullptr);
 }
-
-BOOST_AUTO_TEST_SUITE_END()

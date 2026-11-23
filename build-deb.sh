@@ -112,7 +112,7 @@ fi
 
 # Configure and build
 cd "$BUILD_DIR"
-cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release ..
+cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF ..
 make -j"$(nproc)"
 
 # Install into staging directory for the .deb
@@ -132,7 +132,7 @@ fi
 if [[ -z "$DEPS" ]]; then
   # Fallback when dpkg-shlibdeps is unavailable (e.g. cross-build). Include common
   # libjpeg variants across Debian/Ubuntu (see issue #64 / Ubuntu 22.04 vs bookworm).
-  DEPS="libc6, libstdc++6, libgcc-s1, libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6svg6, libqt6xml6, libqt6network6, libqt6opengl6, libqt6openglwidgets6t64 | libqt6openglwidgets6, libboost-filesystem1.83.0 | libboost-filesystem1.74.0, libjpeg62-turbo | libjpeg-turbo8 | libjpeg8, libpng16-16, libtiff6, zlib1g"
+  DEPS="libc6, libstdc++6, libgcc-s1, libqt6core6t64 | libqt6core6, libqt6gui6t64 | libqt6gui6, libqt6widgets6t64 | libqt6widgets6, libqt6svg6, libqt6xml6, libqt6network6, libqt6opengl6, libqt6openglwidgets6t64 | libqt6openglwidgets6, libjpeg62-turbo | libjpeg-turbo8 | libjpeg8, libpng16-16, libtiff6, zlib1g"
 fi
 
 cat > "${DEBIAN_DIR}/control" << EOF

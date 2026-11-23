@@ -3,20 +3,20 @@
 
 #include <QuadraticFunction.h>
 
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-BOOST_AUTO_TEST_SUITE(MathQuadraticFunctionTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_constructor) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_constructor") {
   QuadraticFunction f(2);
-  BOOST_CHECK_EQUAL(f.numVars(), 2u);
-  BOOST_CHECK_SMALL(f.c, 1e-10);
-  BOOST_CHECK_EQUAL(f.b.size(), 2u);
-  BOOST_CHECK_EQUAL(f.A.rows(), 2u);
-  BOOST_CHECK_EQUAL(f.A.cols(), 2u);
+  CHECK((f.numVars()) == (2u));
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (f.c));
+  CHECK((f.b.size()) == (2u));
+  CHECK((f.A.rows()) == (2u));
+  CHECK((f.A.cols()) == (2u));
 }
 
-BOOST_AUTO_TEST_CASE(test_evaluate_quadratic) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_evaluate_quadratic") {
   QuadraticFunction f(2);
   f.A(0, 0) = 1.0;
   f.A(1, 1) = 1.0;
@@ -25,22 +25,22 @@ BOOST_AUTO_TEST_CASE(test_evaluate_quadratic) {
   f.c = 0.0;
   double x[] = {2.0, 3.0};
   const double val = f.evaluate(x);
-  BOOST_CHECK_CLOSE(val, 2 * 2 + 3 * 3 + 2 + 3, 1e-10);
-  BOOST_CHECK_CLOSE(val, 4.0 + 9.0 + 5.0, 1e-10);
+  CHECK((val) == Catch::Approx(2 * 2 + 3 * 3 + 2 + 3).epsilon((1e-10) / 100.0));
+  CHECK((val) == Catch::Approx(4.0 + 9.0 + 5.0).epsilon((1e-10) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_reset) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_reset") {
   QuadraticFunction f(2);
   f.A(0, 0) = 1.0;
   f.b[0] = 1.0;
   f.c = 1.0;
   f.reset();
-  BOOST_CHECK_SMALL(f.A(0, 0), 1e-10);
-  BOOST_CHECK_SMALL(f.b[0], 1e-10);
-  BOOST_CHECK_SMALL(f.c, 1e-10);
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (f.A(0, 0)));
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (f.b[0]));
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (f.c));
 }
 
-BOOST_AUTO_TEST_CASE(test_operator_plus_equals) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_operator_plus_equals") {
   QuadraticFunction f1(2);
   f1.A(0, 0) = 1.0;
   f1.b[0] = 1.0;
@@ -50,25 +50,25 @@ BOOST_AUTO_TEST_CASE(test_operator_plus_equals) {
   f2.b[1] = 1.0;
   f2.c = 2.0;
   f1 += f2;
-  BOOST_CHECK_CLOSE(f1.A(0, 0), 1.0, 1e-10);
-  BOOST_CHECK_CLOSE(f1.A(1, 1), 1.0, 1e-10);
-  BOOST_CHECK_CLOSE(f1.b[0], 1.0, 1e-10);
-  BOOST_CHECK_CLOSE(f1.b[1], 1.0, 1e-10);
-  BOOST_CHECK_CLOSE(f1.c, 3.0, 1e-10);
+  CHECK((f1.A(0, 0)) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
+  CHECK((f1.A(1, 1)) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
+  CHECK((f1.b[0]) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
+  CHECK((f1.b[1]) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
+  CHECK((f1.c) == Catch::Approx(3.0).epsilon((1e-10) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_operator_times_equals_scalar) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_operator_times_equals_scalar") {
   QuadraticFunction f(2);
   f.A(0, 0) = 2.0;
   f.b[0] = 4.0;
   f.c = 6.0;
   f *= 0.5;
-  BOOST_CHECK_CLOSE(f.A(0, 0), 1.0, 1e-10);
-  BOOST_CHECK_CLOSE(f.b[0], 2.0, 1e-10);
-  BOOST_CHECK_CLOSE(f.c, 3.0, 1e-10);
+  CHECK((f.A(0, 0)) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
+  CHECK((f.b[0]) == Catch::Approx(2.0).epsilon((1e-10) / 100.0));
+  CHECK((f.c) == Catch::Approx(3.0).epsilon((1e-10) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_gradient) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_gradient") {
   QuadraticFunction f(2);
   f.A(0, 0) = 2.0;
   f.A(0, 1) = 1.0;
@@ -78,21 +78,19 @@ BOOST_AUTO_TEST_CASE(test_gradient) {
   f.b[1] = 2.0;
   f.c = 0.0;
   const auto grad = f.gradient();
-  BOOST_CHECK_EQUAL(grad.A.rows(), 2u);
-  BOOST_CHECK_EQUAL(grad.A.cols(), 2u);
-  BOOST_CHECK_CLOSE(grad.b[0], 1.0, 1e-10);
-  BOOST_CHECK_CLOSE(grad.b[1], 2.0, 1e-10);
+  CHECK((grad.A.rows()) == (2u));
+  CHECK((grad.A.cols()) == (2u));
+  CHECK((grad.b[0]) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
+  CHECK((grad.b[1]) == Catch::Approx(2.0).epsilon((1e-10) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_recalc_for_translated_arguments) {
+TEST_CASE("MathQuadraticFunctionTestSuite / test_recalc_for_translated_arguments") {
   QuadraticFunction f(2);
   f.A(0, 0) = 1.0;
   f.b[0] = 0.0;
   f.c = 0.0;
   double trans[] = {1.0, 0.0};
   f.recalcForTranslatedArguments(trans);
-  BOOST_CHECK_CLOSE(f.b[0], 2.0, 1e-10);
-  BOOST_CHECK_CLOSE(f.c, 1.0, 1e-10);
+  CHECK((f.b[0]) == Catch::Approx(2.0).epsilon((1e-10) / 100.0));
+  CHECK((f.c) == Catch::Approx(1.0).epsilon((1e-10) / 100.0));
 }
-
-BOOST_AUTO_TEST_SUITE_END()

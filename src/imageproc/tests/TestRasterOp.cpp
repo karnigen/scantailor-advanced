@@ -5,8 +5,8 @@
 #include <RasterOp.h>
 
 #include <QImage>
-#include <boost/test/unit_test.hpp>
 #include <cassert>
+#include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdlib>
 #include <vector>
@@ -17,7 +17,6 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(RasterOpTestSuite)
 
 template <typename Rop>
 static bool checkSubimageRop(const QImage& dst, const QRect& dstRect, const QImage& src, const QPoint& srcPt) {
@@ -32,7 +31,7 @@ static bool checkSubimageRop(const QImage& dst, const QRect& dstRect, const QIma
   return dstSubimage.toQImage() == dstBi.toQImage().copy(dstRect);
 }
 
-BOOST_AUTO_TEST_CASE(test_small_image) {
+TEST_CASE("RasterOpTestSuite / test_small_image") {
   static const int inp[]
       = {0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0,
          0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0};
@@ -51,7 +50,7 @@ BOOST_AUTO_TEST_CASE(test_small_image) {
   using Rop = RopAnd<RopDst, RopSrc>;
 
   rasterOp<Rop>(img, img.rect(), maskImg, QPoint(0, 0));
-  BOOST_CHECK(img == makeBinaryImage(out, 9, 8));
+  CHECK(img == makeBinaryImage(out, 9, 8));
 }
 
 namespace {
@@ -113,12 +112,12 @@ bool Tester1::testSubImage(const QRect& dstRect, const QPoint& srcPt) const {
   return surroundingsIntact(dst, dstBefore, dstRect);
 }
 }  // namespace
-BOOST_AUTO_TEST_CASE(test_large_image) {
+TEST_CASE("RasterOpTestSuite / test_large_image") {
   Tester1 tester;
-  BOOST_REQUIRE(tester.testFullImage());
-  BOOST_REQUIRE(tester.testSubImage(QRect(101, 32, 211, 151), QPoint(101, 41)));
-  BOOST_REQUIRE(tester.testSubImage(QRect(101, 32, 211, 151), QPoint(99, 99)));
-  BOOST_REQUIRE(tester.testSubImage(QRect(101, 32, 211, 151), QPoint(104, 64)));
+  REQUIRE(tester.testFullImage());
+  REQUIRE(tester.testSubImage(QRect(101, 32, 211, 151), QPoint(101, 41)));
+  REQUIRE(tester.testSubImage(QRect(101, 32, 211, 151), QPoint(99, 99)));
+  REQUIRE(tester.testSubImage(QRect(101, 32, 211, 151), QPoint(104, 64)));
 }
 
 namespace {
@@ -149,15 +148,14 @@ bool Tester2::testBlockMove(const QRect& rect, const int dx, const int dy) {
   return surroundingsIntact(qDst, qSrc, dstRect);
 }
 }  // namespace
-BOOST_AUTO_TEST_CASE(test_move_blocks) {
+TEST_CASE("RasterOpTestSuite / test_move_blocks") {
   Tester2 tester;
-  BOOST_REQUIRE(tester.testBlockMove(QRect(0, 0, 97, 150), 1, 0));
-  BOOST_REQUIRE(tester.testBlockMove(QRect(100, 50, 15, 100), -1, 0));
-  BOOST_REQUIRE(tester.testBlockMove(QRect(200, 200, 200, 100), -1, -1));
-  BOOST_REQUIRE(tester.testBlockMove(QRect(51, 35, 199, 200), 0, 1));
-  BOOST_REQUIRE(tester.testBlockMove(QRect(51, 35, 199, 200), 1, 1));
+  REQUIRE(tester.testBlockMove(QRect(0, 0, 97, 150), 1, 0));
+  REQUIRE(tester.testBlockMove(QRect(100, 50, 15, 100), -1, 0));
+  REQUIRE(tester.testBlockMove(QRect(200, 200, 200, 100), -1, -1));
+  REQUIRE(tester.testBlockMove(QRect(51, 35, 199, 200), 0, 1));
+  REQUIRE(tester.testBlockMove(QRect(51, 35, 199, 200), 1, 1));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

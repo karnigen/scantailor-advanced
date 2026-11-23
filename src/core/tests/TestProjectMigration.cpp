@@ -5,7 +5,7 @@
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtXml>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "ImageInfo.h"
 #include "OutputFileNameGenerator.h"
@@ -136,135 +136,134 @@ QByteArray readFile(const QString& path) {
 
 }  // namespace
 
-BOOST_AUTO_TEST_SUITE(CoreProjectMigrationTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_reader_accepts_format_3_and_current_format) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_reader_accepts_format_3_and_current_format") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
   const QString projectPath(tempDir.filePath("project.ScanTailor"));
 
   const ProjectReader legacyReader(makeReaderProject(3), projectPath);
-  BOOST_CHECK(legacyReader.success());
-  BOOST_CHECK_EQUAL(legacyReader.migrationReport().sourceVersion, 3);
+  CHECK(legacyReader.success());
+  CHECK((legacyReader.migrationReport().sourceVersion) == (3));
 
   const ProjectReader currentReader(makeReaderProject(PROJECT_VERSION), projectPath);
-  BOOST_CHECK(currentReader.success());
-  BOOST_CHECK_EQUAL(currentReader.migrationReport().sourceVersion, PROJECT_VERSION);
+  CHECK(currentReader.success());
+  CHECK((currentReader.migrationReport().sourceVersion) == (PROJECT_VERSION));
 }
 
-BOOST_AUTO_TEST_CASE(test_reader_does_not_modify_legacy_xml) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_reader_does_not_modify_legacy_xml") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const QDomDocument doc(makeReaderProject(3));
   const QString originalXml(doc.toString());
   const ProjectReader reader(doc, tempDir.filePath("project.ScanTailor"));
 
-  BOOST_REQUIRE(reader.success());
-  BOOST_CHECK(doc.toString() == originalXml);
+  REQUIRE(reader.success());
+  CHECK(doc.toString() == originalXml);
 }
 
-BOOST_AUTO_TEST_CASE(test_reader_rejects_unsupported_versions) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_reader_rejects_unsupported_versions") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
   const QString projectPath(tempDir.filePath("project.ScanTailor"));
 
   const ProjectReader olderReader(makeReaderProject(2), projectPath);
   const ProjectReader newerReader(makeReaderProject(PROJECT_VERSION + 1), projectPath);
-  BOOST_CHECK(!olderReader.success());
-  BOOST_CHECK(!newerReader.success());
+  CHECK(!olderReader.success());
+  CHECK(!newerReader.success());
 }
 
-BOOST_AUTO_TEST_CASE(test_reader_rejects_missing_or_nonnumeric_version) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_reader_rejects_missing_or_nonnumeric_version") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
   const QString projectPath(tempDir.filePath("project.ScanTailor"));
 
   QDomDocument missingVersionDoc(makeReaderProject(3));
   missingVersionDoc.documentElement().removeAttribute("version");
   const ProjectReader missingVersionReader(missingVersionDoc, projectPath);
-  BOOST_CHECK(!missingVersionReader.success());
+  CHECK(!missingVersionReader.success());
 
   QDomDocument nonnumericVersionDoc(makeReaderProject(3));
   nonnumericVersionDoc.documentElement().setAttribute("version", "three");
   const ProjectReader nonnumericVersionReader(nonnumericVersionDoc, projectPath);
-  BOOST_CHECK(!nonnumericVersionReader.success());
+  CHECK(!nonnumericVersionReader.success());
 }
 
-BOOST_AUTO_TEST_CASE(test_migration_report_covers_legacy_defaults_and_relative_paths) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_migration_report_covers_legacy_defaults_and_relative_paths") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const ProjectMigrationReport report(
       ProjectMigration::analyze(makeMigrationProject(tempDir.path()), tempDir.filePath("project.ScanTailor")));
 
-  BOOST_CHECK_EQUAL(report.sourceVersion, 3);
-  BOOST_CHECK_EQUAL(report.imagesWithDefaultTrim, 1);
-  BOOST_CHECK_EQUAL(report.colorSettingsWithDefaultFillOutsidePageBox, 1);
-  BOOST_CHECK_EQUAL(report.obliqueModesFromAutoOblique, 2);
-  BOOST_CHECK_EQUAL(report.obliqueAutoModesFromAutoOblique, 1);
-  BOOST_CHECK_EQUAL(report.obliqueManualModesFromAutoOblique, 1);
-  BOOST_CHECK_EQUAL(report.obliqueModesFromDeskewMode, 2);
-  BOOST_CHECK_EQUAL(report.obliqueAutoModesFromDeskewMode, 1);
-  BOOST_CHECK_EQUAL(report.obliqueManualModesFromDeskewMode, 1);
-  BOOST_CHECK_EQUAL(report.pathsWrittenRelative, 2);
+  CHECK((report.sourceVersion) == (3));
+  CHECK((report.imagesWithDefaultTrim) == (1));
+  CHECK((report.colorSettingsWithDefaultFillOutsidePageBox) == (1));
+  CHECK((report.obliqueModesFromAutoOblique) == (2));
+  CHECK((report.obliqueAutoModesFromAutoOblique) == (1));
+  CHECK((report.obliqueManualModesFromAutoOblique) == (1));
+  CHECK((report.obliqueModesFromDeskewMode) == (2));
+  CHECK((report.obliqueAutoModesFromDeskewMode) == (1));
+  CHECK((report.obliqueManualModesFromDeskewMode) == (1));
+  CHECK((report.pathsWrittenRelative) == (2));
 }
 
-BOOST_AUTO_TEST_CASE(test_backup_preserves_original_and_avoids_existing_backups) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_backup_preserves_original_and_avoids_existing_backups") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const QString projectPath(tempDir.filePath("legacy.ScanTailor"));
   const QByteArray projectContents("<project version=\"3\"/>");
-  BOOST_REQUIRE(writeFile(projectPath, projectContents));
+  REQUIRE(writeFile(projectPath, projectContents));
 
   QString firstBackup;
   QString errorMessage;
-  BOOST_REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &firstBackup, &errorMessage));
-  BOOST_CHECK(readFile(firstBackup) == projectContents);
+  REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &firstBackup, &errorMessage));
+  CHECK(readFile(firstBackup) == projectContents);
 
   const QByteArray sentinel("keep this backup");
-  BOOST_REQUIRE(writeFile(firstBackup, sentinel));
+  REQUIRE(writeFile(firstBackup, sentinel));
   QString secondBackup;
-  BOOST_REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &secondBackup, &errorMessage));
+  REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &secondBackup, &errorMessage));
 
-  BOOST_CHECK(firstBackup != secondBackup);
-  BOOST_CHECK(readFile(firstBackup) == sentinel);
-  BOOST_CHECK(readFile(secondBackup) == projectContents);
+  CHECK(firstBackup != secondBackup);
+  CHECK(readFile(firstBackup) == sentinel);
+  CHECK(readFile(secondBackup) == projectContents);
 }
 
-BOOST_AUTO_TEST_CASE(test_backup_skips_non_v3_and_nonexistent_targets) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_backup_skips_non_v3_and_nonexistent_targets") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const QString currentPath(tempDir.filePath("current.ScanTailor"));
-  BOOST_REQUIRE(writeFile(currentPath, QByteArray("<project version=\"4\"/>")));
+  REQUIRE(writeFile(currentPath, QByteArray("<project version=\"4\"/>")));
   QString backupPath("unexpected");
   QString errorMessage;
-  BOOST_CHECK(ProjectMigration::createBackupForFormat3(currentPath, &backupPath, &errorMessage));
-  BOOST_CHECK(backupPath.isEmpty());
+  CHECK(ProjectMigration::createBackupForFormat3(currentPath, &backupPath, &errorMessage));
+  CHECK(backupPath.isEmpty());
 
   const QString nonexistentPath(tempDir.filePath("new.ScanTailor"));
-  BOOST_CHECK(ProjectMigration::createBackupForFormat3(nonexistentPath, &backupPath, &errorMessage));
-  BOOST_CHECK(backupPath.isEmpty());
+  CHECK(ProjectMigration::createBackupForFormat3(nonexistentPath, &backupPath, &errorMessage));
+  CHECK(backupPath.isEmpty());
 }
 
-BOOST_AUTO_TEST_CASE(test_v3_save_writes_v4_with_relative_paths_and_preserves_backup) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_paths_and_preserves_backup") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
   const QDir rootDir(tempDir.path());
   const QString projectDirPath(rootDir.filePath("project"));
-  BOOST_REQUIRE(QDir().mkpath(projectDirPath));
-  BOOST_REQUIRE(QDir().mkpath(rootDir.filePath("source")));
-  BOOST_REQUIRE(QDir().mkpath(rootDir.filePath("output")));
+  REQUIRE(QDir().mkpath(projectDirPath));
+  REQUIRE(QDir().mkpath(rootDir.filePath("source")));
+  REQUIRE(QDir().mkpath(rootDir.filePath("output")));
 
   const QDir projectDir(projectDirPath);
   const QString sourcePath(rootDir.filePath("source/page.tif"));
-  BOOST_REQUIRE(writeFile(sourcePath, QByteArray()));
+  REQUIRE(writeFile(sourcePath, QByteArray()));
 
   const QString projectPath(projectDir.filePath("project.ScanTailor"));
   const QByteArray originalV3("<project version=\"3\"/>");
-  BOOST_REQUIRE(writeFile(projectPath, originalV3));
+  REQUIRE(writeFile(projectPath, originalV3));
 
   const ImageInfo imageInfo(ImageId(sourcePath, 0), ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
   const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
@@ -274,40 +273,43 @@ BOOST_AUTO_TEST_CASE(test_v3_save_writes_v4_with_relative_paths_and_preserves_ba
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
-  BOOST_REQUIRE_MESSAGE(writer.write(projectPath, filters, &errorMessage), errorMessage.toStdString());
-  BOOST_CHECK(readFile(projectPath + ".v3.bak") == originalV3);
+  {
+    INFO(errorMessage.toStdString());
+    REQUIRE(writer.write(projectPath, filters, &errorMessage));
+  }
+  CHECK(readFile(projectPath + ".v3.bak") == originalV3);
 
   QFile savedProject(projectPath);
-  BOOST_REQUIRE(savedProject.open(QIODevice::ReadOnly));
+  REQUIRE(savedProject.open(QIODevice::ReadOnly));
   QDomDocument savedDoc;
-  BOOST_REQUIRE(savedDoc.setContent(&savedProject));
+  REQUIRE(savedDoc.setContent(&savedProject));
   const QDomElement rootEl(savedDoc.documentElement());
-  BOOST_CHECK_EQUAL(rootEl.attribute("version").toInt(), PROJECT_VERSION);
-  BOOST_CHECK(rootEl.attribute("outputDirectory") == "../output");
+  CHECK((rootEl.attribute("version").toInt()) == (PROJECT_VERSION));
+  CHECK(rootEl.attribute("outputDirectory") == "../output");
   const QDomElement directoryEl(rootEl.namedItem("directories").firstChildElement("directory"));
-  BOOST_CHECK(directoryEl.attribute("path") == "../source");
+  CHECK(directoryEl.attribute("path") == "../source");
 }
 
 #if defined(Q_OS_UNIX)
-BOOST_AUTO_TEST_CASE(test_v3_save_keeps_absolute_paths_when_relative_paths_cross_symlinks) {
+TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_keeps_absolute_paths_when_relative_paths_cross_symlinks") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
   const QDir rootDir(tempDir.path());
   const QString realProjectDir(rootDir.filePath("real/project"));
-  BOOST_REQUIRE(QDir().mkpath(realProjectDir));
+  REQUIRE(QDir().mkpath(realProjectDir));
   const QString sourceDir(rootDir.filePath("real/source"));
-  BOOST_REQUIRE(QDir().mkpath(sourceDir));
+  REQUIRE(QDir().mkpath(sourceDir));
   const QString outputDir(rootDir.filePath("real/output"));
-  BOOST_REQUIRE(QDir().mkpath(outputDir));
+  REQUIRE(QDir().mkpath(outputDir));
 
   const QString projectAlias(rootDir.filePath("project-link"));
-  BOOST_REQUIRE(QFile::link(realProjectDir, projectAlias));
+  REQUIRE(QFile::link(realProjectDir, projectAlias));
 
   const QString sourcePath(QDir(sourceDir).filePath("page.tif"));
-  BOOST_REQUIRE(writeFile(sourcePath, QByteArray()));
+  REQUIRE(writeFile(sourcePath, QByteArray()));
   const QString projectPath(QDir(projectAlias).filePath("project.ScanTailor"));
   const QByteArray originalV3("<project version=\"3\"/>");
-  BOOST_REQUIRE(writeFile(projectPath, originalV3));
+  REQUIRE(writeFile(projectPath, originalV3));
 
   const ImageInfo imageInfo(ImageId(sourcePath, 0), ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
   const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
@@ -317,17 +319,18 @@ BOOST_AUTO_TEST_CASE(test_v3_save_keeps_absolute_paths_when_relative_paths_cross
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
-  BOOST_REQUIRE_MESSAGE(writer.write(projectPath, filters, &errorMessage), errorMessage.toStdString());
+  {
+    INFO(errorMessage.toStdString());
+    REQUIRE(writer.write(projectPath, filters, &errorMessage));
+  }
 
   QFile savedProject(projectPath);
-  BOOST_REQUIRE(savedProject.open(QIODevice::ReadOnly));
+  REQUIRE(savedProject.open(QIODevice::ReadOnly));
   QDomDocument savedDoc;
-  BOOST_REQUIRE(savedDoc.setContent(&savedProject));
+  REQUIRE(savedDoc.setContent(&savedProject));
   const QDomElement rootEl(savedDoc.documentElement());
-  BOOST_CHECK(QDir::isAbsolutePath(rootEl.attribute("outputDirectory")));
+  CHECK(QDir::isAbsolutePath(rootEl.attribute("outputDirectory")));
   const QDomElement directoryEl(rootEl.namedItem("directories").firstChildElement("directory"));
-  BOOST_CHECK(QDir::isAbsolutePath(directoryEl.attribute("path")));
+  CHECK(QDir::isAbsolutePath(directoryEl.attribute("path")));
 }
 #endif
-
-BOOST_AUTO_TEST_SUITE_END()
