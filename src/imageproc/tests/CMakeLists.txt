@@ -1,5 +1,4 @@
 set(sources
-    main.cpp
     TestBinaryImage.cpp TestReduceThreshold.cpp
     TestSlicedHistogram.cpp
     TestConnCompEraser.cpp TestConnCompEraserExt.cpp
@@ -23,6 +22,6 @@ add_executable(imageproc_tests ${sources})
 target_link_libraries(
     imageproc_tests
     PRIVATE imageproc math foundation ${Qt_Widgets_lib} ${Qt_Xml_lib}
-    Boost::unit_test_framework ${EXTRA_LIBS})
+    Catch2::Catch2WithMain ${EXTRA_LIBS})
 
-add_test(NAME imageproc_tests COMMAND imageproc_tests --log_level=message)
+add_test(NAME imageproc_tests COMMAND imageproc_tests)

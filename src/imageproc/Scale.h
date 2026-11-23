@@ -17,7 +17,9 @@ class GrayImage;
  * \return The scaled image.
  *
  * This function is a faster replacement for QImage::scaled(), when
- * dealing with grayscale images.
+ * dealing with grayscale images. Downscaling uses area-weighted averaging
+ * with fixed-point coordinates, so results may differ from
+ * QImage::scaled()'s smooth transformation.
  */
 GrayImage scaleToGray(const GrayImage& src, const QSize& dstSize);
 }  // namespace imageproc

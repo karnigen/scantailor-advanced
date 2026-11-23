@@ -9,7 +9,7 @@
 
 #include <QImage>
 #include <algorithm>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <list>
 
 #include "Utils.h"
@@ -18,11 +18,10 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(ConnCompEraserExtTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_null_image) {
+TEST_CASE("ConnCompEraserExtTestSuite / test_null_image") {
   ConnCompEraser eraser(BinaryImage(), CONN4);
-  BOOST_CHECK(eraser.nextConnComp().isNull());
+  CHECK(eraser.nextConnComp().isNull());
 }
 
 static bool checkAlignedImage(const ConnCompEraserExt& eraser, const BinaryImage& nonaligned) {
@@ -53,7 +52,7 @@ static bool checkAlignedImage(const ConnCompEraserExt& eraser, const BinaryImage
   return true;
 }
 
-BOOST_AUTO_TEST_CASE(test_small_image) {
+TEST_CASE("ConnCompEraserExtTestSuite / test_small_image") {
   static const int inp[]
       = {0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0,
          0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0};
@@ -101,28 +100,33 @@ BOOST_AUTO_TEST_CASE(test_small_image) {
     const BinaryImage ccImg(eraser4.computeConnCompImage());
     const auto it(std::find(c4i.begin(), c4i.end(), ccImg));
     if (it != c4i.end()) {
-      BOOST_CHECK(checkAlignedImage(eraser4, ccImg));
+      CHECK(checkAlignedImage(eraser4, ccImg));
       c4i.erase(it);
     } else {
-      BOOST_ERROR("Incorrect 4-connected block found.");
+      FAIL_CHECK("Incorrect 4-connected block found.");
     }
   }
-  BOOST_CHECK_MESSAGE(c4i.empty(), "Not all 4-connected blocks were found.");
+  {
+    INFO("Not all 4-connected blocks were found.");
+    CHECK(c4i.empty());
+  }
 
   ConnCompEraserExt eraser8(img, CONN8);
   while (!(cc = eraser8.nextConnComp()).isNull()) {
     const BinaryImage ccImg(eraser8.computeConnCompImage());
     const auto it(std::find(c8i.begin(), c8i.end(), ccImg));
     if (it != c8i.end()) {
-      BOOST_CHECK(checkAlignedImage(eraser8, ccImg));
+      CHECK(checkAlignedImage(eraser8, ccImg));
       c8i.erase(it);
     } else {
-      BOOST_ERROR("Incorrect 8-connected block found.");
+      FAIL_CHECK("Incorrect 8-connected block found.");
     }
   }
-  BOOST_CHECK_MESSAGE(c8i.empty(), "Not all 8-connected blocks were found.");
+  {
+    INFO("Not all 8-connected blocks were found.");
+    CHECK(c8i.empty());
+  }
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

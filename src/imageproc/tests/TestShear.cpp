@@ -6,7 +6,7 @@
 #include <Shear.h>
 
 #include <QImage>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "Utils.h"
 
@@ -14,9 +14,8 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(ShearTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_small_image) {
+TEST_CASE("ShearTestSuite / test_small_image") {
   static const int inp[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0,
                             0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0,
                             0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -34,20 +33,19 @@ BOOST_AUTO_TEST_CASE(test_small_image) {
   const BinaryImage vOutImg(makeBinaryImage(v_out, 9, 9));
 
   const BinaryImage hShear = imageproc::hShear(img, -1.0, 0.5 * img.height(), WHITE);
-  BOOST_REQUIRE(hShear == hOutImg);
+  REQUIRE(hShear == hOutImg);
 
   const BinaryImage vShear = imageproc::vShear(img, 1.0, 0.5 * img.width(), WHITE);
-  BOOST_REQUIRE(vShear == vOutImg);
+  REQUIRE(vShear == vOutImg);
 
   BinaryImage hShearInplace(img);
   hShearInPlace(hShearInplace, -1.0, 0.5 * img.height(), WHITE);
-  BOOST_REQUIRE(hShearInplace == hOutImg);
+  REQUIRE(hShearInplace == hOutImg);
 
   BinaryImage vShearInplace(img);
   vShearInPlace(vShearInplace, 1.0, 0.5 * img.width(), WHITE);
-  BOOST_REQUIRE(vShearInplace == vOutImg);
+  REQUIRE(vShearInplace == vOutImg);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

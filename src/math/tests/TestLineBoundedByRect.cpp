@@ -5,48 +5,46 @@
 
 #include <QLineF>
 #include <QRectF>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-BOOST_AUTO_TEST_SUITE(MathLineBoundedByRectTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_line_through_rect_center) {
+TEST_CASE("MathLineBoundedByRectTestSuite / test_line_through_rect_center") {
   const QRectF rect(0, 0, 100, 100);
   QLineF line(-10, 50, 110, 50);
   const bool ok = lineBoundedByRect(line, rect);
-  BOOST_REQUIRE(ok);
-  BOOST_CHECK_SMALL(line.p1().x(), 1e-9);
-  BOOST_CHECK_CLOSE(line.p1().y(), 50.0, 0.01);
-  BOOST_CHECK_CLOSE(line.p2().x(), 100.0, 0.01);
-  BOOST_CHECK_CLOSE(line.p2().y(), 50.0, 0.01);
+  REQUIRE(ok);
+  CHECK(Catch::Approx(0.0).margin(1e-9) == (line.p1().x()));
+  CHECK((line.p1().y()) == Catch::Approx(50.0).epsilon((0.01) / 100.0));
+  CHECK((line.p2().x()) == Catch::Approx(100.0).epsilon((0.01) / 100.0));
+  CHECK((line.p2().y()) == Catch::Approx(50.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_line_through_rect_diagonal) {
+TEST_CASE("MathLineBoundedByRectTestSuite / test_line_through_rect_diagonal") {
   const QRectF rect(0, 0, 100, 100);
   QLineF line(-5, -5, 105, 105);
   const bool ok = lineBoundedByRect(line, rect);
-  BOOST_REQUIRE(ok);
-  BOOST_CHECK_SMALL(line.p1().x(), 1e-10);
-  BOOST_CHECK_SMALL(line.p1().y(), 1e-10);
-  BOOST_CHECK_CLOSE(line.p2().x(), 100.0, 0.01);
-  BOOST_CHECK_CLOSE(line.p2().y(), 100.0, 0.01);
+  REQUIRE(ok);
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (line.p1().x()));
+  CHECK(Catch::Approx(0.0).margin(1e-10) == (line.p1().y()));
+  CHECK((line.p2().x()) == Catch::Approx(100.0).epsilon((0.01) / 100.0));
+  CHECK((line.p2().y()) == Catch::Approx(100.0).epsilon((0.01) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(test_line_outside_rect_no_intersection) {
+TEST_CASE("MathLineBoundedByRectTestSuite / test_line_outside_rect_no_intersection") {
   const QRectF rect(10, 10, 80, 80);
   QLineF line(5, 0, 5, 100);
   const bool ok = lineBoundedByRect(line, rect);
-  BOOST_CHECK(!ok);
+  CHECK(!ok);
 }
 
-BOOST_AUTO_TEST_CASE(test_vertical_line_through_rect) {
+TEST_CASE("MathLineBoundedByRectTestSuite / test_vertical_line_through_rect") {
   const QRectF rect(10, 10, 80, 80);
   QLineF line(50, 0, 50, 200);
   const bool ok = lineBoundedByRect(line, rect);
-  BOOST_REQUIRE(ok);
-  BOOST_CHECK_CLOSE(line.p1().x(), 50.0, 0.01);
-  BOOST_CHECK_CLOSE(line.p1().y(), 10.0, 0.01);
-  BOOST_CHECK_CLOSE(line.p2().x(), 50.0, 0.01);
-  BOOST_CHECK_CLOSE(line.p2().y(), 90.0, 0.01);
+  REQUIRE(ok);
+  CHECK((line.p1().x()) == Catch::Approx(50.0).epsilon((0.01) / 100.0));
+  CHECK((line.p1().y()) == Catch::Approx(10.0).epsilon((0.01) / 100.0));
+  CHECK((line.p2().x()) == Catch::Approx(50.0).epsilon((0.01) / 100.0));
+  CHECK((line.p2().y()) == Catch::Approx(90.0).epsilon((0.01) / 100.0));
 }
-
-BOOST_AUTO_TEST_SUITE_END()

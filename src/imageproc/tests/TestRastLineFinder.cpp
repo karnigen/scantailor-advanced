@@ -5,19 +5,18 @@
 
 #include <QLineF>
 #include <QPointF>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <vector>
 
 namespace imageproc {
 namespace tests {
-BOOST_AUTO_TEST_SUITE(RastLineFinderTestSuite)
 
 static bool matchSupportPoints(const std::vector<unsigned>& idxs1, const std::set<unsigned>& idxs2) {
   return std::set<unsigned>(idxs1.begin(), idxs1.end()) == idxs2;
 }
 
-BOOST_AUTO_TEST_CASE(test1) {
+TEST_CASE("RastLineFinderTestSuite / test1") {
   // 4- and 3-point lines with min_support_points == 3
   // --------------------------------------------------
   // x     x
@@ -52,17 +51,16 @@ BOOST_AUTO_TEST_CASE(test1) {
   std::vector<unsigned> supportIdxs;
 
   // line 1
-  BOOST_REQUIRE(!finder.findNext(&supportIdxs).isNull());
-  BOOST_REQUIRE(matchSupportPoints(supportIdxs, line1Idxs));
+  REQUIRE(!finder.findNext(&supportIdxs).isNull());
+  REQUIRE(matchSupportPoints(supportIdxs, line1Idxs));
 
   // line2
-  BOOST_REQUIRE(!finder.findNext(&supportIdxs).isNull());
-  BOOST_REQUIRE(matchSupportPoints(supportIdxs, line2Idxs));
+  REQUIRE(!finder.findNext(&supportIdxs).isNull());
+  REQUIRE(matchSupportPoints(supportIdxs, line2Idxs));
 
   // no more lines
-  BOOST_REQUIRE(finder.findNext().isNull());
+  REQUIRE(finder.findNext().isNull());
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

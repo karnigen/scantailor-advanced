@@ -5,7 +5,7 @@
 #include <BinaryImage.h>
 
 #include <QImage>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 
 #include "Utils.h"
@@ -14,14 +14,13 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(BinaryImageTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_null_image) {
-  BOOST_CHECK(BinaryImage().toQImage() == QImage());
-  BOOST_CHECK(BinaryImage(QImage()).toQImage() == QImage());
+TEST_CASE("BinaryImageTestSuite / test_null_image") {
+  CHECK(BinaryImage().toQImage() == QImage());
+  CHECK(BinaryImage(QImage()).toQImage() == QImage());
 }
 
-BOOST_AUTO_TEST_CASE(test_from_to_qimage) {
+TEST_CASE("BinaryImageTestSuite / test_from_to_qimage") {
   const int w = 50;
   const int h = 64;
   QImage qimgArgb32(w, h, QImage::Format_ARGB32);
@@ -43,25 +42,25 @@ BOOST_AUTO_TEST_CASE(test_from_to_qimage) {
   QImage qimgRgb16(qimgRgb32.convertToFormat(QImage::Format_RGB16));
   QImage qimgIndexed8(qimgRgb32.convertToFormat(QImage::Format_Indexed8));
 
-  BOOST_REQUIRE(BinaryImage(qimgMono).toQImage() == qimgMono);
-  BOOST_CHECK(BinaryImage(qimgMonoLsb).toQImage() == qimgMono);
-  BOOST_CHECK(BinaryImage(qimgArgb32).toQImage() == qimgMono);
-  BOOST_CHECK(BinaryImage(qimgRgb32).toQImage() == qimgMono);
-  BOOST_CHECK(BinaryImage(qimgArgb32Pm).toQImage() == qimgMono);
-  BOOST_CHECK(BinaryImage(qimgIndexed8).toQImage() == qimgMono);
+  REQUIRE(BinaryImage(qimgMono).toQImage() == qimgMono);
+  CHECK(BinaryImage(qimgMonoLsb).toQImage() == qimgMono);
+  CHECK(BinaryImage(qimgArgb32).toQImage() == qimgMono);
+  CHECK(BinaryImage(qimgRgb32).toQImage() == qimgMono);
+  CHECK(BinaryImage(qimgArgb32Pm).toQImage() == qimgMono);
+  CHECK(BinaryImage(qimgIndexed8).toQImage() == qimgMono);
 
   // A bug in Qt prevents this from working.
-  // BOOST_CHECK(BinaryImage(qimgRgb16, 0x80).toQImage() == qimgMono);
+  // CHECK(BinaryImage(qimgRgb16, 0x80).toQImage() == qimgMono);
 }
 
-BOOST_AUTO_TEST_CASE(test_full_fill) {
+TEST_CASE("BinaryImageTestSuite / test_full_fill") {
   BinaryImage white(100, 100);
   white.fill(WHITE);
 
   QImage qWhite(100, 100, QImage::Format_Mono);
   qWhite.fill(1);
 
-  BOOST_REQUIRE(BinaryImage(qWhite) == white);
+  REQUIRE(BinaryImage(qWhite) == white);
 
   BinaryImage black(30, 30);
   black.fill(BLACK);
@@ -69,10 +68,10 @@ BOOST_AUTO_TEST_CASE(test_full_fill) {
   QImage qBlack(30, 30, QImage::Format_Mono);
   qBlack.fill(0);
 
-  BOOST_REQUIRE(BinaryImage(qBlack) == black);
+  REQUIRE(BinaryImage(qBlack) == black);
 }
 
-BOOST_AUTO_TEST_CASE(test_partial_fill_small) {
+TEST_CASE("BinaryImageTestSuite / test_partial_fill_small") {
   QImage qImage(randomMonoQImage(100, 100));
 
   const QRect rect(80, 80, 20, 20);
@@ -83,11 +82,11 @@ BOOST_AUTO_TEST_CASE(test_partial_fill_small) {
   whiteRect.setColor(0, 0xffffffff);
   whiteRect.setColor(1, 0xff000000);
   whiteRect.fill(0);
-  BOOST_REQUIRE(image.toQImage().copy(rect) == whiteRect);
-  BOOST_CHECK(surroundingsIntact(image.toQImage(), qImage, rect));
+  REQUIRE(image.toQImage().copy(rect) == whiteRect);
+  CHECK(surroundingsIntact(image.toQImage(), qImage, rect));
 }
 
-BOOST_AUTO_TEST_CASE(test_partial_fill_large) {
+TEST_CASE("BinaryImageTestSuite / test_partial_fill_large") {
   QImage qImage(randomMonoQImage(100, 100));
 
   const QRect rect(20, 20, 79, 79);
@@ -98,11 +97,11 @@ BOOST_AUTO_TEST_CASE(test_partial_fill_large) {
   whiteRect.setColor(0, 0xffffffff);
   whiteRect.setColor(1, 0xff000000);
   whiteRect.fill(0);
-  BOOST_REQUIRE(image.toQImage().copy(rect) == whiteRect);
-  BOOST_CHECK(surroundingsIntact(image.toQImage(), qImage, rect));
+  REQUIRE(image.toQImage().copy(rect) == whiteRect);
+  CHECK(surroundingsIntact(image.toQImage(), qImage, rect));
 }
 
-BOOST_AUTO_TEST_CASE(test_fill_except) {
+TEST_CASE("BinaryImageTestSuite / test_fill_except") {
   QImage qImage(randomMonoQImage(100, 100));
 
   const QRect rect(20, 20, 79, 79);
@@ -115,19 +114,18 @@ BOOST_AUTO_TEST_CASE(test_fill_except) {
   blackImage.setColor(1, 0xff000000);
   blackImage.fill(1);
 
-  BOOST_REQUIRE(image.toQImage().copy(rect) == qImage.copy(rect));
-  BOOST_CHECK(surroundingsIntact(image.toQImage(), blackImage, rect));
+  REQUIRE(image.toQImage().copy(rect) == qImage.copy(rect));
+  CHECK(surroundingsIntact(image.toQImage(), blackImage, rect));
 }
 
-BOOST_AUTO_TEST_CASE(test_content_bounding_box4) {
+TEST_CASE("BinaryImageTestSuite / test_content_bounding_box4") {
   static const int inp[]
       = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
          0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
   const BinaryImage img(makeBinaryImage(inp, 9, 8));
-  BOOST_CHECK(img.contentBoundingBox() == QRect(1, 1, 6, 6));
+  CHECK(img.contentBoundingBox() == QRect(1, 1, 6, 6));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

@@ -5,7 +5,7 @@
 #include "InteractionState.h"
 
 #include <QKeyEvent>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <vector>
 
@@ -23,9 +23,8 @@ class RecordingHandler : public InteractionHandler {
 };
 }  // namespace
 
-BOOST_AUTO_TEST_SUITE(InteractionHandlerTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_ordering_and_unlinking) {
+TEST_CASE("InteractionHandlerTestSuite / test_ordering_and_unlinking") {
   std::vector<int> calls;
   InteractionHandler root;
   auto* first = new RecordingHandler(calls, 1);
@@ -41,24 +40,22 @@ BOOST_AUTO_TEST_CASE(test_ordering_and_unlinking) {
   QKeyEvent event(QEvent::KeyPress, Qt::Key_A, Qt::NoModifier);
   event.ignore();
   root.keyPressEvent(&event, interaction);
-  BOOST_CHECK(calls == (std::vector<int>{0, 1, 3, 2}));
+  CHECK(calls == (std::vector<int>{0, 1, 3, 2}));
 
   calls.clear();
   first->unlink();
-  BOOST_CHECK(!first->is_linked());
+  CHECK(!first->is_linked());
   delete first;
 
   {
     RecordingHandler transient(calls, 3);
     root.makeLastFollower(transient);
-    BOOST_CHECK(transient.is_linked());
+    CHECK(transient.is_linked());
   }
 
   calls.clear();
   QKeyEvent secondEvent(QEvent::KeyPress, Qt::Key_A, Qt::NoModifier);
   secondEvent.ignore();
   root.keyPressEvent(&secondEvent, interaction);
-  BOOST_CHECK(calls == (std::vector<int>{0, 3, 2}));
+  CHECK(calls == (std::vector<int>{0, 3, 2}));
 }
-
-BOOST_AUTO_TEST_SUITE_END()

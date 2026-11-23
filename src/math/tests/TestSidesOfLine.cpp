@@ -5,48 +5,46 @@
 
 #include <QLineF>
 #include <QPointF>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-BOOST_AUTO_TEST_SUITE(MathSidesOfLineTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_points_on_same_side_positive) {
+TEST_CASE("MathSidesOfLineTestSuite / test_points_on_same_side_positive") {
   const QLineF line(0, 0, 10, 0);
   const QPointF p1(5, 1);
   const QPointF p2(5, 2);
   const qreal result = sidesOfLine(line, p1, p2);
-  BOOST_CHECK(result > 0);
+  CHECK(result > 0);
 }
 
-BOOST_AUTO_TEST_CASE(test_points_on_opposite_sides) {
+TEST_CASE("MathSidesOfLineTestSuite / test_points_on_opposite_sides") {
   const QLineF line(0, 0, 10, 0);
   const QPointF p1(5, 1);
   const QPointF p2(5, -1);
   const qreal result = sidesOfLine(line, p1, p2);
-  BOOST_CHECK(result < 0);
+  CHECK(result < 0);
 }
 
-BOOST_AUTO_TEST_CASE(test_point_on_line_returns_zero) {
+TEST_CASE("MathSidesOfLineTestSuite / test_point_on_line_returns_zero") {
   const QLineF line(0, 0, 10, 0);
   const QPointF p1(5, 0);
   const QPointF p2(5, 1);
   const qreal result = sidesOfLine(line, p1, p2);
-  BOOST_CHECK_SMALL(result, 1e-6);
+  CHECK(Catch::Approx(0.0).margin(1e-6) == (result));
 }
 
-BOOST_AUTO_TEST_CASE(test_both_points_on_line_returns_zero) {
+TEST_CASE("MathSidesOfLineTestSuite / test_both_points_on_line_returns_zero") {
   const QLineF line(0, 0, 10, 0);
   const QPointF p1(2, 0);
   const QPointF p2(7, 0);
   const qreal result = sidesOfLine(line, p1, p2);
-  BOOST_CHECK_SMALL(result, 1e-6);
+  CHECK(Catch::Approx(0.0).margin(1e-6) == (result));
 }
 
-BOOST_AUTO_TEST_CASE(test_diagonal_line_same_side) {
+TEST_CASE("MathSidesOfLineTestSuite / test_diagonal_line_same_side") {
   const QLineF line(0, 0, 10, 10);
   const QPointF p1(0, 1);
   const QPointF p2(1, 2);
   const qreal result = sidesOfLine(line, p1, p2);
-  BOOST_CHECK(result > 0);
+  CHECK(result > 0);
 }
-
-BOOST_AUTO_TEST_SUITE_END()

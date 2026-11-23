@@ -13,32 +13,32 @@
 #include <QPolygonF>
 #include <QRectF>
 #include <QTransform>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <memory>
 
 namespace Tests {
 using namespace deskew;
 
-BOOST_AUTO_TEST_SUITE(DeskewParamsTestSuite)
 
-BOOST_AUTO_TEST_CASE(dependencies_track_deskew_algorithm_and_xml) {
+TEST_CASE("DeskewParamsTestSuite / dependencies_track_deskew_algorithm_and_xml") {
   QPolygonF outline;
   outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
   const Dependencies contentBased(outline, OrthogonalRotation(), true);
   const Dependencies topEdge(outline, OrthogonalRotation(), false);
 
-  BOOST_CHECK(contentBased.matches(contentBased));
-  BOOST_CHECK(!contentBased.matches(topEdge));
+  CHECK(contentBased.matches(contentBased));
+  CHECK(!contentBased.matches(topEdge));
 
   QDomDocument doc;
   const QDomElement el = contentBased.toXml(doc, "dependencies");
   doc.appendChild(el);
 
-  BOOST_CHECK(el.attribute("algoContentBased") == "1");
-  BOOST_CHECK(contentBased.matches(Dependencies(doc.documentElement())));
+  CHECK(el.attribute("algoContentBased") == "1");
+  CHECK(contentBased.matches(Dependencies(doc.documentElement())));
 }
 
-BOOST_AUTO_TEST_CASE(legacy_dependencies_are_stale_for_deskew_algorithm) {
+TEST_CASE("DeskewParamsTestSuite / legacy_dependencies_are_stale_for_deskew_algorithm") {
   QPolygonF outline;
   outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
   const Dependencies legacy(outline, OrthogonalRotation());
@@ -49,11 +49,11 @@ BOOST_AUTO_TEST_CASE(legacy_dependencies_are_stale_for_deskew_algorithm) {
   doc.appendChild(el);
 
   const Dependencies restoredLegacy(doc.documentElement());
-  BOOST_CHECK(!el.hasAttribute("algoContentBased"));
-  BOOST_CHECK(!current.matches(restoredLegacy));
+  CHECK(!el.hasAttribute("algoContentBased"));
+  CHECK(!current.matches(restoredLegacy));
 }
 
-BOOST_AUTO_TEST_CASE(pending_recompute_is_persisted_as_stale_dependencies) {
+TEST_CASE("DeskewParamsTestSuite / pending_recompute_is_persisted_as_stale_dependencies") {
   Settings settings;
   const PageId pageId(ImageId(QStringLiteral("pending-recompute.tif")));
   QPolygonF outline;
@@ -63,17 +63,17 @@ BOOST_AUTO_TEST_CASE(pending_recompute_is_persisted_as_stale_dependencies) {
   settings.requestRecompute(pageId, true, false);
 
   const std::unique_ptr<Params> pendingParams(settings.getPageParams(pageId));
-  BOOST_REQUIRE(pendingParams);
-  BOOST_CHECK(!currentDependencies.matches(pendingParams->dependencies()));
+  REQUIRE(pendingParams);
+  CHECK(!currentDependencies.matches(pendingParams->dependencies()));
 
   QDomDocument doc;
   const QDomElement el = pendingParams->toXml(doc, "params");
   doc.appendChild(el);
   const Params restored(doc.documentElement());
-  BOOST_CHECK(!currentDependencies.matches(restored.dependencies()));
+  CHECK(!currentDependencies.matches(restored.dependencies()));
 }
 
-BOOST_AUTO_TEST_CASE(pending_oblique_recompute_is_persisted_as_stale_dependencies) {
+TEST_CASE("DeskewParamsTestSuite / pending_oblique_recompute_is_persisted_as_stale_dependencies") {
   Settings settings;
   const PageId pageId(ImageId(QStringLiteral("pending-oblique-recompute.tif")));
   QPolygonF outline;
@@ -83,11 +83,11 @@ BOOST_AUTO_TEST_CASE(pending_oblique_recompute_is_persisted_as_stale_dependencie
   settings.requestRecompute(pageId, false, true);
 
   const std::unique_ptr<Params> pendingParams(settings.getPageParams(pageId));
-  BOOST_REQUIRE(pendingParams);
-  BOOST_CHECK(!currentDependencies.matches(pendingParams->dependencies()));
+  REQUIRE(pendingParams);
+  CHECK(!currentDependencies.matches(pendingParams->dependencies()));
 }
 
-BOOST_AUTO_TEST_CASE(params_oblique_roundtrip_xml) {
+TEST_CASE("DeskewParamsTestSuite / params_oblique_roundtrip_xml") {
   const double deskewDeg = 1.5;
   const double obliqueDeg = 2.25;
   const Dependencies deps;
@@ -99,13 +99,13 @@ BOOST_AUTO_TEST_CASE(params_oblique_roundtrip_xml) {
 
   const Params restored(doc.documentElement());
 
-  BOOST_CHECK_CLOSE(restored.deskewAngle(), deskewDeg, 1e-6);
-  BOOST_CHECK_CLOSE(restored.obliqueAngle(), obliqueDeg, 1e-6);
-  BOOST_CHECK(restored.mode() == MODE_MANUAL);
-  BOOST_CHECK(restored.obliqueMode() == MODE_MANUAL);
+  CHECK((restored.deskewAngle()) == Catch::Approx(deskewDeg).epsilon((1e-6) / 100.0));
+  CHECK((restored.obliqueAngle()) == Catch::Approx(obliqueDeg).epsilon((1e-6) / 100.0));
+  CHECK(restored.mode() == MODE_MANUAL);
+  CHECK(restored.obliqueMode() == MODE_MANUAL);
 }
 
-BOOST_AUTO_TEST_CASE(params_zero_oblique_roundtrip_xml) {
+TEST_CASE("DeskewParamsTestSuite / params_zero_oblique_roundtrip_xml") {
   const double deskewDeg = -0.5;
   const Dependencies deps;
   const Params original(deskewDeg, 0.0, deps, MODE_AUTO, MODE_AUTO);
@@ -116,13 +116,13 @@ BOOST_AUTO_TEST_CASE(params_zero_oblique_roundtrip_xml) {
 
   const Params restored(doc.documentElement());
 
-  BOOST_CHECK_CLOSE(restored.deskewAngle(), deskewDeg, 1e-6);
-  BOOST_CHECK_SMALL(restored.obliqueAngle(), 1e-9);
-  BOOST_CHECK(restored.mode() == MODE_AUTO);
-  BOOST_CHECK(restored.obliqueMode() == MODE_AUTO);
+  CHECK((restored.deskewAngle()) == Catch::Approx(deskewDeg).epsilon((1e-6) / 100.0));
+  CHECK(Catch::Approx(0.0).margin(1e-9) == (restored.obliqueAngle()));
+  CHECK(restored.mode() == MODE_AUTO);
+  CHECK(restored.obliqueMode() == MODE_AUTO);
 }
 
-BOOST_AUTO_TEST_CASE(params_independent_oblique_mode_xml) {
+TEST_CASE("DeskewParamsTestSuite / params_independent_oblique_mode_xml") {
   const Dependencies deps;
   const Params original(1.0, 2.0, deps, MODE_MANUAL, MODE_AUTO);
 
@@ -132,11 +132,11 @@ BOOST_AUTO_TEST_CASE(params_independent_oblique_mode_xml) {
 
   const Params restored(doc.documentElement());
 
-  BOOST_CHECK(restored.mode() == MODE_MANUAL);
-  BOOST_CHECK(restored.obliqueMode() == MODE_AUTO);
+  CHECK(restored.mode() == MODE_MANUAL);
+  CHECK(restored.obliqueMode() == MODE_AUTO);
 }
 
-BOOST_AUTO_TEST_CASE(params_oblique_mode_attribute_roundtrip_xml) {
+TEST_CASE("DeskewParamsTestSuite / params_oblique_mode_attribute_roundtrip_xml") {
   const Dependencies deps;
   const Params original(-1.25, 0.75, deps, MODE_AUTO, MODE_MANUAL);
 
@@ -144,17 +144,17 @@ BOOST_AUTO_TEST_CASE(params_oblique_mode_attribute_roundtrip_xml) {
   const QDomElement el = original.toXml(doc, "deskew-params");
   doc.appendChild(el);
 
-  BOOST_CHECK(el.hasAttribute("oblique-mode"));
-  BOOST_CHECK(el.attribute("oblique-mode") == "manual");
+  CHECK(el.hasAttribute("oblique-mode"));
+  CHECK(el.attribute("oblique-mode") == "manual");
 
   const Params restored(doc.documentElement());
-  BOOST_CHECK(restored.mode() == MODE_AUTO);
-  BOOST_CHECK(restored.obliqueMode() == MODE_MANUAL);
-  BOOST_CHECK_CLOSE(restored.deskewAngle(), -1.25, 1e-6);
-  BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.75, 1e-6);
+  CHECK(restored.mode() == MODE_AUTO);
+  CHECK(restored.obliqueMode() == MODE_MANUAL);
+  CHECK((restored.deskewAngle()) == Catch::Approx(-1.25).epsilon((1e-6) / 100.0));
+  CHECK((restored.obliqueAngle()) == Catch::Approx(0.75).epsilon((1e-6) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(params_disabled_oblique_mode_roundtrip_xml) {
+TEST_CASE("DeskewParamsTestSuite / params_disabled_oblique_mode_roundtrip_xml") {
   const Dependencies deps;
   const Params original(-0.5, 0.75, deps, MODE_AUTO, MODE_DISABLED);
 
@@ -162,16 +162,16 @@ BOOST_AUTO_TEST_CASE(params_disabled_oblique_mode_roundtrip_xml) {
   const QDomElement el = original.toXml(doc, "deskew-params");
   doc.appendChild(el);
 
-  BOOST_CHECK(el.attribute("oblique-mode") == "manual");
-  BOOST_CHECK(el.attribute("oblique-disabled") == "1");
-  BOOST_CHECK_SMALL(original.obliqueAngle(), 1e-9);
+  CHECK(el.attribute("oblique-mode") == "manual");
+  CHECK(el.attribute("oblique-disabled") == "1");
+  CHECK(Catch::Approx(0.0).margin(1e-9) == (original.obliqueAngle()));
   const Params restored(doc.documentElement());
-  BOOST_CHECK(restored.mode() == MODE_AUTO);
-  BOOST_CHECK(restored.obliqueMode() == MODE_DISABLED);
-  BOOST_CHECK(!restored.autoOblique());
+  CHECK(restored.mode() == MODE_AUTO);
+  CHECK(restored.obliqueMode() == MODE_DISABLED);
+  CHECK(!restored.autoOblique());
 }
 
-BOOST_AUTO_TEST_CASE(params_legacy_auto_oblique_off_preserves_manual_angle) {
+TEST_CASE("DeskewParamsTestSuite / params_legacy_auto_oblique_off_preserves_manual_angle") {
   QDomDocument doc;
   QDomElement el(doc.createElement("params"));
   el.setAttribute("mode", "auto");
@@ -183,39 +183,39 @@ BOOST_AUTO_TEST_CASE(params_legacy_auto_oblique_off_preserves_manual_angle) {
   doc.appendChild(el);
 
   const Params restored(doc.documentElement());
-  BOOST_CHECK(restored.obliqueMode() == MODE_MANUAL);
-  BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.75, 1e-6);
+  CHECK(restored.obliqueMode() == MODE_MANUAL);
+  CHECK((restored.obliqueAngle()) == Catch::Approx(0.75).epsilon((1e-6) / 100.0));
 }
 
 /** Selective Apply To… merge semantics (issue #117): deskew-only must not overwrite oblique. */
-BOOST_AUTO_TEST_CASE(apply_merge_deskew_only_preserves_oblique) {
+TEST_CASE("DeskewParamsTestSuite / apply_merge_deskew_only_preserves_oblique") {
   const Dependencies deps;
   const Params existing(1.0, 3.0, deps, MODE_MANUAL, MODE_MANUAL);
   const Params current(2.0, 4.0, deps, MODE_AUTO, MODE_AUTO);
 
   const Params merged(current.deskewAngle(), existing.obliqueAngle(), deps, current.mode(), existing.obliqueMode());
 
-  BOOST_CHECK_CLOSE(merged.deskewAngle(), 2.0, 1e-6);
-  BOOST_CHECK_CLOSE(merged.obliqueAngle(), 3.0, 1e-6);
-  BOOST_CHECK(merged.mode() == MODE_AUTO);
-  BOOST_CHECK(merged.obliqueMode() == MODE_MANUAL);
+  CHECK((merged.deskewAngle()) == Catch::Approx(2.0).epsilon((1e-6) / 100.0));
+  CHECK((merged.obliqueAngle()) == Catch::Approx(3.0).epsilon((1e-6) / 100.0));
+  CHECK(merged.mode() == MODE_AUTO);
+  CHECK(merged.obliqueMode() == MODE_MANUAL);
 }
 
 /** Selective Apply To… merge semantics (issue #117): oblique-only must not overwrite deskew. */
-BOOST_AUTO_TEST_CASE(apply_merge_oblique_only_preserves_deskew) {
+TEST_CASE("DeskewParamsTestSuite / apply_merge_oblique_only_preserves_deskew") {
   const Dependencies deps;
   const Params existing(1.0, 3.0, deps, MODE_MANUAL, MODE_MANUAL);
   const Params current(2.0, 4.0, deps, MODE_AUTO, MODE_AUTO);
 
   const Params merged(existing.deskewAngle(), current.obliqueAngle(), deps, existing.mode(), current.obliqueMode());
 
-  BOOST_CHECK_CLOSE(merged.deskewAngle(), 1.0, 1e-6);
-  BOOST_CHECK_CLOSE(merged.obliqueAngle(), 4.0, 1e-6);
-  BOOST_CHECK(merged.mode() == MODE_MANUAL);
-  BOOST_CHECK(merged.obliqueMode() == MODE_AUTO);
+  CHECK((merged.deskewAngle()) == Catch::Approx(1.0).epsilon((1e-6) / 100.0));
+  CHECK((merged.obliqueAngle()) == Catch::Approx(4.0).epsilon((1e-6) / 100.0));
+  CHECK(merged.mode() == MODE_MANUAL);
+  CHECK(merged.obliqueMode() == MODE_AUTO);
 }
 
-BOOST_AUTO_TEST_CASE(params_auto_oblique_false_roundtrip_xml) {
+TEST_CASE("DeskewParamsTestSuite / params_auto_oblique_false_roundtrip_xml") {
   const Dependencies deps;
   const Params original(1.0, 0.25, deps, MODE_AUTO, MODE_MANUAL);
 
@@ -225,12 +225,12 @@ BOOST_AUTO_TEST_CASE(params_auto_oblique_false_roundtrip_xml) {
 
   const Params restored(doc.documentElement());
 
-  BOOST_CHECK(restored.obliqueMode() == MODE_MANUAL);
-  BOOST_CHECK(!restored.autoOblique());
-  BOOST_CHECK_CLOSE(restored.obliqueAngle(), 0.25, 1e-6);
+  CHECK(restored.obliqueMode() == MODE_MANUAL);
+  CHECK(!restored.autoOblique());
+  CHECK((restored.obliqueAngle()) == Catch::Approx(0.25).epsilon((1e-6) / 100.0));
 }
 
-BOOST_AUTO_TEST_CASE(params_missing_autoOblique_attribute_defaults_true) {
+TEST_CASE("DeskewParamsTestSuite / params_missing_autoOblique_attribute_defaults_true") {
   QDomDocument doc;
   QDomElement el(doc.createElement("params"));
   el.setAttribute("mode", "auto");
@@ -241,28 +241,25 @@ BOOST_AUTO_TEST_CASE(params_missing_autoOblique_attribute_defaults_true) {
   doc.appendChild(el);
 
   const Params restored(doc.documentElement());
-  BOOST_CHECK(restored.autoOblique());
+  CHECK(restored.autoOblique());
 }
 
-BOOST_AUTO_TEST_CASE(default_params_deskew_auto_oblique_off_by_default) {
+TEST_CASE("DeskewParamsTestSuite / default_params_deskew_auto_oblique_off_by_default") {
   const DefaultParams::DeskewParams deskew;
-  BOOST_CHECK(!deskew.isAutoOblique());
+  CHECK(!deskew.isAutoOblique());
 }
 
-BOOST_AUTO_TEST_CASE(new_page_oblique_mode_follows_global_default) {
+TEST_CASE("DeskewParamsTestSuite / new_page_oblique_mode_follows_global_default") {
   DefaultParams::DeskewParams deskewParams;
   deskewParams.setAutoOblique(false);
-  BOOST_CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_DISABLED);
+  CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_DISABLED);
 
   deskewParams.setAutoOblique(true);
-  BOOST_CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_AUTO);
+  CHECK(Utils::buildDefaultParams(deskewParams).obliqueMode() == MODE_AUTO);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_AUTO_TEST_SUITE(ImageTransformationObliqueTestSuite)
-
-BOOST_AUTO_TEST_CASE(post_oblique_applied_and_stored) {
+TEST_CASE("ImageTransformationObliqueTestSuite / post_oblique_applied_and_stored") {
   const QRectF rect(0, 0, 100, 100);
   const Dpi dpi(300, 300);
   ImageTransformation xform(rect, dpi);
@@ -276,9 +273,8 @@ BOOST_AUTO_TEST_CASE(post_oblique_applied_and_stored) {
   const double obliqueDeg = 2.0;
   xform.setPostOblique(obliqueDeg);
 
-  BOOST_CHECK_CLOSE(xform.postOblique(), obliqueDeg, 1e-6);
-  BOOST_CHECK(transformZeroOblique != xform.transform());
+  CHECK((xform.postOblique()) == Catch::Approx(obliqueDeg).epsilon((1e-6) / 100.0));
+  CHECK(transformZeroOblique != xform.transform());
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace Tests

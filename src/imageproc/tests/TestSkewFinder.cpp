@@ -9,15 +9,14 @@
 #include <QImage>
 #include <QPainter>
 #include <QTransform>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdlib>
 
 namespace imageproc {
 namespace tests {
-BOOST_AUTO_TEST_SUITE(SkewFinderTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_positive_detection) {
+TEST_CASE("SkewFinderTestSuite / test_positive_detection") {
   int argc = 1;
   char argv0[] = "test";
   char* argv[1] = {argv0};
@@ -44,11 +43,11 @@ BOOST_AUTO_TEST_CASE(test_positive_detection) {
 
   SkewFinder skewFinder;
   const Skew skew(skewFinder.findSkew(BinaryImage(image)));
-  BOOST_REQUIRE(std::fabs(skew.angle() - 4.5) < 0.15);
-  BOOST_CHECK(skew.confidence() >= Skew::GOOD_CONFIDENCE);
+  REQUIRE(std::fabs(skew.angle() - 4.5) < 0.15);
+  CHECK(skew.confidence() >= Skew::GOOD_CONFIDENCE);
 }
 
-BOOST_AUTO_TEST_CASE(test_negative_detection) {
+TEST_CASE("SkewFinderTestSuite / test_negative_detection") {
   QImage image(1000, 800, QImage::Format_Mono);
   image.fill(1);
 
@@ -63,9 +62,8 @@ BOOST_AUTO_TEST_CASE(test_negative_detection) {
   skewFinder.setCoarseReduction(0);
   skewFinder.setFineReduction(0);
   const Skew skew(skewFinder.findSkew(BinaryImage(image)));
-  BOOST_CHECK(skew.confidence() < Skew::GOOD_CONFIDENCE);
+  CHECK(skew.confidence() < Skew::GOOD_CONFIDENCE);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

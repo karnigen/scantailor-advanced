@@ -4,7 +4,7 @@
 #include <Grayscale.h>
 
 #include <QImage>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 
 #include "Utils.h"
@@ -13,13 +13,12 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(GrayscaleTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_null_image) {
-  BOOST_CHECK(toGrayscale(QImage()).isNull());
+TEST_CASE("GrayscaleTestSuite / test_null_image") {
+  CHECK(toGrayscale(QImage()).isNull());
 }
 
-BOOST_AUTO_TEST_CASE(test_mono_to_grayscale) {
+TEST_CASE("GrayscaleTestSuite / test_mono_to_grayscale") {
   const int w = 50;
   const int h = 64;
 
@@ -37,11 +36,11 @@ BOOST_AUTO_TEST_CASE(test_mono_to_grayscale) {
 
   const QImage monoLsb(mono.convertToFormat(QImage::Format_MonoLSB));
 
-  BOOST_REQUIRE(toGrayscale(mono) == gray);
-  BOOST_CHECK(toGrayscale(monoLsb) == gray);
+  REQUIRE(toGrayscale(mono) == gray);
+  CHECK(toGrayscale(monoLsb) == gray);
 }
 
-BOOST_AUTO_TEST_CASE(test_argb32_to_grayscale) {
+TEST_CASE("GrayscaleTestSuite / test_argb32_to_grayscale") {
   const int w = 50;
   const int h = 64;
   QImage argb32(w, h, QImage::Format_ARGB32);
@@ -56,9 +55,8 @@ BOOST_AUTO_TEST_CASE(test_argb32_to_grayscale) {
     }
   }
 
-  BOOST_CHECK(toGrayscale(argb32) == gray);
+  CHECK(toGrayscale(argb32) == gray);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

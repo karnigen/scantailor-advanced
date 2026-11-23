@@ -3,6 +3,7 @@
 
 #include "Scale.h"
 
+#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 
@@ -80,7 +81,7 @@ static GrayImage scaleUpIntGrayToGray(const GrayImage& src, const QSize& dstSize
 
   int sy = 0;
   int dy = 0;
-  for (; dy < dh; ++sy, dy += xscale) {
+  for (; dy < dh; ++sy, dy += yscale) {
     int sx = 0;
     int dx = 0;
 
@@ -110,6 +111,11 @@ static GrayImage scaleUpIntGrayToGray(const GrayImage& src, const QSize& dstSize
 static double calc32xRatio1(const int dst, const int src) {
   assert(dst > 0);
   assert(src > 0);
+
+  if (src == 1) {
+    // There is no neighboring source pixel to shrink towards.
+    return 0.0;
+  }
 
   int src32 = src << 5;
   double ratio = (double) src32 / dst;
@@ -144,27 +150,26 @@ static GrayImage scaleUpGrayToGray(const GrayImage& src, const QSize& dstSize) {
   for (int dy = 0; dy < dh; ++dy, dstLine += dstStride) {
     const auto sy32 = (int) (dy * dy2sy32);
     const int sy = sy32 >> 5;
+    const int syNext = std::min(sy + 1, sh - 1);
     const unsigned topFraction = 32 - (sy32 & 31);
     const unsigned bottomFraction = sy32 & 31;
-    assert(sy + 1 < sh);  // calc32xRatio1() ensures that.
+    assert((sy >= 0) && (sy < sh));
     const uint8_t* srcLine = srcData + sy * srcStride;
+    const uint8_t* srcNextLine = srcData + syNext * srcStride;
 
     for (int dx = 0; dx < dw; ++dx) {
       const auto sx32 = (int) (dx * dx2sx32);
       const int sx = sx32 >> 5;
+      const int sxNext = std::min(sx + 1, sw - 1);
       const unsigned leftFraction = 32 - (sx32 & 31);
       const unsigned rightFraction = sx32 & 31;
-      assert(sx + 1 < sw);  // calc32xRatio1() ensures that.
+      assert((sx >= 0) && (sx < sw));
       unsigned grayLevel = 0;
 
-      const uint8_t* psrc = srcLine + sx;
-      grayLevel += *psrc * leftFraction * topFraction;
-      ++psrc;
-      grayLevel += *psrc * rightFraction * topFraction;
-      psrc += srcStride;
-      grayLevel += *psrc * rightFraction * bottomFraction;
-      --psrc;
-      grayLevel += *psrc * leftFraction * bottomFraction;
+      grayLevel += srcLine[sx] * leftFraction * topFraction;
+      grayLevel += srcLine[sxNext] * rightFraction * topFraction;
+      grayLevel += srcNextLine[sxNext] * rightFraction * bottomFraction;
+      grayLevel += srcNextLine[sx] * leftFraction * bottomFraction;
 
       const unsigned totalArea = 32 * 32;
       const unsigned pixValue = (grayLevel + (totalArea >> 1)) / totalArea;

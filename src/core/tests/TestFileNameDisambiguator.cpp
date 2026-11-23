@@ -5,33 +5,30 @@
 
 #include <QDomDocument>
 
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-BOOST_AUTO_TEST_SUITE(FileNameDisambiguatorTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_labels_and_xml_order) {
+TEST_CASE("FileNameDisambiguatorTestSuite / test_labels_and_xml_order") {
   FileNameDisambiguator disambiguator;
   const QString firstPath = QStringLiteral("/first/page.tif");
   const QString secondPath = QStringLiteral("/second/page.tif");
 
-  BOOST_CHECK(disambiguator.registerFile(firstPath) == 0);
-  BOOST_CHECK(disambiguator.registerFile(secondPath) == 1);
-  BOOST_CHECK(disambiguator.registerFile(firstPath) == 0);
-  BOOST_CHECK(disambiguator.getLabel(firstPath) == 0);
-  BOOST_CHECK(disambiguator.getLabel(secondPath) == 1);
+  CHECK(disambiguator.registerFile(firstPath) == 0);
+  CHECK(disambiguator.registerFile(secondPath) == 1);
+  CHECK(disambiguator.registerFile(firstPath) == 0);
+  CHECK(disambiguator.getLabel(firstPath) == 0);
+  CHECK(disambiguator.getLabel(secondPath) == 1);
 
   QDomDocument doc;
   const QDomElement xml = disambiguator.toXml(doc, QStringLiteral("disambiguator"));
   QDomNode node = xml.firstChild();
-  BOOST_REQUIRE(node.isElement());
-  BOOST_CHECK(node.toElement().attribute(QStringLiteral("file")) == firstPath);
-  BOOST_CHECK(node.toElement().attribute(QStringLiteral("label")) == QStringLiteral("0"));
+  REQUIRE(node.isElement());
+  CHECK(node.toElement().attribute(QStringLiteral("file")) == firstPath);
+  CHECK(node.toElement().attribute(QStringLiteral("label")) == QStringLiteral("0"));
 
   node = node.nextSibling();
-  BOOST_REQUIRE(node.isElement());
-  BOOST_CHECK(node.toElement().attribute(QStringLiteral("file")) == secondPath);
-  BOOST_CHECK(node.toElement().attribute(QStringLiteral("label")) == QStringLiteral("1"));
-  BOOST_CHECK(node.nextSibling().isNull());
+  REQUIRE(node.isElement());
+  CHECK(node.toElement().attribute(QStringLiteral("file")) == secondPath);
+  CHECK(node.toElement().attribute(QStringLiteral("label")) == QStringLiteral("1"));
+  CHECK(node.nextSibling().isNull());
 }
-
-BOOST_AUTO_TEST_SUITE_END()

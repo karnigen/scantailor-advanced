@@ -1,5 +1,4 @@
 set(sources
-    main.cpp
     TestConstants.cpp
     TestFastStorage.cpp
     TestLineIntersectionScalar.cpp
@@ -9,6 +8,6 @@ set(sources
 add_executable(foundation_tests ${sources})
 target_link_libraries(
     foundation_tests
-    PRIVATE foundation Boost::unit_test_framework ${EXTRA_LIBS})
+    PRIVATE foundation Catch2::Catch2WithMain ${EXTRA_LIBS})
 
-add_test(NAME foundation_tests COMMAND foundation_tests --log_level=message)
+add_test(NAME foundation_tests COMMAND foundation_tests)

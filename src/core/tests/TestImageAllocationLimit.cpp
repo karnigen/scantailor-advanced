@@ -6,7 +6,7 @@
 #include <QImageReader>
 #include <QReadLocker>
 #include <QTemporaryDir>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <tiffio.h>
 #include <climits>
@@ -67,193 +67,186 @@ bool setImageAllocationLimitForTest(const int limitMb) {
 }
 
 }  // namespace
-
-BOOST_GLOBAL_FIXTURE(ClearImageAllocationLimitEnvironment);
-
-BOOST_AUTO_TEST_SUITE(CoreImageAllocationLimitTestSuite)
-
-BOOST_AUTO_TEST_CASE(test_environment_override_requires_nonnegative_integer) {
+static const ClearImageAllocationLimitEnvironment clearImageAllocationLimitEnvironment;
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_environment_override_requires_nonnegative_integer") {
   qunsetenv("QT_IMAGEIO_MAXALLOC");
-  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+  CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
 
   qputenv("QT_IMAGEIO_MAXALLOC", QByteArray());
-  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+  CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
 
   qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("invalid"));
-  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+  CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
 
   qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("-1"));
-  BOOST_CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
+  CHECK(!ImageAllocationLimit::hasEnvironmentOverride());
 
   qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("0"));
-  BOOST_CHECK(ImageAllocationLimit::hasEnvironmentOverride());
+  CHECK(ImageAllocationLimit::hasEnvironmentOverride());
 
   qputenv("QT_IMAGEIO_MAXALLOC", QByteArrayLiteral("1024"));
-  BOOST_CHECK(ImageAllocationLimit::hasEnvironmentOverride());
+  CHECK(ImageAllocationLimit::hasEnvironmentOverride());
   qunsetenv("QT_IMAGEIO_MAXALLOC");
 }
 
-BOOST_AUTO_TEST_CASE(test_allocation_limit_is_capped) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_allocation_limit_is_capped") {
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(32));
+  CHECK(setImageAllocationLimitForTest(32));
   int effectiveLimitMb = 32;
-  BOOST_CHECK(ImageAllocationLimit::setLimitMb(image_allocation_limit::kMaxLimitMb + 1, &effectiveLimitMb)
-              == ImageAllocationLimit::UpdateResult::Invalid);
-  BOOST_CHECK_EQUAL(effectiveLimitMb, 32);
+  CHECK(ImageAllocationLimit::setLimitMb(image_allocation_limit::kMaxLimitMb + 1, &effectiveLimitMb)
+        == ImageAllocationLimit::UpdateResult::Invalid);
+  CHECK((effectiveLimitMb) == (32));
 
   ImageAllocationLimitInfo info;
   info.exceeded = true;
   info.requiredLimitMb = image_allocation_limit::kMaxLimitMb + 1;
-  BOOST_CHECK(!info.canRaiseLimit());
+  CHECK(!info.canRaiseLimit());
 }
 
-BOOST_AUTO_TEST_CASE(test_saved_image_allocation_limit_rejects_out_of_range_values) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_saved_image_allocation_limit_rejects_out_of_range_values") {
   ApplicationSettings& settings = ApplicationSettings::getInstance();
-  BOOST_CHECK(!settings.setImageAllocationLimitMb(-1));
-  BOOST_CHECK(!settings.setImageAllocationLimitMb(image_allocation_limit::kMaxLimitMb + 1));
+  CHECK(!settings.setImageAllocationLimitMb(-1));
+  CHECK(!settings.setImageAllocationLimitMb(image_allocation_limit::kMaxLimitMb + 1));
 }
 
-BOOST_AUTO_TEST_CASE(test_try_set_limit_distinguishes_busy_invalid_and_applied) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_try_set_limit_distinguishes_busy_invalid_and_applied") {
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(32));
+  CHECK(setImageAllocationLimitForTest(32));
 
   int effectiveLimitMb = -1;
-  BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(-1, &effectiveLimitMb)
-              == ImageAllocationLimit::UpdateResult::Invalid);
-  BOOST_CHECK_EQUAL(effectiveLimitMb, -1);
+  CHECK(ImageAllocationLimit::trySetLimitMb(-1, &effectiveLimitMb) == ImageAllocationLimit::UpdateResult::Invalid);
+  CHECK((effectiveLimitMb) == (-1));
   {
     QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
-    BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb) == ImageAllocationLimit::UpdateResult::Busy);
-    BOOST_CHECK_EQUAL(effectiveLimitMb, -1);
+    CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb) == ImageAllocationLimit::UpdateResult::Busy);
+    CHECK((effectiveLimitMb) == (-1));
   }
 
-  BOOST_CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb)
-              == ImageAllocationLimit::UpdateResult::Applied);
-  BOOST_CHECK_EQUAL(effectiveLimitMb, 64);
+  CHECK(ImageAllocationLimit::trySetLimitMb(64, &effectiveLimitMb) == ImageAllocationLimit::UpdateResult::Applied);
+  CHECK((effectiveLimitMb) == (64));
 }
 
-BOOST_AUTO_TEST_CASE(test_image_loader_resets_limit_info_when_file_open_fails) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_image_loader_resets_limit_info_when_file_open_fails") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   ImageAllocationLimitInfo info;
   info.exceeded = true;
   info.requiredLimitMb = 10;
 
   const QImage loaded = ImageLoader::load(tempDir.filePath("missing.png"), 0, &info);
-  BOOST_CHECK(loaded.isNull());
-  BOOST_CHECK(!info.exceeded);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 0);
+  CHECK(loaded.isNull());
+  CHECK(!info.exceeded);
+  CHECK((info.requiredLimitMb) == (0));
 }
 
-BOOST_AUTO_TEST_CASE(test_detects_image_larger_than_limit) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_detects_image_larger_than_limit") {
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
   QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
 
   ImageAllocationLimitInfo info;
-  BOOST_CHECK(ImageAllocationLimit::exceeds(QSize(513, 512), 32, &info));
-  BOOST_CHECK(info.exceeded);
-  BOOST_CHECK(info.imageSize == QSize(513, 512));
-  BOOST_CHECK_EQUAL(info.currentLimitMb, 1);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
-  BOOST_CHECK(info.canRaiseLimit());
-  BOOST_CHECK(ImageAllocationLimit::exceeds(QSize(513, 512), 32, nullptr));
-  BOOST_CHECK(!ImageAllocationLimit::exceeds(QSize(512, 512), 32, nullptr));
+  CHECK(ImageAllocationLimit::exceeds(QSize(513, 512), 32, &info));
+  CHECK(info.exceeded);
+  CHECK(info.imageSize == QSize(513, 512));
+  CHECK((info.currentLimitMb) == (1));
+  CHECK((info.requiredLimitMb) == (2));
+  CHECK(info.canRaiseLimit());
+  CHECK(ImageAllocationLimit::exceeds(QSize(513, 512), 32, nullptr));
+  CHECK(!ImageAllocationLimit::exceeds(QSize(512, 512), 32, nullptr));
 }
 
-BOOST_AUTO_TEST_CASE(test_accepts_image_within_limit) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_accepts_image_within_limit") {
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
   QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
 
   ImageAllocationLimitInfo info;
-  BOOST_CHECK(!ImageAllocationLimit::exceeds(QSize(512, 512), 32, &info));
-  BOOST_CHECK(!info.exceeded);
+  CHECK(!ImageAllocationLimit::exceeds(QSize(512, 512), 32, &info));
+  CHECK(!info.exceeded);
 }
 
-BOOST_AUTO_TEST_CASE(test_unknown_dimensions_do_not_request_limit) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_unknown_dimensions_do_not_request_limit") {
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
   QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
 
   ImageAllocationLimitInfo info;
-  BOOST_CHECK(!ImageAllocationLimit::exceeds(QSize(), 32, &info));
-  BOOST_CHECK(!info.dimensionsKnown);
-  BOOST_CHECK(!info.exceeded);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 0);
+  CHECK(!ImageAllocationLimit::exceeds(QSize(), 32, &info));
+  CHECK(!info.dimensionsKnown);
+  CHECK(!info.exceeded);
+  CHECK((info.requiredLimitMb) == (0));
 }
 
-BOOST_AUTO_TEST_CASE(test_rejects_image_exceeding_representable_limit_without_wrapping) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_rejects_image_exceeding_representable_limit_without_wrapping") {
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
   QReadLocker allocationLimitLock(&ImageAllocationLimit::readWriteLock());
 
   ImageAllocationLimitInfo info;
-  BOOST_CHECK(ImageAllocationLimit::exceeds(QSize(INT_MAX, INT_MAX), 32, &info));
-  BOOST_CHECK(info.exceeded);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 0);
-  BOOST_CHECK(!info.canRaiseLimit());
+  CHECK(ImageAllocationLimit::exceeds(QSize(INT_MAX, INT_MAX), 32, &info));
+  CHECK(info.exceeded);
+  CHECK((info.requiredLimitMb) == (0));
+  CHECK(!info.canRaiseLimit());
 }
 
-BOOST_AUTO_TEST_CASE(test_image_loader_reports_oversized_png_before_decoding) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_image_loader_reports_oversized_png_before_decoding") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const QString imagePath(tempDir.filePath("large.png"));
   QImage source(QSize(513, 512), QImage::Format_ARGB32);
   source.fill(Qt::white);
-  BOOST_REQUIRE(source.save(imagePath, "PNG"));
+  REQUIRE(source.save(imagePath, "PNG"));
 
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
 
   ImageAllocationLimitInfo info;
   const QImage loaded = ImageLoader::load(imagePath, 0, &info);
-  BOOST_CHECK(loaded.isNull());
-  BOOST_CHECK(info.exceeded);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
-  BOOST_CHECK(ImageLoader::load(imagePath).isNull());
+  CHECK(loaded.isNull());
+  CHECK(info.exceeded);
+  CHECK((info.requiredLimitMb) == (2));
+  CHECK(ImageLoader::load(imagePath).isNull());
 }
 
-BOOST_AUTO_TEST_CASE(test_image_loader_uses_16_bit_png_depth_for_limit_estimate) {
+TEST_CASE("CoreImageAllocationLimitTestSuite / test_image_loader_uses_16_bit_png_depth_for_limit_estimate") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const QString imagePath(tempDir.filePath("16-bit.png"));
   QImage source(QSize(512, 512), QImage::Format_RGBA64);
   source.fill(Qt::white);
-  BOOST_REQUIRE(source.save(imagePath, "PNG"));
+  REQUIRE(source.save(imagePath, "PNG"));
 
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
 
   ImageAllocationLimitInfo info;
   const QImage loaded = ImageLoader::load(imagePath, 0, &info);
-  BOOST_CHECK(loaded.isNull());
-  BOOST_CHECK(info.exceeded);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
+  CHECK(loaded.isNull());
+  CHECK(info.exceeded);
+  CHECK((info.requiredLimitMb) == (2));
 }
 
-BOOST_AUTO_TEST_CASE(test_tiff_loader_checks_limit_before_allocating_and_loads_after_increase) {
+TEST_CASE(
+    "CoreImageAllocationLimitTestSuite / test_tiff_loader_checks_limit_before_allocating_and_loads_after_increase") {
   QTemporaryDir tempDir;
-  BOOST_REQUIRE(tempDir.isValid());
+  REQUIRE(tempDir.isValid());
 
   const QString imagePath(tempDir.filePath("large.tif"));
-  BOOST_REQUIRE(writeRgbTiff(imagePath, QSize(513, 512)));
+  REQUIRE(writeRgbTiff(imagePath, QSize(513, 512)));
 
   AllocationLimitRestorer restoreLimit;
-  BOOST_CHECK(setImageAllocationLimitForTest(1));
+  CHECK(setImageAllocationLimitForTest(1));
 
   ImageAllocationLimitInfo info;
   const QImage rejected = ImageLoader::load(imagePath, 0, &info);
-  BOOST_CHECK(rejected.isNull());
-  BOOST_CHECK(info.exceeded);
-  BOOST_CHECK_EQUAL(info.requiredLimitMb, 2);
+  CHECK(rejected.isNull());
+  CHECK(info.exceeded);
+  CHECK((info.requiredLimitMb) == (2));
 
-  BOOST_CHECK(setImageAllocationLimitForTest(info.requiredLimitMb));
+  CHECK(setImageAllocationLimitForTest(info.requiredLimitMb));
   const QImage loaded = ImageLoader::load(imagePath);
-  BOOST_CHECK(loaded.size() == QSize(513, 512));
+  CHECK(loaded.size() == QSize(513, 512));
 }
-
-BOOST_AUTO_TEST_SUITE_END()

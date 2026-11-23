@@ -15,9 +15,21 @@
   ],
   "features": {
     "tests": {
-      "description": "Build the Boost unit tests",
+      "description": "Build the unit tests",
       "dependencies": [
-        "boost-test"
+        "catch2"
+      ]
+    },
+    "vcpkg-qt-tests": {
+      "description": "Use Qt Test from vcpkg for GUI tests",
+      "dependencies": [
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "testlib"
+          ]
+        }
       ]
     },
     "vcpkg-qt": {
@@ -32,7 +44,6 @@
             "harfbuzz",
             "network",
             "opengl",
-            "testlib",
             "widgets"
           ]
         },

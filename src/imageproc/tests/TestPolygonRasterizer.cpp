@@ -16,7 +16,7 @@
 #include <QRectF>
 #include <QSize>
 #include <Qt>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 
 #include "Utils.h"
@@ -25,7 +25,6 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(PolygonRasterizerTestSuite)
 
 static QPolygonF createShape(const QSize& imageSize, double radius) {
   const QPointF center(0.5 * imageSize.width(), 0.5 * imageSize.height());
@@ -92,7 +91,7 @@ static bool testFillExceptShape(const QSize& imageSize, const QPolygonF& shape, 
   return fuzzyCompare(bImage, qImage);
 }
 
-BOOST_AUTO_TEST_CASE(test_complex_shape) {
+TEST_CASE("PolygonRasterizerTestSuite / test_complex_shape") {
   const QSize imageSize(500, 500);
 
   // This one fits the image.
@@ -101,17 +100,17 @@ BOOST_AUTO_TEST_CASE(test_complex_shape) {
   // This one doesn't fit the image and will be clipped.
   const QPolygonF biggerShape(createShape(imageSize, 300));
 
-  BOOST_CHECK(testFillShape(imageSize, smallerShape, Qt::OddEvenFill));
-  BOOST_CHECK(testFillShape(imageSize, smallerShape, Qt::WindingFill));
-  BOOST_CHECK(testFillShape(imageSize, biggerShape, Qt::OddEvenFill));
-  BOOST_CHECK(testFillShape(imageSize, biggerShape, Qt::WindingFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, smallerShape, Qt::OddEvenFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, smallerShape, Qt::WindingFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, biggerShape, Qt::OddEvenFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, biggerShape, Qt::WindingFill));
+  CHECK(testFillShape(imageSize, smallerShape, Qt::OddEvenFill));
+  CHECK(testFillShape(imageSize, smallerShape, Qt::WindingFill));
+  CHECK(testFillShape(imageSize, biggerShape, Qt::OddEvenFill));
+  CHECK(testFillShape(imageSize, biggerShape, Qt::WindingFill));
+  CHECK(testFillExceptShape(imageSize, smallerShape, Qt::OddEvenFill));
+  CHECK(testFillExceptShape(imageSize, smallerShape, Qt::WindingFill));
+  CHECK(testFillExceptShape(imageSize, biggerShape, Qt::OddEvenFill));
+  CHECK(testFillExceptShape(imageSize, biggerShape, Qt::WindingFill));
 }
 
-BOOST_AUTO_TEST_CASE(test_corner_cases) {
+TEST_CASE("PolygonRasterizerTestSuite / test_corner_cases") {
   const QSize imageSize(500, 500);
   const QPolygonF shape(QRectF(QPointF(0, 0), imageSize));
   const QPolygonF shape2(QRectF(QPointF(-1, -1), imageSize));
@@ -123,30 +122,29 @@ BOOST_AUTO_TEST_CASE(test_corner_cases) {
   shape3.push_back(QPointF(750.0, -250.0));
   shape3.push_back(QPointF(-250.0, 750.0));
 
-  BOOST_CHECK(testFillShape(imageSize, shape, Qt::OddEvenFill));
-  BOOST_CHECK(testFillShape(imageSize, shape, Qt::WindingFill));
-  BOOST_CHECK(testFillShape(imageSize, shape2, Qt::OddEvenFill));
-  BOOST_CHECK(testFillShape(imageSize, shape2, Qt::WindingFill));
-  BOOST_CHECK(testFillShape(imageSize, shape3, Qt::OddEvenFill));
-  BOOST_CHECK(testFillShape(imageSize, shape3, Qt::WindingFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, shape, Qt::OddEvenFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, shape, Qt::WindingFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, shape2, Qt::OddEvenFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, shape2, Qt::WindingFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, shape3, Qt::OddEvenFill));
-  BOOST_CHECK(testFillExceptShape(imageSize, shape3, Qt::WindingFill));
+  CHECK(testFillShape(imageSize, shape, Qt::OddEvenFill));
+  CHECK(testFillShape(imageSize, shape, Qt::WindingFill));
+  CHECK(testFillShape(imageSize, shape2, Qt::OddEvenFill));
+  CHECK(testFillShape(imageSize, shape2, Qt::WindingFill));
+  CHECK(testFillShape(imageSize, shape3, Qt::OddEvenFill));
+  CHECK(testFillShape(imageSize, shape3, Qt::WindingFill));
+  CHECK(testFillExceptShape(imageSize, shape, Qt::OddEvenFill));
+  CHECK(testFillExceptShape(imageSize, shape, Qt::WindingFill));
+  CHECK(testFillExceptShape(imageSize, shape2, Qt::OddEvenFill));
+  CHECK(testFillExceptShape(imageSize, shape2, Qt::WindingFill));
+  CHECK(testFillExceptShape(imageSize, shape3, Qt::OddEvenFill));
+  CHECK(testFillExceptShape(imageSize, shape3, Qt::WindingFill));
 }
 
-BOOST_AUTO_TEST_CASE(regression_test_1) {
+TEST_CASE("PolygonRasterizerTestSuite / regression_test_1") {
   QPolygonF shape;
   shape.push_back(QPointF(937.872, 24.559));
   shape.push_back(QPointF(-1.23235e-14, -1.70697e-15));
   shape.push_back(QPointF(2.73578e-11, 1275.44));
   shape.push_back(QPointF(904.496, 1299.12));
   shape.push_back(QPointF(937.872, 24.559));
-  BOOST_CHECK(testFillExceptShape(QSize(938, 1299), shape, Qt::WindingFill));
+  CHECK(testFillExceptShape(QSize(938, 1299), shape, Qt::WindingFill));
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc

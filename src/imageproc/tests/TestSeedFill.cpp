@@ -10,7 +10,7 @@
 #include <QImage>
 #include <QPoint>
 #include <QSize>
-#include <boost/test/unit_test.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "Utils.h"
 
@@ -18,9 +18,8 @@ namespace imageproc {
 namespace tests {
 using namespace utils;
 
-BOOST_AUTO_TEST_SUITE(SeedFillTestSuite)
 
-BOOST_AUTO_TEST_CASE(test_regression_1) {
+TEST_CASE("SeedFillTestSuite / test_regression_1") {
   int seed_data[70 * 2] = {0};
   int mask_data[70 * 2] = {0};
 
@@ -34,10 +33,10 @@ BOOST_AUTO_TEST_CASE(test_regression_1) {
 
   const BinaryImage seed(makeBinaryImage(seed_data, 70, 2));
   const BinaryImage mask(makeBinaryImage(mask_data, 70, 2));
-  BOOST_CHECK(seedFill(seed, mask, CONN8) == mask);
+  CHECK(seedFill(seed, mask, CONN8) == mask);
 }
 
-BOOST_AUTO_TEST_CASE(test_regression_2) {
+TEST_CASE("SeedFillTestSuite / test_regression_2") {
   int seed_data[70 * 2] = {0};
   int mask_data[70 * 2] = {0};
 
@@ -51,10 +50,10 @@ BOOST_AUTO_TEST_CASE(test_regression_2) {
 
   const BinaryImage seed(makeBinaryImage(seed_data, 70, 2));
   const BinaryImage mask(makeBinaryImage(mask_data, 70, 2));
-  BOOST_CHECK(seedFill(seed, mask, CONN8) == BinaryImage(70, 2, WHITE));
+  CHECK(seedFill(seed, mask, CONN8) == BinaryImage(70, 2, WHITE));
 }
 
-BOOST_AUTO_TEST_CASE(test_regression_3) {
+TEST_CASE("SeedFillTestSuite / test_regression_3") {
   static const int seed_data[] = {1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0};
 
   static const int mask_data[] = {0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1};
@@ -65,10 +64,10 @@ BOOST_AUTO_TEST_CASE(test_regression_3) {
   const BinaryImage mask(makeBinaryImage(mask_data, 5, 5));
   const BinaryImage fill(makeBinaryImage(fill_data, 5, 5));
 
-  BOOST_REQUIRE(seedFill(seed, mask, CONN8) == fill);
+  REQUIRE(seedFill(seed, mask, CONN8) == fill);
 }
 
-BOOST_AUTO_TEST_CASE(test_regression_4) {
+TEST_CASE("SeedFillTestSuite / test_regression_4") {
   static const int seed_data[] = {0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1};
 
   static const int mask_data[] = {1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1};
@@ -78,17 +77,17 @@ BOOST_AUTO_TEST_CASE(test_regression_4) {
   const BinaryImage seed(makeBinaryImage(seed_data, 5, 5));
   const BinaryImage mask(makeBinaryImage(mask_data, 5, 5));
   const BinaryImage fill(makeBinaryImage(fill_data, 5, 5));
-  BOOST_REQUIRE(seedFill(seed, mask, CONN4) == fill);
+  REQUIRE(seedFill(seed, mask, CONN4) == fill);
 }
 
-BOOST_AUTO_TEST_CASE(test_gray4_random) {
+TEST_CASE("SeedFillTestSuite / test_gray4_random") {
   for (int i = 0; i < 200; ++i) {
     const GrayImage seed(randomGrayImage(5, 5));
     const GrayImage mask(randomGrayImage(5, 5));
     const GrayImage fillNew(seedFillGray(seed, mask, CONN4));
     const GrayImage fillOld(seedFillGraySlow(seed, mask, CONN4));
     if (fillNew != fillOld) {
-      BOOST_ERROR("fillNew != fillOld at iteration " << i);
+      FAIL_CHECK("fillNew != fillOld at iteration " << i);
       dumpGrayImage(seed, "seed");
       dumpGrayImage(mask, "mask");
       dumpGrayImage(fillOld, "fillOld");
@@ -98,14 +97,14 @@ BOOST_AUTO_TEST_CASE(test_gray4_random) {
   }
 }
 
-BOOST_AUTO_TEST_CASE(test_gray8_random) {
+TEST_CASE("SeedFillTestSuite / test_gray8_random") {
   for (int i = 0; i < 200; ++i) {
     const GrayImage seed(randomGrayImage(5, 5));
     const GrayImage mask(randomGrayImage(5, 5));
     const GrayImage fillNew(seedFillGray(seed, mask, CONN8));
     const GrayImage fillOld(seedFillGraySlow(seed, mask, CONN8));
     if (fillNew != fillOld) {
-      BOOST_ERROR("fillNew != fillOld at iteration " << i);
+      FAIL_CHECK("fillNew != fillOld at iteration " << i);
       dumpGrayImage(seed, "seed");
       dumpGrayImage(mask, "mask");
       dumpGrayImage(fillOld, "fillOld");
@@ -115,7 +114,7 @@ BOOST_AUTO_TEST_CASE(test_gray8_random) {
   }
 }
 
-BOOST_AUTO_TEST_CASE(test_gray_vs_binary) {
+TEST_CASE("SeedFillTestSuite / test_gray_vs_binary") {
   for (int i = 0; i < 200; ++i) {
     const BinaryImage binSeed(randomBinaryImage(5, 5));
     const BinaryImage binMask(randomBinaryImage(5, 5));
@@ -127,7 +126,7 @@ BOOST_AUTO_TEST_CASE(test_gray_vs_binary) {
     const GrayImage fillGray8(seedFillGray(graySeed, grayMask, CONN8));
 
     if (fillGray4 != GrayImage(fillBin4.toQImage())) {
-      BOOST_ERROR("grayscale 4-fill != binary 4-fill at index " << i);
+      FAIL_CHECK("grayscale 4-fill != binary 4-fill at index " << i);
       dumpBinaryImage(binSeed, "seed");
       dumpBinaryImage(binMask, "mask");
       dumpBinaryImage(fillBin4, "bin_fill");
@@ -136,7 +135,7 @@ BOOST_AUTO_TEST_CASE(test_gray_vs_binary) {
     }
 
     if (fillGray8 != GrayImage(fillBin8.toQImage())) {
-      BOOST_ERROR("grayscale 8-fill != binary 8-fill at index " << i);
+      FAIL_CHECK("grayscale 8-fill != binary 8-fill at index " << i);
       dumpBinaryImage(binSeed, "seed");
       dumpBinaryImage(binMask, "mask");
       dumpBinaryImage(fillBin8, "bin_fill");
@@ -146,6 +145,5 @@ BOOST_AUTO_TEST_CASE(test_gray_vs_binary) {
   }
 }
 
-BOOST_AUTO_TEST_SUITE_END()
 }  // namespace tests
 }  // namespace imageproc
