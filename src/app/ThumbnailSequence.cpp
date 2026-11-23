@@ -16,20 +16,17 @@
 #include <QStyleOptionGraphicsItem>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QMessageBox>
-#include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/mem_fun.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
 #include <functional>
+#include <iterator>
+#include <list>
 #include <memory>
+#include <unordered_map>
+#include <utility>
 
 #include "ColorSchemeManager.h"
 #include "IncompleteThumbnail.h"
 #include "PageSequence.h"
 #include "ThumbnailFactory.h"
-
-using namespace ::boost::multi_index;
-
 
 class ThumbnailSequence::Item {
  public:
@@ -48,6 +45,7 @@ class ThumbnailSequence::Item {
   PageInfo pageInfo;
   mutable CompositeItem* composite;
   mutable bool incompleteThumbnail;
+  std::list<Item*>::iterator selectedOrderIterator;
 
  private:
   mutable bool m_isSelected;
@@ -147,29 +145,25 @@ class ThumbnailSequence::Impl {
 
   class ViewportRubberBandFilter;
 
-  class ItemsByIdTag;
-  class ItemsInOrderTag;
-  class SelectedThenUnselectedTag;
+  using ItemsInOrder = std::list<Item>;
+  using ItemsById = std::unordered_map<PageId, ItemsInOrder::iterator, std::hash<PageId>>;
+  using SelectedThenUnselected = std::list<Item*>;
 
-  using Container = multi_index_container<
-      Item,
-      indexed_by<hashed_unique<tag<ItemsByIdTag>, const_mem_fun<Item, const PageId&, &Item::pageId>, std::hash<PageId>>,
-                 sequenced<tag<ItemsInOrderTag>>,
-                 sequenced<tag<SelectedThenUnselectedTag>>>>;
+  std::pair<ItemsInOrder::iterator, bool> insertItem(ItemsInOrder::const_iterator position, const Item& item);
 
-  using ItemsById = Container::index<ItemsByIdTag>::type;
-  using ItemsInOrder = Container::index<ItemsInOrderTag>::type;
-  using SelectedThenUnselected = Container::index<SelectedThenUnselectedTag>::type;
+  ItemsInOrder::iterator eraseItem(ItemsInOrder::const_iterator position);
 
-  void invalidateThumbnailImpl(ItemsById::iterator idIt);
+  ItemsInOrder::const_iterator itemOrderIterator(ItemsById::const_iterator idIt) const;
+
+  void invalidateThumbnailImpl(ItemsById::const_iterator idIt);
 
   void sceneContextMenuEvent(QGraphicsSceneContextMenuEvent* evt);
 
-  void selectItemNoModifiers(const ItemsById::iterator& it);
+  void selectItemNoModifiers(const ItemsById::const_iterator& it);
 
-  void selectItemWithControl(const ItemsById::iterator& it);
+  void selectItemWithControl(const ItemsById::const_iterator& it);
 
-  void selectItemWithShift(const ItemsById::iterator& it);
+  void selectItemWithShift(const ItemsById::const_iterator& it);
 
   bool multipleItemsSelected() const;
 
@@ -220,15 +214,14 @@ class ThumbnailSequence::Impl {
   ThumbnailSequence& m_owner;
   QSizeF m_maxLogicalThumbSize;
   ViewMode m_viewMode;
-  Container m_items;
-  ItemsById& m_itemsById;
-  ItemsInOrder& m_itemsInOrder;
+  ItemsInOrder m_itemsInOrder;
+  ItemsById m_itemsById;
 
   /**
    * As the name implies, selected items go first here (in no particular order),
    * then go unselected items (also in no particular order).
    */
-  SelectedThenUnselected& m_selectedThenUnselected;
+  SelectedThenUnselected m_selectedThenUnselected;
 
   const Item* m_selectionLeader;
   std::shared_ptr<ThumbnailFactory> m_factory;
@@ -460,10 +453,6 @@ ThumbnailSequence::Impl::Impl(ThumbnailSequence& owner, const QSizeF& maxLogical
     : m_owner(owner),
       m_maxLogicalThumbSize(maxLogicalThumbSize),
       m_viewMode(viewMode),
-      m_items(),
-      m_itemsById(m_items.get<ItemsByIdTag>()),
-      m_itemsInOrder(m_items.get<ItemsInOrderTag>()),
-      m_selectedThenUnselected(m_items.get<SelectedThenUnselectedTag>()),
       m_selectionLeader(nullptr),
       m_selectionMode(false) {
   m_graphicsScene.setContextMenuEventCallback(
@@ -472,6 +461,43 @@ ThumbnailSequence::Impl::Impl(ThumbnailSequence& owner, const QSizeF& maxLogical
 
 ThumbnailSequence::Impl::~Impl() {
   m_rubberBandFilter.reset();
+}
+
+std::pair<ThumbnailSequence::Impl::ItemsInOrder::iterator, bool> ThumbnailSequence::Impl::insertItem(
+    ItemsInOrder::const_iterator position,
+    const Item& item) {
+  const ItemsInOrder::iterator itemIt = m_itemsInOrder.insert(position, item);
+  ItemsById::iterator idIt = m_itemsById.end();
+  try {
+    const auto result = m_itemsById.emplace(itemIt->pageId(), itemIt);
+    if (!result.second) {
+      const ItemsInOrder::iterator existing = result.first->second;
+      m_itemsInOrder.erase(itemIt);
+      return {existing, false};
+    }
+    idIt = result.first;
+    m_selectedThenUnselected.push_back(&*itemIt);
+  } catch (...) {
+    if (idIt != m_itemsById.end()) {
+      m_itemsById.erase(idIt);
+    }
+    m_itemsInOrder.erase(itemIt);
+    throw;
+  }
+  itemIt->selectedOrderIterator = std::prev(m_selectedThenUnselected.end());
+  return {itemIt, true};
+}
+
+ThumbnailSequence::Impl::ItemsInOrder::iterator ThumbnailSequence::Impl::eraseItem(
+    const ItemsInOrder::const_iterator position) {
+  m_itemsById.erase(position->pageId());
+  m_selectedThenUnselected.erase(position->selectedOrderIterator);
+  return m_itemsInOrder.erase(position);
+}
+
+ThumbnailSequence::Impl::ItemsInOrder::const_iterator ThumbnailSequence::Impl::itemOrderIterator(
+    const ItemsById::const_iterator idIt) const {
+  return idIt == m_itemsById.end() ? m_itemsInOrder.cend() : idIt->second;
 }
 
 void ThumbnailSequence::Impl::setThumbnailFactory(std::shared_ptr<ThumbnailFactory> factory) {
@@ -507,9 +533,13 @@ void ThumbnailSequence::Impl::reset(const PageSequence& pages,
 
   const Item* someSelectedItem = nullptr;
   for (const PageInfo& pageInfo : pages) {
-    std::unique_ptr<CompositeItem> composite(getCompositeItem(0, pageInfo));
-    m_itemsInOrder.push_back(Item(pageInfo, composite.release()));
-    const Item* item = &m_itemsInOrder.back();
+    std::unique_ptr<CompositeItem> composite(getCompositeItem(nullptr, pageInfo));
+    const auto insertion = insertItem(m_itemsInOrder.end(), Item(pageInfo, composite.get()));
+    if (!insertion.second) {
+      continue;
+    }
+    composite.release();
+    const Item* item = &*insertion.first;
     item->composite->setItem(item);
 
     const ImageId& imageId = pageInfo.id().imageId();
@@ -566,16 +596,16 @@ PageSequence ThumbnailSequence::Impl::toPageSequence() const {
 }
 
 void ThumbnailSequence::Impl::invalidateThumbnail(const PageId& pageId) {
-  const ItemsById::iterator idIt(m_itemsById.find(pageId));
+  const ItemsById::const_iterator idIt(m_itemsById.find(pageId));
   if (idIt != m_itemsById.end()) {
     invalidateThumbnailImpl(idIt);
   }
 }
 
 void ThumbnailSequence::Impl::invalidateThumbnail(const PageInfo& pageInfo) {
-  const ItemsById::iterator idIt(m_itemsById.find(pageInfo.id()));
+  const ItemsById::const_iterator idIt(m_itemsById.find(pageInfo.id()));
   if (idIt != m_itemsById.end()) {
-    m_itemsById.modify(idIt, [&pageInfo](Item& item) { item.pageInfo = pageInfo; });
+    idIt->second->pageInfo = pageInfo;
     invalidateThumbnailImpl(idIt);
   }
 }
@@ -658,36 +688,37 @@ void ThumbnailSequence::Impl::updateSceneItemsPos() {
   commitSceneRect();
 }
 
-void ThumbnailSequence::Impl::invalidateThumbnailImpl(const ItemsById::iterator idIt) {
-  CompositeItem* const newComposite = getCompositeItem(&*idIt, idIt->pageInfo).release();
-  CompositeItem* const oldComposite = idIt->composite;
+void ThumbnailSequence::Impl::invalidateThumbnailImpl(const ItemsById::const_iterator idIt) {
+  Item& item = *idIt->second;
+  CompositeItem* const newComposite = getCompositeItem(&item, item.pageInfo).release();
+  CompositeItem* const oldComposite = item.composite;
   const QSizeF oldSize(oldComposite->boundingRect().size());
   const QSizeF newSize(newComposite->boundingRect().size());
   const QPointF oldPos(newComposite->pos());
 
-  idIt->composite = newComposite;
-  idIt->incompleteThumbnail = newComposite->incompleteThumbnail();
+  item.composite = newComposite;
+  item.incompleteThumbnail = newComposite->incompleteThumbnail();
   delete oldComposite;
 
-  newComposite->updateAppearence(idIt->isSelected(), idIt->isSelectionLeader());
+  newComposite->updateAppearence(item.isSelected(), item.isSelectionLeader());
   m_graphicsScene.addItem(newComposite);
 
-  ItemsInOrder::iterator afterOld(m_items.project<ItemsInOrderTag>(idIt));
+  ItemsInOrder::iterator afterOld(idIt->second);
   // Notice afterOld++ below.
   // Move our item to the beginning of m_itemsInOrder, to make it out of range
   // we are going to pass to itemInsertPosition().
-  m_itemsInOrder.relocate(m_itemsInOrder.begin(), afterOld++);
+  m_itemsInOrder.splice(m_itemsInOrder.begin(), m_itemsInOrder, afterOld++);
   const ItemsInOrder::iterator afterNew(itemInsertPosition(++m_itemsInOrder.begin(), m_itemsInOrder.end(),
-                                                           idIt->pageInfo.id(), idIt->incompleteThumbnail, afterOld));
+                                                           item.pageInfo.id(), item.incompleteThumbnail, afterOld));
   // Move our item to its intended position.
-  m_itemsInOrder.relocate(afterNew, m_itemsInOrder.begin());
+  m_itemsInOrder.splice(afterNew, m_itemsInOrder, m_itemsInOrder.begin());
 
   updateSceneItemsPos();
 
   // Possibly emit the newSelectionLeader() signal.
-  if (m_selectionLeader == &*idIt) {
-    if ((oldSize != newSize) || (oldPos != idIt->composite->pos())) {
-      m_owner.emitNewSelectionLeader(idIt->pageInfo, idIt->composite, REDUNDANT_SELECTION);
+  if (m_selectionLeader == &item) {
+    if ((oldSize != newSize) || (oldPos != item.composite->pos())) {
+      m_owner.emitNewSelectionLeader(item.pageInfo, item.composite, REDUNDANT_SELECTION);
     }
   }
 }  // ThumbnailSequence::Impl::invalidateThumbnailImpl
@@ -751,29 +782,30 @@ bool ThumbnailSequence::Impl::setSelection(const PageId& pageId, const Selection
     return false;
   }
 
-  const ItemsById::iterator idIt(m_itemsById.find(pageId));
+  const ItemsById::const_iterator idIt(m_itemsById.find(pageId));
   if (idIt == m_itemsById.end()) {
     return false;
   }
 
-  const bool wasSelectionLeader = (&*idIt == m_selectionLeader);
+  const Item* const item = &*idIt->second;
+  const bool wasSelectionLeader = (item == m_selectionLeader);
 
   if (selectionAction != KEEP_SELECTION) {
     // Clear selection from all items except the one for which
     // selection is requested.
     SelectedThenUnselected::iterator it(m_selectedThenUnselected.begin());
     while (it != m_selectedThenUnselected.end()) {
-      const Item& item = *it;
-      if (!item.isSelected()) {
+      const Item& selectedItem = **it;
+      if (!selectedItem.isSelected()) {
         break;
       }
 
       ++it;
 
-      if (&*idIt != &item) {
-        item.setSelected(false);
-        moveToUnselected(&item);
-        if (m_selectionLeader == &item) {
+      if (item != &selectedItem) {
+        selectedItem.setSelected(false);
+        moveToUnselected(&selectedItem);
+        if (m_selectionLeader == &selectedItem) {
           m_selectionLeader = nullptr;
         }
       }
@@ -787,7 +819,7 @@ bool ThumbnailSequence::Impl::setSelection(const PageId& pageId, const Selection
   }
 
   if (!wasSelectionLeader) {
-    m_selectionLeader = &*idIt;
+    m_selectionLeader = item;
     m_selectionLeader->setSelectionLeader(true);
     moveToSelected(m_selectionLeader);
   }
@@ -800,7 +832,7 @@ bool ThumbnailSequence::Impl::setSelection(const PageId& pageId, const Selection
     flags |= SELECTION_CLEARED;
   }
 
-  m_owner.emitNewSelectionLeader(idIt->pageInfo, idIt->composite, flags);
+  m_owner.emitNewSelectionLeader(item->pageInfo, item->composite, flags);
   return true;
 }  // ThumbnailSequence::Impl::setSelection
 
@@ -813,14 +845,7 @@ PageInfo ThumbnailSequence::Impl::selectionLeader() const {
 }
 
 PageInfo ThumbnailSequence::Impl::prevPage(const PageId& referencePage) const {
-  ItemsInOrder::iterator ordIt;
-
-  if (m_selectionLeader && (m_selectionLeader->pageInfo.id() == referencePage)) {
-    // Common case optimization.
-    ordIt = m_itemsInOrder.iterator_to(*m_selectionLeader);
-  } else {
-    ordIt = m_items.project<ItemsInOrderTag>(m_itemsById.find(referencePage));
-  }
+  ItemsInOrder::const_iterator ordIt = itemOrderIterator(m_itemsById.find(referencePage));
 
   if (ordIt != m_itemsInOrder.end()) {
     if (ordIt != m_itemsInOrder.begin()) {
@@ -832,14 +857,7 @@ PageInfo ThumbnailSequence::Impl::prevPage(const PageId& referencePage) const {
 }
 
 PageInfo ThumbnailSequence::Impl::nextPage(const PageId& referencePage) const {
-  ItemsInOrder::iterator ordIt;
-
-  if (m_selectionLeader && (m_selectionLeader->pageInfo.id() == referencePage)) {
-    // Common case optimization.
-    ordIt = m_itemsInOrder.iterator_to(*m_selectionLeader);
-  } else {
-    ordIt = m_items.project<ItemsInOrderTag>(m_itemsById.find(referencePage));
-  }
+  ItemsInOrder::const_iterator ordIt = itemOrderIterator(m_itemsById.find(referencePage));
 
   if (ordIt != m_itemsInOrder.end()) {
     ++ordIt;
@@ -851,14 +869,7 @@ PageInfo ThumbnailSequence::Impl::nextPage(const PageId& referencePage) const {
 }
 
 PageInfo ThumbnailSequence::Impl::prevSelectedPage(const PageId& referencePage) const {
-  ItemsInOrder::iterator ordIt;
-
-  if (m_selectionLeader && (m_selectionLeader->pageInfo.id() == referencePage)) {
-    // Common case optimization.
-    ordIt = m_itemsInOrder.iterator_to(*m_selectionLeader);
-  } else {
-    ordIt = m_items.project<ItemsInOrderTag>(m_itemsById.find(referencePage));
-  }
+  ItemsInOrder::const_iterator ordIt = itemOrderIterator(m_itemsById.find(referencePage));
 
   if (ordIt != m_itemsInOrder.end()) {
     while (ordIt != m_itemsInOrder.begin()) {
@@ -872,14 +883,7 @@ PageInfo ThumbnailSequence::Impl::prevSelectedPage(const PageId& referencePage) 
 }
 
 PageInfo ThumbnailSequence::Impl::nextSelectedPage(const PageId& referencePage) const {
-  ItemsInOrder::iterator ordIt;
-
-  if (m_selectionLeader && (m_selectionLeader->pageInfo.id() == referencePage)) {
-    // Common case optimization.
-    ordIt = m_itemsInOrder.iterator_to(*m_selectionLeader);
-  } else {
-    ordIt = m_items.project<ItemsInOrderTag>(m_itemsById.find(referencePage));
-  }
+  ItemsInOrder::const_iterator ordIt = itemOrderIterator(m_itemsById.find(referencePage));
 
   if (ordIt != m_itemsInOrder.end()) {
     ++ordIt;
@@ -894,14 +898,14 @@ PageInfo ThumbnailSequence::Impl::nextSelectedPage(const PageId& referencePage) 
 }
 
 PageInfo ThumbnailSequence::Impl::firstPage() const {
-  if (m_items.empty()) {
+  if (m_itemsInOrder.empty()) {
     return PageInfo();
   }
   return m_itemsInOrder.front().pageInfo;
 }
 
 PageInfo ThumbnailSequence::Impl::lastPage() const {
-  if (m_items.empty()) {
+  if (m_itemsInOrder.empty()) {
     return PageInfo();
   }
   return m_itemsInOrder.back().pageInfo;
@@ -917,13 +921,13 @@ void ThumbnailSequence::Impl::insert(const PageInfo& newPage, BeforeOrAfter befo
     // we are not searching for PageId(image) exactly, which implies
     // PageId::SINGLE_PAGE configuration, but rather we search for
     // a page with any configuration, as long as it references the same image.
-    ItemsById::iterator idIt(m_itemsById.find(PageId(image)));
-    if ((idIt == m_itemsById.end()) || (idIt->pageInfo.imageId() != image)) {
+    ItemsById::const_iterator idIt(m_itemsById.find(PageId(image)));
+    if ((idIt == m_itemsById.end()) || (idIt->second->pageInfo.imageId() != image)) {
       // Reference page not found.
       return;
     }
 
-    ordIt = m_items.project<ItemsInOrderTag>(idIt);
+    ordIt = idIt->second;
 
     if (beforeOrAfter == AFTER) {
       ++ordIt;
@@ -941,7 +945,7 @@ void ThumbnailSequence::Impl::insert(const PageInfo& newPage, BeforeOrAfter befo
                              /*pageIncomplete=*/true, ordIt);
 
   double offset = 0.0;
-  if (!m_items.empty()) {
+  if (!m_itemsInOrder.empty()) {
     if (ordIt != m_itemsInOrder.end()) {
       offset = ordIt->composite->pos().y();
     } else {
@@ -957,8 +961,11 @@ void ThumbnailSequence::Impl::insert(const PageInfo& newPage, BeforeOrAfter befo
   const QPointF posDelta(0.0, composite->boundingRect().height() + SPACING);
 
   const Item item(newPage, composite.get());
-  const std::pair<ItemsInOrder::iterator, bool> ins(m_itemsInOrder.insert(ordIt, item));
-  composite->setItem(&*ins.first);
+  const auto insertion = insertItem(ordIt, item);
+  if (!insertion.second) {
+    return;
+  }
+  composite->setItem(&*insertion.first);
   m_graphicsScene.addItem(composite.release());
 
   const ItemsInOrder::iterator ordEnd(m_itemsInOrder.end());
@@ -993,7 +1000,7 @@ void ThumbnailSequence::Impl::removePages(const std::set<PageId>& pagesToRemove)
       }
       posDelta.ry() -= ordIt->composite->boundingRect().height() + SPACING;
       delete ordIt->composite;
-      m_itemsInOrder.erase(ordIt++);
+      ordIt = eraseItem(ordIt);
     }
   }
 
@@ -1001,10 +1008,10 @@ void ThumbnailSequence::Impl::removePages(const std::set<PageId>& pagesToRemove)
 }
 
 bool ThumbnailSequence::Impl::multipleItemsSelected() const {
-  SelectedThenUnselected::iterator it(m_selectedThenUnselected.begin());
-  const SelectedThenUnselected::iterator end(m_selectedThenUnselected.end());
+  SelectedThenUnselected::const_iterator it(m_selectedThenUnselected.begin());
+  const SelectedThenUnselected::const_iterator end(m_selectedThenUnselected.end());
   for (int i = 0; i < 2; ++i, ++it) {
-    if ((it == end) || !it->isSelected()) {
+    if ((it == end) || !(*it)->isSelected()) {
       return false;
     }
   }
@@ -1012,11 +1019,13 @@ bool ThumbnailSequence::Impl::multipleItemsSelected() const {
 }
 
 void ThumbnailSequence::Impl::moveToSelected(const Item* item) {
-  m_selectedThenUnselected.relocate(m_selectedThenUnselected.begin(), m_selectedThenUnselected.iterator_to(*item));
+  m_selectedThenUnselected.splice(m_selectedThenUnselected.begin(), m_selectedThenUnselected,
+                                  item->selectedOrderIterator);
 }
 
 void ThumbnailSequence::Impl::moveToUnselected(const Item* item) {
-  m_selectedThenUnselected.relocate(m_selectedThenUnselected.end(), m_selectedThenUnselected.iterator_to(*item));
+  m_selectedThenUnselected.splice(m_selectedThenUnselected.end(), m_selectedThenUnselected,
+                                  item->selectedOrderIterator);
 }
 
 QRectF ThumbnailSequence::Impl::selectionLeaderSceneRect() const {
@@ -1028,11 +1037,11 @@ QRectF ThumbnailSequence::Impl::selectionLeaderSceneRect() const {
 
 std::set<PageId> ThumbnailSequence::Impl::selectedItems() const {
   std::set<PageId> selection;
-  for (const Item& item : m_selectedThenUnselected) {
-    if (!item.isSelected()) {
+  for (const Item* item : m_selectedThenUnselected) {
+    if (!item->isSelected()) {
       break;
     }
-    selection.insert(item.pageInfo.id());
+    selection.insert(item->pageInfo.id());
   }
   return selection;
 }
@@ -1040,8 +1049,8 @@ std::set<PageId> ThumbnailSequence::Impl::selectedItems() const {
 std::vector<PageRange> ThumbnailSequence::Impl::selectedRanges() const {
   std::vector<PageRange> ranges;
 
-  ItemsInOrder::iterator it(m_itemsInOrder.begin());
-  const ItemsInOrder::iterator end(m_itemsInOrder.end());
+  ItemsInOrder::const_iterator it(m_itemsInOrder.begin());
+  const ItemsInOrder::const_iterator end(m_itemsInOrder.end());
   while (true) {
     for (; it != end && !it->isSelected(); ++it) {
       // Skip unselected items.
@@ -1076,7 +1085,7 @@ void ThumbnailSequence::Impl::sceneContextMenuEvent(QGraphicsSceneContextMenuEve
 }
 
 void ThumbnailSequence::Impl::itemSelectedByUser(CompositeItem* compositeItem, const Qt::KeyboardModifiers modifiers) {
-  const ItemsById::iterator idIt(m_itemsById.iterator_to(*compositeItem->item()));
+  const ItemsById::const_iterator idIt(m_itemsById.find(compositeItem->item()->pageId()));
 
   if ((modifiers & Qt::ControlModifier) || m_selectionMode) {
     selectItemWithControl(idIt);
@@ -1087,14 +1096,14 @@ void ThumbnailSequence::Impl::itemSelectedByUser(CompositeItem* compositeItem, c
   }
 }
 
-void ThumbnailSequence::Impl::selectItemWithControl(const ItemsById::iterator& idIt) {
+void ThumbnailSequence::Impl::selectItemWithControl(const ItemsById::const_iterator& idIt) {
   SelectionFlags flags = SELECTED_BY_USER;
 
-  if (!idIt->isSelected()) {
+  if (!idIt->second->isSelected()) {
     if (m_selectionLeader) {
       m_selectionLeader->setSelectionLeader(false);
     }
-    m_selectionLeader = &*idIt;
+    m_selectionLeader = &*idIt->second;
     m_selectionLeader->setSelectionLeader(true);
     moveToSelected(m_selectionLeader);
 
@@ -1110,17 +1119,17 @@ void ThumbnailSequence::Impl::selectItemWithControl(const ItemsById::iterator& i
   }
 
   // Unselect it.
-  idIt->setSelected(false);
-  moveToUnselected(&*idIt);
+  idIt->second->setSelected(false);
+  moveToUnselected(&*idIt->second);
 
-  if (m_selectionLeader != &*idIt) {
+  if (m_selectionLeader != &*idIt->second) {
     // The selection leader remains the same - we are done.
     return;
   }
   // Select the new selection leader among other selected items.
   m_selectionLeader = nullptr;
   flags |= AVOID_SCROLLING_TO;
-  ItemsInOrder::iterator ordIt1(m_items.project<ItemsInOrderTag>(idIt));
+  ItemsInOrder::iterator ordIt1(idIt->second);
   ItemsInOrder::iterator ordIt2(ordIt1);
   while (true) {
     if (ordIt1 != m_itemsInOrder.begin()) {
@@ -1148,20 +1157,21 @@ void ThumbnailSequence::Impl::selectItemWithControl(const ItemsById::iterator& i
   m_owner.emitNewSelectionLeader(m_selectionLeader->pageInfo, m_selectionLeader->composite, flags);
 }  // ThumbnailSequence::Impl::selectItemWithControl
 
-void ThumbnailSequence::Impl::selectItemWithShift(const ItemsById::iterator& idIt) {
+void ThumbnailSequence::Impl::selectItemWithShift(const ItemsById::const_iterator& idIt) {
   if (!m_selectionLeader) {
     selectItemNoModifiers(idIt);
     return;
   }
 
   SelectionFlags flags = SELECTED_BY_USER;
-  if (m_selectionLeader == &*idIt) {
+  if (m_selectionLeader == &*idIt->second) {
     flags |= REDUNDANT_SELECTION;
   }
 
   // Select all the items between the selection leader and the item that was clicked.
-  ItemsInOrder::iterator endpoint1(m_itemsInOrder.iterator_to(*m_selectionLeader));
-  ItemsInOrder::iterator endpoint2(m_items.project<ItemsInOrderTag>(idIt));
+  const ItemsById::const_iterator leaderIt(m_itemsById.find(m_selectionLeader->pageId()));
+  ItemsInOrder::iterator endpoint1(leaderIt->second);
+  ItemsInOrder::iterator endpoint2(idIt->second);
 
   if (endpoint1 == endpoint2) {
     // One-element sequence, already selected.
@@ -1199,30 +1209,30 @@ void ThumbnailSequence::Impl::selectItemWithShift(const ItemsById::iterator& idI
   // Switch the selection leader.
   assert(m_selectionLeader);
   m_selectionLeader->setSelectionLeader(false);
-  m_selectionLeader = &*idIt;
+  m_selectionLeader = &*idIt->second;
   m_selectionLeader->setSelectionLeader(true);
 
-  m_owner.emitNewSelectionLeader(idIt->pageInfo, idIt->composite, flags);
+  m_owner.emitNewSelectionLeader(idIt->second->pageInfo, idIt->second->composite, flags);
 }  // ThumbnailSequence::Impl::selectItemWithShift
 
-void ThumbnailSequence::Impl::selectItemNoModifiers(const ItemsById::iterator& idIt) {
+void ThumbnailSequence::Impl::selectItemNoModifiers(const ItemsById::const_iterator& idIt) {
   if (!cancelingSelectionAccepted()) {
     return;
   }
 
   SelectionFlags flags = SELECTED_BY_USER;
-  if (m_selectionLeader == &*idIt) {
+  if (m_selectionLeader == &*idIt->second) {
     flags |= REDUNDANT_SELECTION;
   }
   flags |= SELECTION_CLEARED;
 
   clearSelection();
 
-  m_selectionLeader = &*idIt;
+  m_selectionLeader = &*idIt->second;
   m_selectionLeader->setSelectionLeader(true);
   moveToSelected(m_selectionLeader);
 
-  m_owner.emitNewSelectionLeader(idIt->pageInfo, idIt->composite, flags);
+  m_owner.emitNewSelectionLeader(idIt->second->pageInfo, idIt->second->composite, flags);
 }
 
 void ThumbnailSequence::Impl::clear() {
@@ -1232,7 +1242,7 @@ void ThumbnailSequence::Impl::clear() {
   const ItemsInOrder::iterator end(m_itemsInOrder.end());
   while (it != end) {
     delete it->composite;
-    m_itemsInOrder.erase(it++);
+    it = eraseItem(it);
   }
 
   assert(m_graphicsScene.items().empty());
@@ -1244,11 +1254,11 @@ void ThumbnailSequence::Impl::clear() {
 void ThumbnailSequence::Impl::clearSelection() {
   m_selectionLeader = nullptr;
 
-  for (const Item& item : m_selectedThenUnselected) {
-    if (!item.isSelected()) {
+  for (const Item* item : m_selectedThenUnselected) {
+    if (!item->isSelected()) {
       break;
     }
-    item.setSelected(false);
+    item->setSelected(false);
   }
 }
 
