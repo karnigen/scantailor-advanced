@@ -16,5 +16,5 @@ unless the user explicitly asks for it.
 
 Use the repository's `build-vcpkg.sh` and vcpkg manifest for configuring, building, and testing.
 Do not install project dependencies system-wide or use system package managers for this repository.
-Use locally managed Python tools through `uv tool run`; for example, run `clang-format` with
-`uv tool run clang-format@23.1.5`.
+Run `clang-format` directly from `PATH` (match the CI version, 23.1.5). Use `uv tool run` for
+other locally managed Python tools.
