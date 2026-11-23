@@ -1,6 +1,7 @@
 set(sources
     main.cpp
     TestConstants.cpp
+    TestFastStorage.cpp
     TestLineIntersectionScalar.cpp
     TestProximity.cpp
     TestUtils.cpp)
