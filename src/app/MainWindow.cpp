@@ -96,6 +96,32 @@
 
 using namespace core;
 
+namespace {
+
+QString menuTitleWithoutMnemonic(const QString& title, QChar* mnemonic = nullptr) {
+  QString visibleTitle;
+  for (int i = 0; i < title.size(); ++i) {
+    if (title.at(i) != '&' || i + 1 == title.size()) {
+      visibleTitle += title.at(i);
+      continue;
+    }
+
+    if (title.at(i + 1) == '&') {
+      visibleTitle += '&';
+      ++i;
+      continue;
+    }
+
+    if (mnemonic && mnemonic->isNull()) {
+      *mnemonic = title.at(i + 1);
+    }
+    visibleTitle += title.at(++i);
+  }
+  return visibleTitle;
+}
+
+}  // namespace
+
 class MainWindow::PageSelectionProviderImpl : public PageSelectionProvider {
  public:
   explicit PageSelectionProviderImpl(MainWindow* wnd) : m_wnd(wnd) {}
@@ -140,20 +166,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
   setupUi(this);
   setupIcons();
 
-  QSet<QChar> usedMenuMnemonics;
-  for (QMenu* menu : {menuFile, menuDebug, menuHelp}) {
-    const QString title = menu->title();
-    for (int i = 0; i < title.size(); ++i) {
-      const QChar mnemonic = title.at(i).toUpper();
-      if (mnemonic.isLetter() && !usedMenuMnemonics.contains(mnemonic)) {
-        QString titleWithMnemonic = title;
-        titleWithMnemonic.insert(i, '&');
-        menu->setTitle(titleWithMnemonic);
-        usedMenuMnemonics.insert(mnemonic);
-        break;
-      }
-    }
-  }
+  applyMenuMnemonics();
 
   sortOptions->setVisible(false);
 
@@ -1739,8 +1752,7 @@ void MainWindow::showKeyboardShortcuts() {
   html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Menu").toHtmlEscaped() +
           "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th></tr>";
   for (QMenu* menu : {menuFile, menuDebug, menuHelp}) {
-    QString title = menu->title();
-    title.remove('&');
+    const QString title = menuTitleWithoutMnemonic(menu->title());
     const QString shortcut = QKeySequence::mnemonic(menu->menuAction()->text()).toString(QKeySequence::NativeText);
     html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + title.toHtmlEscaped() +
             "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" + shortcut.toHtmlEscaped() +
@@ -1752,9 +1764,38 @@ void MainWindow::showKeyboardShortcuts() {
           "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th><th align='left'>" +
           tr("Context").toHtmlEscaped() + "</th></tr>";
 
-  QList<QAction*> actions = findChildren<QAction*>();
+  QList<QAction*> actions;
+  QSet<QAction*> uniqueActions;
+  auto appendActions = [&actions, &uniqueActions](const QList<QAction*>& candidates) {
+    for (QAction* action : candidates) {
+      if (action && !uniqueActions.contains(action)) {
+        uniqueActions.insert(action);
+        actions.append(action);
+      }
+    }
+  };
+  appendActions(this->actions());
+  appendActions(findChildren<QAction*>());
+  QSet<QString> actionNames;
+  for (QWidget* widget : findChildren<QWidget*>()) {
+    appendActions(widget->actions());
+  }
+  for (QAction* action : actions) {
+    if (!action->objectName().isEmpty()) {
+      actionNames.insert(action->objectName());
+    }
+  }
   std::sort(actions.begin(), actions.end(),
             [](const QAction* left, const QAction* right) { return left->text().localeAwareCompare(right->text()) < 0; });
+
+  auto appendShortcutRow = [&html, &borderColor](const QString& label, const QStringList& shortcuts,
+                                                 const QString& context) {
+    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + label.toHtmlEscaped() +
+            "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" +
+            shortcuts.join(", ").toHtmlEscaped() + "</b></td><td style='border-bottom:1px solid " + borderColor +
+            ";'>" + context.toHtmlEscaped() + "</td></tr>";
+  };
+
   for (QAction* action : actions) {
     const QList<QKeySequence> shortcuts = action->shortcuts();
     if (action->isSeparator() || shortcuts.isEmpty()) {
@@ -1766,6 +1807,15 @@ void MainWindow::showKeyboardShortcuts() {
       label = action->toolTip();
     }
     if (label.isEmpty()) {
+      label = action->toolTip();
+    }
+    if (label.isEmpty()) {
+      label = action->whatsThis();
+    }
+    if (label.isEmpty()) {
+      label = action->objectName();
+    }
+    if (label.isEmpty()) {
       continue;
     }
 
@@ -1775,23 +1825,40 @@ void MainWindow::showKeyboardShortcuts() {
     }
 
     QString context;
-    switch (action->shortcutContext()) {
-      case Qt::ApplicationShortcut:
-        context = tr("Application");
-        break;
-      case Qt::WindowShortcut:
-        context = tr("Main window");
-        break;
-      case Qt::WidgetShortcut:
-      case Qt::WidgetWithChildrenShortcut:
-        context = tr("Active tool");
-        break;
+    if (action->objectName().startsWith("deskewRotate") ||
+        action->objectName().startsWith("selectContent")) {
+      context = tr("Active tool");
+    } else {
+      switch (action->shortcutContext()) {
+        case Qt::ApplicationShortcut:
+          context = tr("Application");
+          break;
+        case Qt::WindowShortcut:
+          context = tr("Main window");
+          break;
+        case Qt::WidgetShortcut:
+        case Qt::WidgetWithChildrenShortcut:
+          context = tr("Active tool");
+          break;
+      }
     }
 
-    html += "<tr><td style='border-bottom:1px solid " + borderColor + ";'>" + label.toHtmlEscaped() +
-            "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" +
-            shortcutTexts.join(", ").toHtmlEscaped() + "</b></td><td style='border-bottom:1px solid " +
-            borderColor + ";'>" + context.toHtmlEscaped() + "</td></tr>";
+    appendShortcutRow(label, shortcutTexts, context);
+  }
+
+  if (!actionNames.contains("deskewRotateLeft")) {
+    appendShortcutRow(tr("Rotate left"), {QKeySequence(",").toString(QKeySequence::NativeText)}, tr("Active tool"));
+  }
+  if (!actionNames.contains("deskewRotateRight")) {
+    appendShortcutRow(tr("Rotate right"), {QKeySequence(".").toString(QKeySequence::NativeText)}, tr("Active tool"));
+  }
+  if (!actionNames.contains("selectContentCreateBox")) {
+    appendShortcutRow(tr("Create Content Box"), {QKeySequence("Ins").toString(QKeySequence::NativeText)},
+                      tr("Active tool"));
+  }
+  if (!actionNames.contains("selectContentRemoveBox")) {
+    appendShortcutRow(tr("Remove Content Box"), {QKeySequence("Delete").toString(QKeySequence::NativeText)},
+                      tr("Active tool"));
   }
   html += "</table></body></html>";
   browser->setHtml(html);
@@ -1804,6 +1871,42 @@ void MainWindow::showKeyboardShortcuts() {
 
   dialog.resize(640, 720);
   dialog.exec();
+}
+
+void MainWindow::applyMenuMnemonics() {
+  QSet<QChar> usedMnemonics;
+  for (QMenu* menu : {menuFile, menuDebug, menuHelp}) {
+    const QString title = menu->title();
+    QChar currentMnemonic;
+    const QString visibleTitle = menuTitleWithoutMnemonic(title, &currentMnemonic);
+    if (!currentMnemonic.isNull() && !usedMnemonics.contains(currentMnemonic.toUpper())) {
+      usedMnemonics.insert(currentMnemonic.toUpper());
+      continue;
+    }
+
+    int mnemonicIndex = -1;
+    for (int i = 0; i < visibleTitle.size(); ++i) {
+      const QChar candidate = visibleTitle.at(i).toUpper();
+      if (candidate.isLetter() && !usedMnemonics.contains(candidate)) {
+        mnemonicIndex = i;
+        usedMnemonics.insert(candidate);
+        break;
+      }
+    }
+
+    QString titleWithMnemonic;
+    for (int i = 0; i < visibleTitle.size(); ++i) {
+      if (i == mnemonicIndex) {
+        titleWithMnemonic += '&';
+      }
+      if (visibleTitle.at(i) == '&') {
+        titleWithMnemonic += "&&";
+      } else {
+        titleWithMnemonic += visibleTitle.at(i);
+      }
+    }
+    menu->setTitle(titleWithMnemonic);
+  }
 }
 
 void MainWindow::showAboutDialog() {
@@ -2434,6 +2537,7 @@ void MainWindow::changeEvent(QEvent* event) {
     switch (event->type()) {
       case QEvent::LanguageChange:
         retranslateUi(this);
+        applyMenuMnemonics();
         updateWindowTitle();
         break;
       default:

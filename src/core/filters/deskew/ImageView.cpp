@@ -52,12 +52,14 @@ ImageView::ImageView(const QImage& image, const QImage& downscaledImage, const I
   rootInteractionHandler().makeLastFollower(m_dragHandler);
   rootInteractionHandler().makeLastFollower(m_zoomHandler);
 
-  auto* rotateLeft = new QAction(nullptr);
+  auto* rotateLeft = new QAction(tr("Rotate left"), this);
+  rotateLeft->setObjectName("deskewRotateLeft");
   rotateLeft->setShortcut(QKeySequence(","));
   connect(rotateLeft, SIGNAL(triggered(bool)), SLOT(doRotateLeft()));
   addAction(rotateLeft);
 
-  auto* rotateRight = new QAction(nullptr);
+  auto* rotateRight = new QAction(tr("Rotate right"), this);
+  rotateRight->setObjectName("deskewRotateRight");
   rotateRight->setShortcut(QKeySequence("."));
   connect(rotateRight, SIGNAL(triggered(bool)), SLOT(doRotateRight()));
   addAction(rotateRight);

@@ -183,6 +183,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void onSettingsChanged();
 
+  void applyMenuMnemonics();
+
   void showAboutDialog();
 
   void showKeyboardShortcuts();
