@@ -4,10 +4,7 @@
   "dependencies": [
     "boost-intrusive",
     "boost-iterator",
-    "boost-lambda",
-    "boost-mpl",
     "boost-multi-index",
-    "boost-smart-ptr",
     {
       "name": "libjpeg-turbo",
       "default-features": false

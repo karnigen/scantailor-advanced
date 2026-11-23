@@ -6,9 +6,9 @@
 #define SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_
 
 #include <QSize>
-#include <memory>
 #include <cstring>
 #include <iterator>
+#include <memory>
 
 #include "ValueConv.h"
 
@@ -55,16 +55,17 @@ GrayImage gaussBlur(const GrayImage& src, float hSigma, float vSigma);
  * const float val = ...;
  * writer(output[x], val);
  * \endcode
- * Consider using boost::lambda, possible in conjunction with one of the functors
- * from ValueConv.h:
+ * A C++ lambda can construct a writer, possibly in conjunction with one of the
+ * functors from ValueConv.h:
  * \code
- * using namespace boost::lambda;
- *
- * // Just copying.
- * gaussBlurGeneric(..., _1 = _2);
+ * const auto copy = [](auto& dst, const auto src) { dst = src; };
+ * gaussBlurGeneric(..., copy);
  *
  * // Convert to uint8_t, with rounding and clipping.
- * gaussBlurGeneric(..., _1 = bind<uint8_t>(RoundAndClipValueConv<uint8_t>(), _2);
+ * const auto roundAndClip = [](auto& dst, const auto src) {
+ *   dst = RoundAndClipValueConv<uint8_t>()(src);
+ * };
+ * gaussBlurGeneric(..., roundAndClip);
  * \endcode
  */
 template <typename SrcIt, typename DstIt, typename FloatReader, typename FloatWriter>

@@ -4,7 +4,6 @@
 #ifndef SCANTAILOR_CORE_THUMBNAILPIXMAPCACHE_H_
 #define SCANTAILOR_CORE_THUMBNAILPIXMAPCACHE_H_
 
-#include <boost/weak_ptr.hpp>
 #include <memory>
 
 #include "AbstractCommand.h"

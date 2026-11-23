@@ -16,13 +16,11 @@
 #include <QStyleOptionGraphicsItem>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QMessageBox>
-#include <functional>
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/lambda.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index_container.hpp>
+#include <functional>
 #include <memory>
 
 #include "ColorSchemeManager.h"
@@ -31,7 +29,6 @@
 #include "ThumbnailFactory.h"
 
 using namespace ::boost::multi_index;
-using namespace ::boost::lambda;
 
 
 class ThumbnailSequence::Item {
