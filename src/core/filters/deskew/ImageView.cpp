@@ -68,7 +68,8 @@ ImageView::ImageView(const QImage& image, const QImage& downscaledImage, const I
 ImageView::~ImageView() = default;
 
 void ImageView::doRotate(double deg) {
-  manualDeskewAngleSetExternally(m_xform.postRotation() + deg);
+  const double angle = qBound(-m_maxRotationDeg, m_xform.postRotation() + deg, m_maxRotationDeg);
+  manualDeskewAngleSetExternally(angle);
   emit manualDeskewAngleSet(m_xform.postRotation());
 }
 
