@@ -271,10 +271,7 @@ QRectF ImageView::getRotationArcSquare() const {
   const QRectF viewportRect(QPointF(0, 0), viewport()->size());
   const QRectF safeViewportRect(
       viewportRect.adjusted(halfHandleWidth, halfHandleHeight, -halfHandleWidth, -halfHandleHeight));
-  QRectF controlBounds(getOccupiedWidgetRect().intersected(safeViewportRect));
-  if (controlBounds.isEmpty()) {
-    controlBounds = safeViewportRect;
-  }
+  const QRectF controlBounds(safeViewportRect);
   if (controlBounds.isEmpty()) {
     return QRectF(controlBounds.center(), QSizeF());
   }

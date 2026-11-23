@@ -767,7 +767,7 @@
                   <string>New pages start with Oblique Auto when checked, or Oblique Off when unchecked. This does not change existing pages.</string>
                 </property>
                 <property name="text">
-                  <string>Automatically correct vertical shear on new pages</string>
+                  <string>Automatically apply oblique correction to new pages</string>
                 </property>
                </widget>
               </item>

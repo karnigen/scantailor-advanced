@@ -134,7 +134,7 @@ class ImageTransformation {
 
   /**
    * \brief Set oblique (shear) in degrees for the 4th step (issue #53).
-   * Applied after rotation. Vertical shear: x' = x + tan(degrees)*y.
+   * Applied after rotation. X-shear: x' = x + tan(degrees)*y.
    */
   void setPostOblique(double degrees);
 
