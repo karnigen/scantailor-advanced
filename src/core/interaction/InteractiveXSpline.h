@@ -6,9 +6,9 @@
 
 #include <QCoreApplication>
 #include <QPointF>
+#include <cstddef>
 #include <functional>
 #include <memory>
-#include <cstddef>
 
 #include "DraggablePoint.h"
 #include "InteractionState.h"

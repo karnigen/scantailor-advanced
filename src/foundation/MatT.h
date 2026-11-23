@@ -4,9 +4,9 @@
 #ifndef SCANTAILOR_FOUNDATION_MATT_H_
 #define SCANTAILOR_FOUNDATION_MATT_H_
 
-#include <memory>
 #include <cassert>
 #include <cstddef>
+#include <memory>
 
 /**
  * \brief A matrix of elements of type T.

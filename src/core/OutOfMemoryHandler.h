@@ -6,8 +6,8 @@
 
 #include <QMutex>
 #include <QObject>
-#include <memory>
 #include <cstddef>
+#include <memory>
 
 #include "NonCopyable.h"
 

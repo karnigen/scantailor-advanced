@@ -9,8 +9,8 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
-#include <functional>
 #include <cmath>
+#include <functional>
 #include <map>
 
 #include "ImagePresentation.h"

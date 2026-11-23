@@ -91,8 +91,7 @@ PictureZoneEditor::PictureZoneEditor(const QImage& image,
 
   setMouseTracking(true);
 
-  context().setShowPropertiesCommand(
-      std::bind(&PictureZoneEditor::showPropertiesDialog, this, std::placeholders::_1));
+  context().setShowPropertiesCommand(std::bind(&PictureZoneEditor::showPropertiesDialog, this, std::placeholders::_1));
 
   connect(&zones(), SIGNAL(committed()), SLOT(commitZones()));
 

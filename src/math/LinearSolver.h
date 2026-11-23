@@ -6,11 +6,11 @@
 
 #include <NonCopyable.h>
 
-#include <memory>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 

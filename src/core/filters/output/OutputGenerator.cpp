@@ -47,8 +47,8 @@
 #include <QPolygonF>
 #include <QSize>
 #include <QTransform>
-#include <functional>
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 
 #include "ColorParams.h"
@@ -751,9 +751,9 @@ void applyFillZonesToMixedInPlace(QImage& img,
                                   const QTransform& transform,
                                   const BinaryImage& pictureMask,
                                   bool binaryMode) {
-  applyFillZonesToMixedInPlace(
-      img, zones, std::bind(static_cast<MapPointFunc>(&QTransform::map), transform, std::placeholders::_1),
-      pictureMask, binaryMode);
+  applyFillZonesToMixedInPlace(img, zones,
+                               std::bind(static_cast<MapPointFunc>(&QTransform::map), transform, std::placeholders::_1),
+                               pictureMask, binaryMode);
 }
 
 void applyFillZonesToMask(BinaryImage& mask,

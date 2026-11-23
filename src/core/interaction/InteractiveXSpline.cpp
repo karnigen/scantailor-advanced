@@ -46,8 +46,8 @@ void InteractiveXSpline::setSpline(const XSpline& spline) {
 
   for (int i = 0; i < numControlPoints; ++i) {
     newControlPoints[i].point.setPositionCallback(std::bind(&InteractiveXSpline::controlPointPosition, this, i));
-    newControlPoints[i].point.setMoveRequestCallback(std::bind(&InteractiveXSpline::controlPointMoveRequest, this, i,
-                                                                 std::placeholders::_1, std::placeholders::_2));
+    newControlPoints[i].point.setMoveRequestCallback(
+        std::bind(&InteractiveXSpline::controlPointMoveRequest, this, i, std::placeholders::_1, std::placeholders::_2));
     newControlPoints[i].point.setDragFinishedCallback(std::bind(&InteractiveXSpline::dragFinished, this));
 
     if ((i == 0) || (i == numControlPoints - 1)) {

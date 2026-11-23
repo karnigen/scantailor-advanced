@@ -75,8 +75,7 @@ void ImageView::setupCuttersInteraction() {
     }
 
     m_lineSegments[i].setPositionCallback(std::bind(&ImageView::linePosition, this, i));
-    m_lineSegments[i].setMoveRequestCallback(
-        std::bind(&ImageView::lineMoveRequest, this, i, std::placeholders::_1));
+    m_lineSegments[i].setMoveRequestCallback(std::bind(&ImageView::lineMoveRequest, this, i, std::placeholders::_1));
     m_lineSegments[i].setDragFinishedCallback(std::bind(&ImageView::dragFinished, this));
 
     m_lineInteractors[i].setObject(&m_lineSegments[i]);

@@ -111,7 +111,7 @@ void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool click
 
     connect(btn, &ComponentButton::clicked,
             std::bind(&RelinkablePathVisualization::onClicked, this, componentIdx, pathComponent.prefixPath,
-                        pathComponent.suffixPath, pathComponent.type));
+                      pathComponent.suffixPath, pathComponent.type));
   }
 
   m_layout->addStretch();

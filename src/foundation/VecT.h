@@ -4,9 +4,9 @@
 #ifndef SCANTAILOR_FOUNDATION_VECT_H_
 #define SCANTAILOR_FOUNDATION_VECT_H_
 
-#include <memory>
 #include <cassert>
 #include <cstddef>
+#include <memory>
 
 /**
  * \brief A (column) vector of elements of type T.

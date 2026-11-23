@@ -7,8 +7,8 @@
 #include <QPoint>
 #include <QRect>
 #include <QSize>
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
 #include <stdexcept>
 
 #include "BinaryImage.h"
