@@ -138,7 +138,7 @@
    <item>
     <widget class="CollapsibleGroupBox" name="obliqueGroupBox">
      <property name="title">
-      <string>Oblique (vertical shear)</string>
+      <string>Oblique correction</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -149,7 +149,7 @@
         <item>
          <widget class="QLabel" name="obliqueLabel">
           <property name="text">
-           <string>Oblique shear (°):</string>
+           <string>Oblique angle (°):</string>
           </property>
          </widget>
         </item>
@@ -189,7 +189,7 @@
            <string>Off</string>
           </property>
           <property name="toolTip">
-           <string>Do not apply shear. Rotation correction can still be used.</string>
+           <string>Do not apply oblique correction. Rotation correction can still be used.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>
@@ -208,7 +208,7 @@
            <string>Auto</string>
           </property>
           <property name="toolTip">
-           <string>Automatically estimate and apply vertical shear after rotation.</string>
+           <string>Automatically estimate and apply oblique correction after rotation.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>
@@ -227,7 +227,7 @@
            <string>Manual</string>
           </property>
           <property name="toolTip">
-           <string>Use the oblique shear angle shown above.</string>
+           <string>Use the oblique angle shown above.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>

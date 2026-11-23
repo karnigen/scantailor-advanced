@@ -134,7 +134,8 @@ class ImageTransformation {
 
   /**
    * \brief Set oblique (shear) in degrees for the 4th step (issue #53).
-   * Applied after rotation. Vertical shear: x' = x + tan(degrees)*y.
+   * Applied after rotation. With shear = tan(degrees * pi / 360), the mapping is
+   * x' = x - shear*y and y' = y + shear.
    */
   void setPostOblique(double degrees);
 

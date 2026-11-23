@@ -52,12 +52,14 @@ ImageView::ImageView(const QImage& image, const QImage& downscaledImage, const I
   rootInteractionHandler().makeLastFollower(m_dragHandler);
   rootInteractionHandler().makeLastFollower(m_zoomHandler);
 
-  auto* rotateLeft = new QAction(nullptr);
+  auto* rotateLeft = new QAction(tr("Rotate left"), this);
+  rotateLeft->setObjectName("deskewRotateLeft");
   rotateLeft->setShortcut(QKeySequence(","));
   connect(rotateLeft, SIGNAL(triggered(bool)), SLOT(doRotateLeft()));
   addAction(rotateLeft);
 
-  auto* rotateRight = new QAction(nullptr);
+  auto* rotateRight = new QAction(tr("Rotate right"), this);
+  rotateRight->setObjectName("deskewRotateRight");
   rotateRight->setShortcut(QKeySequence("."));
   connect(rotateRight, SIGNAL(triggered(bool)), SLOT(doRotateRight()));
   addAction(rotateRight);
@@ -66,7 +68,8 @@ ImageView::ImageView(const QImage& image, const QImage& downscaledImage, const I
 ImageView::~ImageView() = default;
 
 void ImageView::doRotate(double deg) {
-  manualDeskewAngleSetExternally(m_xform.postRotation() + deg);
+  const double angle = qBound(-m_maxRotationDeg, m_xform.postRotation() + deg, m_maxRotationDeg);
+  manualDeskewAngleSetExternally(angle);
   emit manualDeskewAngleSet(m_xform.postRotation());
 }
 
@@ -269,10 +272,7 @@ QRectF ImageView::getRotationArcSquare() const {
   const QRectF viewportRect(QPointF(0, 0), viewport()->size());
   const QRectF safeViewportRect(
       viewportRect.adjusted(halfHandleWidth, halfHandleHeight, -halfHandleWidth, -halfHandleHeight));
-  QRectF controlBounds(getOccupiedWidgetRect().intersected(safeViewportRect));
-  if (controlBounds.isEmpty()) {
-    controlBounds = safeViewportRect;
-  }
+  const QRectF controlBounds(safeViewportRect);
   if (controlBounds.isEmpty()) {
     return QRectF(controlBounds.center(), QSizeF());
   }

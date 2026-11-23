@@ -102,6 +102,8 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionKeyboardShortcuts"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
@@ -1125,7 +1127,7 @@ QToolButton:pressed {
     <string notr="true">PgDown</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionPrevPage">
@@ -1136,7 +1138,7 @@ QToolButton:pressed {
     <string notr="true">PgUp</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionNewProject">
@@ -1169,7 +1171,7 @@ QToolButton:pressed {
     <string notr="true">Q</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionNextPageW">
@@ -1180,7 +1182,7 @@ QToolButton:pressed {
     <string notr="true">W</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionCloseProject">
@@ -1247,6 +1249,11 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+  </action>
+  <action name="actionKeyboardShortcuts">
+   <property name="text">
+    <string>Keyboard Shortcuts...</string>
    </property>
   </action>
   <action name="actionFixDpi">
@@ -1447,7 +1454,7 @@ QToolButton:pressed {
     <string notr="true">Shift+Q</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionNextSelectedPageW">
@@ -1461,7 +1468,7 @@ QToolButton:pressed {
     <string notr="true">Shift+W</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionNextSelectedPage">
@@ -1475,7 +1482,7 @@ QToolButton:pressed {
     <string notr="true">Shift+PgDown</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionPrevSelectedPage">
@@ -1489,7 +1496,7 @@ QToolButton:pressed {
     <string notr="true">Shift+PgUp</string>
    </property>
    <property name="autoRepeat">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionGotoPage">
