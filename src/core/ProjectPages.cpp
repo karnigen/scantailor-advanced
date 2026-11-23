@@ -4,11 +4,9 @@
 #include "ProjectPages.h"
 
 #include <QDebug>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
 #include <cassert>
+#include <cstddef>
+#include <map>
 #include <unordered_map>
 
 #include "AbstractRelinker.h"
@@ -285,19 +283,28 @@ struct File {
 }  // anonymous namespace
 
 std::vector<ImageFileInfo> ProjectPages::toImageFileInfo() const {
-  using namespace boost::multi_index;
-
-  multi_index_container<File, indexed_by<ordered_unique<member<File, QString, &File::fileName>>, sequenced<>>> files;
+  std::vector<File> files;
+  std::map<QString, std::size_t> filesByName;
 
   {
     QMutexLocker locker(&m_mutex);
 
     for (const ImageDesc& image : m_images) {
-      const File file(image.id.filePath());
-      files.insert(file).first->metadata.push_back(image.metadata);
+      const QString filePath(image.id.filePath());
+      const auto [it, inserted] = filesByName.emplace(filePath, files.size());
+      if (inserted) {
+        files.emplace_back(filePath);
+      }
+      files[it->second].metadata.push_back(image.metadata);
     }
   }
-  return std::vector<ImageFileInfo>(files.get<1>().begin(), files.get<1>().end());
+
+  std::vector<ImageFileInfo> imageFiles;
+  imageFiles.reserve(files.size());
+  for (const File& file : files) {
+    imageFiles.push_back(static_cast<ImageFileInfo>(file));
+  }
+  return imageFiles;
 }
 
 void ProjectPages::updateMetadataFrom(const std::vector<ImageFileInfo>& files) {
