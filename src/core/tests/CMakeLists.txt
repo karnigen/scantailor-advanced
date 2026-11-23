@@ -2,6 +2,7 @@ set(sources
     main.cpp
     TestContentSpanFinder.cpp
     TestDeskewParams.cpp
+    TestEditableZoneSet.cpp
     TestImageAllocationLimit.cpp
     TestObliqueFinder.cpp
     TestImageId.cpp

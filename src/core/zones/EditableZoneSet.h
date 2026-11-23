@@ -5,13 +5,12 @@
 #define SCANTAILOR_ZONES_EDITABLEZONESET_H_
 
 #include <QObject>
-#include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
 #include <cstddef>
 #include <iterator>
+#include <list>
 #include <memory>
+#include <unordered_map>
+#include <utility>
 
 #include "EditableSpline.h"
 #include "PropertySet.h"
@@ -20,17 +19,8 @@ class EditableZoneSet : public QObject {
   Q_OBJECT
  private:
   using ZoneItem = std::pair<EditableSpline::Ptr, std::shared_ptr<PropertySet>>;
-
-  class ZoneItemOrderedTag;
-
-  using ZoneItems = boost::multi_index_container<
-      ZoneItem,
-      boost::multi_index::indexed_by<
-          boost::multi_index::hashed_unique<boost::multi_index::member<ZoneItem, EditableSpline::Ptr, &ZoneItem::first>,
-                                            std::hash<std::shared_ptr<EditableSpline>>>,
-          boost::multi_index::sequenced<boost::multi_index::tag<ZoneItemOrderedTag>>>>;
-
-  using ZoneItemsInOrder = ZoneItems::index<ZoneItemOrderedTag>::type;
+  using ZoneItemsInOrder = std::list<ZoneItem>;
+  using ZoneItemsBySpline = std::unordered_map<EditableSpline::Ptr, ZoneItemsInOrder::iterator>;
 
  public:
   class const_iterator;
@@ -131,8 +121,10 @@ class EditableZoneSet : public QObject {
   void committed();
 
  private:
-  ZoneItems m_zoneItems;
-  ZoneItemsInOrder& m_zoneItemsInOrder;
+  void insertZone(const EditableSpline::Ptr& spline, std::shared_ptr<PropertySet> properties);
+
+  ZoneItemsInOrder m_zoneItemsInOrder;
+  ZoneItemsBySpline m_zoneItemsBySpline;
   PropertySet m_defaultProps;
 };
 
