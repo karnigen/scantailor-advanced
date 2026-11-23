@@ -146,6 +146,18 @@ covers 2×4, 4×2, 4×6 and 6×4 and checks exact pixel replication; the fixed c
 is clean under AddressSanitizer. Equal-factor upscaling and all downscaling
 paths are unaffected.
 
+**Fixed scaling defect (single-pixel source axis):** non-integer upscaling of
+an image whose source width or height is 1 px (for example 1×2 → 3×3) drove
+`calc32xRatio1()` to a negative ratio, so destination coordinates mapped to
+`sx = -1` and the interpolation read before the start of the row. In Release
+this is a silent out-of-bounds read; in Debug the neighbor assertions fired
+first. For a 1-pixel axis there is no second source pixel to interpolate
+towards, so `calc32xRatio1()` now returns zero and the neighbor indices are
+clamped. The output is constant along that axis and interpolated along the
+other one. Regression tests cover 1×2 → 3×3 and 2×1 → 3×3; the pre-fix code
+produced non-uniform rows (20, 20, 19 instead of 20, 20, 20) and a
+heap-buffer-overflow under AddressSanitizer without assertions.
+
 **Format decision:** grayscale images stay in `Format_Indexed8` (one byte per
 pixel). `scaleToGray` operates directly on this buffer and never calls Qt's
 scaler, so the `Indexed8`/`RGB32` difference affects only comparisons that use

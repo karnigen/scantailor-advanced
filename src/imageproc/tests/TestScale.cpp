@@ -105,6 +105,43 @@ TEST_CASE("ScaleTestSuite / test_integer_upscale_with_different_axis_factors") {
   }
 }
 
+TEST_CASE("ScaleTestSuite / test_upscale_with_single_pixel_source_axis") {
+  SECTION("single source column") {
+    const uint8_t pixels[] = {20, 100};
+    const GrayImage image = makeGrayImageFromPixels(QSize(1, 2), pixels);
+    const GrayImage scaled = scaleToGray(image, QSize(3, 3));
+    REQUIRE(scaled.size() == QSize(3, 3));
+
+    int previous = 0;
+    for (int y = 0; y < scaled.height(); ++y) {
+      const uint8_t* row = scaled.data() + y * scaled.stride();
+      CAPTURE(y, int(row[0]), int(row[1]), int(row[2]));
+      CHECK(row[0] == row[1]);
+      CHECK(row[1] == row[2]);
+      CHECK(row[0] >= 20);
+      CHECK(row[0] <= 100);
+      CHECK(row[0] >= previous);
+      previous = row[0];
+    }
+  }
+
+  SECTION("single source row") {
+    const uint8_t pixels[] = {20, 100};
+    const GrayImage image = makeGrayImageFromPixels(QSize(2, 1), pixels);
+    const GrayImage scaled = scaleToGray(image, QSize(3, 3));
+    REQUIRE(scaled.size() == QSize(3, 3));
+
+    const uint8_t* firstRow = scaled.data();
+    for (int y = 1; y < scaled.height(); ++y) {
+      const uint8_t* row = scaled.data() + y * scaled.stride();
+      for (int x = 0; x < scaled.width(); ++x) {
+        CAPTURE(x, y);
+        CHECK(row[x] == firstRow[x]);
+      }
+    }
+  }
+}
+
 TEST_CASE("ScaleTestSuite / test_downscale_high_contrast_against_area_reference") {
   const GrayImage image = makeNoiseImage();
   for (const QSize size : {QSize(50, 50), QSize(80, 80)}) {
