@@ -6,16 +6,15 @@
 #include <QDomDocument>
 #include <QFileInfo>
 #include <QMutex>
-#include <boost/multi_index/composite_key.hpp>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
+
+#include <iterator>
+#include <limits>
+#include <list>
+#include <map>
+#include <utility>
 
 #include "AbstractRelinker.h"
 #include "RelinkablePath.h"
-
-using namespace boost::multi_index;
 
 class FileNameDisambiguator::Impl {
  public:
@@ -34,11 +33,6 @@ class FileNameDisambiguator::Impl {
   void performRelinking(const AbstractRelinker& relinker);
 
  private:
-  class ItemsByFilePathTag;
-  class ItemsByFileNameLabelTag;
-
-  class UnorderedItemsTag;
-
   struct Item {
     QString filePath;
     QString fileName;
@@ -49,23 +43,20 @@ class FileNameDisambiguator::Impl {
     Item(const QString& filePath, const QString& fileName, int lbl);
   };
 
-  using Container = multi_index_container<
-      Item,
-      indexed_by<
-          ordered_unique<tag<ItemsByFilePathTag>, member<Item, QString, &Item::filePath>>,
-          ordered_unique<tag<ItemsByFileNameLabelTag>,
-                         composite_key<Item, member<Item, QString, &Item::fileName>, member<Item, int, &Item::label>>>,
-          sequenced<tag<UnorderedItemsTag>>>>;
+  using ItemsInOrder = std::list<Item>;
+  using ItemsByFilePath = std::map<QString, ItemsInOrder::iterator>;
+  using FileNameLabel = std::pair<QString, int>;
+  using ItemsByFileNameLabel = std::map<FileNameLabel, ItemsInOrder::iterator>;
 
-  using ItemsByFilePath = Container::index<ItemsByFilePathTag>::type;
-  using ItemsByFileNameLabel = Container::index<ItemsByFileNameLabelTag>::type;
-  using UnorderedItems = Container::index<UnorderedItemsTag>::type;
+  static bool insertItem(ItemsInOrder& items,
+                         ItemsByFilePath& itemsByFilePath,
+                         ItemsByFileNameLabel& itemsByFileNameLabel,
+                         const Item& item);
 
   mutable QMutex m_mutex;
-  Container m_items;
-  ItemsByFilePath& m_itemsByFilePath;
-  ItemsByFileNameLabel& m_itemsByFileNameLabel;
-  UnorderedItems& m_unorderedItems;
+  ItemsInOrder m_items;
+  ItemsByFilePath m_itemsByFilePath;
+  ItemsByFileNameLabel m_itemsByFileNameLabel;
 };
 
 
@@ -106,18 +97,10 @@ void FileNameDisambiguator::performRelinking(const AbstractRelinker& relinker) {
 
 /*==================== FileNameDisambiguator::Impl ====================*/
 
-FileNameDisambiguator::Impl::Impl()
-    : m_items(),
-      m_itemsByFilePath(m_items.get<ItemsByFilePathTag>()),
-      m_itemsByFileNameLabel(m_items.get<ItemsByFileNameLabelTag>()),
-      m_unorderedItems(m_items.get<UnorderedItemsTag>()) {}
+FileNameDisambiguator::Impl::Impl() = default;
 
 FileNameDisambiguator::Impl::Impl(const QDomElement& disambiguatorEl,
-                                  const std::function<QString(const QString&)>& filePathUnpacker)
-    : m_items(),
-      m_itemsByFilePath(m_items.get<ItemsByFilePathTag>()),
-      m_itemsByFileNameLabel(m_items.get<ItemsByFileNameLabelTag>()),
-      m_unorderedItems(m_items.get<UnorderedItemsTag>()) {
+                                  const std::function<QString(const QString&)>& filePathUnpacker) {
   QDomNode node(disambiguatorEl.firstChild());
   for (; !node.isNull(); node = node.nextSibling()) {
     if (!node.isElement()) {
@@ -136,8 +119,49 @@ FileNameDisambiguator::Impl::Impl(const QDomElement& disambiguatorEl,
     }
 
     const int label = fileEl.attribute("label").toInt();
-    m_items.insert(Item(filePath, label));
+    insertItem(m_items, m_itemsByFilePath, m_itemsByFileNameLabel, Item(filePath, label));
   }
+}
+
+bool FileNameDisambiguator::Impl::insertItem(ItemsInOrder& items,
+                                             ItemsByFilePath& itemsByFilePath,
+                                             ItemsByFileNameLabel& itemsByFileNameLabel,
+                                             const Item& item) {
+  if (itemsByFilePath.find(item.filePath) != itemsByFilePath.end()) {
+    return false;
+  }
+
+  const FileNameLabel fileNameLabel(item.fileName, item.label);
+  if (itemsByFileNameLabel.find(fileNameLabel) != itemsByFileNameLabel.end()) {
+    return false;
+  }
+
+  items.push_back(item);
+  const auto itemIt = std::prev(items.end());
+  ItemsByFilePath::iterator pathIt = itemsByFilePath.end();
+  try {
+    const auto pathResult = itemsByFilePath.emplace(itemIt->filePath, itemIt);
+    if (!pathResult.second) {
+      items.erase(itemIt);
+      return false;
+    }
+    pathIt = pathResult.first;
+
+    const auto nameLabelResult = itemsByFileNameLabel.emplace(fileNameLabel, itemIt);
+    if (!nameLabelResult.second) {
+      itemsByFilePath.erase(pathIt);
+      items.erase(itemIt);
+      return false;
+    }
+  } catch (...) {
+    if (pathIt != itemsByFilePath.end()) {
+      itemsByFilePath.erase(pathIt);
+    }
+    items.erase(itemIt);
+    throw;
+  }
+
+  return true;
 }
 
 QDomElement FileNameDisambiguator::Impl::toXml(QDomDocument& doc,
@@ -147,7 +171,7 @@ QDomElement FileNameDisambiguator::Impl::toXml(QDomDocument& doc,
 
   QDomElement el(doc.createElement(name));
 
-  for (const Item& item : m_unorderedItems) {
+  for (const Item& item : m_items) {
     const QString filePathShorthand = filePathPacker(item.filePath);
     if (filePathShorthand.isEmpty()) {
       // Unrepresentable file path - skipping this record.
@@ -165,9 +189,9 @@ QDomElement FileNameDisambiguator::Impl::toXml(QDomDocument& doc,
 int FileNameDisambiguator::Impl::getLabel(const QString& filePath) const {
   const QMutexLocker locker(&m_mutex);
 
-  const ItemsByFilePath::iterator fpIt(m_itemsByFilePath.find(filePath));
+  const auto fpIt(m_itemsByFilePath.find(filePath));
   if (fpIt != m_itemsByFilePath.end()) {
-    return fpIt->label;
+    return fpIt->second->label;
   }
   return 0;
 }
@@ -175,40 +199,44 @@ int FileNameDisambiguator::Impl::getLabel(const QString& filePath) const {
 int FileNameDisambiguator::Impl::registerFile(const QString& filePath) {
   const QMutexLocker locker(&m_mutex);
 
-  const ItemsByFilePath::iterator fpIt(m_itemsByFilePath.find(filePath));
+  const auto fpIt(m_itemsByFilePath.find(filePath));
   if (fpIt != m_itemsByFilePath.end()) {
-    return fpIt->label;
+    return fpIt->second->label;
   }
 
   int label = 0;
 
   const QString fileName(QFileInfo(filePath).fileName());
-  const ItemsByFileNameLabel::iterator fnIt(m_itemsByFileNameLabel.upper_bound(boost::make_tuple(fileName)));
+  const auto fnIt(m_itemsByFileNameLabel.upper_bound(FileNameLabel(fileName, std::numeric_limits<int>::max())));
   // If the item preceeding fnIt has the same file name,
   // the new file belongs to the same disambiguation group.
   if (fnIt != m_itemsByFileNameLabel.begin()) {
-    ItemsByFileNameLabel::iterator prev(fnIt);
+    auto prev(fnIt);
     --prev;
-    if (prev->fileName == fileName) {
-      label = prev->label + 1;
+    if (prev->first.first == fileName) {
+      label = prev->first.second + 1;
     }
   }  // Otherwise, label remains 0.
   const Item newItem(filePath, fileName, label);
-  m_itemsByFileNameLabel.insert(fnIt, newItem);
+  insertItem(m_items, m_itemsByFilePath, m_itemsByFileNameLabel, newItem);
   return label;
 }
 
 void FileNameDisambiguator::Impl::performRelinking(const AbstractRelinker& relinker) {
   const QMutexLocker locker(&m_mutex);
-  Container newItems;
+  ItemsInOrder newItems;
+  ItemsByFilePath newItemsByFilePath;
+  ItemsByFileNameLabel newItemsByFileNameLabel;
 
-  for (const Item& item : m_unorderedItems) {
+  for (const Item& item : m_items) {
     const RelinkablePath oldPath(item.filePath, RelinkablePath::File);
     Item newItem(relinker.substitutionPathFor(oldPath), item.label);
-    newItems.insert(newItem);
+    insertItem(newItems, newItemsByFilePath, newItemsByFileNameLabel, newItem);
   }
 
   m_items.swap(newItems);
+  m_itemsByFilePath.swap(newItemsByFilePath);
+  m_itemsByFileNameLabel.swap(newItemsByFileNameLabel);
 }
 
 /*============================ Impl::Item =============================*/
