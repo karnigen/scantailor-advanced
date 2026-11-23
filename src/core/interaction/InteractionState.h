@@ -6,7 +6,6 @@
 
 #include <QCursor>
 #include <QString>
-#include <boost/intrusive/list.hpp>
 
 #include "NonCopyable.h"
 #include "Proximity.h"
@@ -17,7 +16,19 @@ class InteractionState {
   DECLARE_NON_COPYABLE(InteractionState)
 
  public:
-  class Captor : public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
+  class Captor;
+
+ private:
+  class CaptorList {
+   public:
+    bool empty() const { return first == nullptr; }
+
+    Captor* first = nullptr;
+    Captor* last = nullptr;
+  };
+
+ public:
+  class Captor {
     friend class InteractionState;
 
    private:
@@ -30,9 +41,11 @@ class InteractionState {
    public:
     Captor() = default;
 
-    Captor(Captor& other) { swap_nodes(other); }
+    Captor(Captor& other) { swapNodes(other); }
 
-    explicit Captor(CopyHelper other) { swap_nodes(*other.captor); }
+    explicit Captor(CopyHelper other) { swapNodes(*other.captor); }
+
+    ~Captor();
 
     Captor& operator=(Captor& other);
 
@@ -41,6 +54,10 @@ class InteractionState {
     explicit operator CopyHelper() { return CopyHelper(this); }
 
     void release() { unlink(); }
+
+    void unlink();
+
+    bool is_linked() const { return m_list != nullptr; }
 
     const QCursor& proximityCursor() const { return m_proximityCursor; }
 
@@ -67,10 +84,17 @@ class InteractionState {
     QCursor m_interactionCursor;
     QString m_proximityStatusTip;
     QString m_interactionStatusTip;
+    Captor* m_previous = nullptr;
+    Captor* m_next = nullptr;
+    CaptorList* m_list = nullptr;
+
+    void swapNodes(Captor& other);
   };
 
 
   InteractionState();
+
+  ~InteractionState();
 
   void capture(Captor& captor);
 
@@ -102,12 +126,14 @@ class InteractionState {
   void setRedrawRequested(bool requested) { m_redrawRequested = requested; }
 
  private:
-  using CaptorList = boost::intrusive::list<Captor, boost::intrusive::constant_time_size<false>>;
-
   /**
    * Returns true if the provided proximity is better than the stored one.
    */
   bool betterProximity(const Proximity& proximity, int priority) const;
+
+  static void append(CaptorList& list, Captor& captor);
+
+  static void unlinkAll(CaptorList& list);
 
   QString m_defaultStatusTip;
   CaptorList m_captorList;

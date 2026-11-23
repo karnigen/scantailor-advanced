@@ -8,6 +8,7 @@ set(sources
     TestObliqueFinder.cpp
     TestImageId.cpp
     TestInteractionHandler.cpp
+    TestInteractionState.cpp
     TestMargins.cpp
     TestPageId.cpp
     TestPageRange.cpp
