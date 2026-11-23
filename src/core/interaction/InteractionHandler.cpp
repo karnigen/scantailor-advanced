@@ -8,13 +8,14 @@
 
 #include "InteractionState.h"
 
-#define DISPATCH(list, call)                      \
-  {                                               \
-    HandlerList::iterator it(list->begin());      \
-    const HandlerList::iterator end(list->end()); \
-    while (it != end) {                           \
-      (it++)->call;                               \
-    }                                             \
+#define DISPATCH(list, call)               \
+  {                                        \
+    auto it = list->begin();               \
+    const auto end = list->end();          \
+    while (it != end) {                    \
+      InteractionHandler* handler = *it++; \
+      handler->call;                       \
+    }                                      \
   }
 
 #define RETURN_IF_ACCEPTED(event) \
@@ -54,8 +55,29 @@ InteractionHandler::InteractionHandler()
     : m_preceeders(std::make_shared<HandlerList>()), m_followers(std::make_shared<HandlerList>()) {}
 
 InteractionHandler::~InteractionHandler() {
-  m_preceeders->clear_and_dispose([](auto* handler) { delete handler; });
-  m_followers->clear_and_dispose([](auto* handler) { delete handler; });
+  clearAndDispose(*m_preceeders);
+  clearAndDispose(*m_followers);
+  unlink();
+}
+
+void InteractionHandler::unlink() {
+  if (m_parentList) {
+    m_parentList->erase(m_parentIterator);
+    m_parentList = nullptr;
+  }
+}
+
+void InteractionHandler::insertInto(HandlerList& list, HandlerList::iterator position) {
+  m_parentIterator = list.insert(position, this);
+  m_parentList = &list;
+}
+
+void InteractionHandler::clearAndDispose(HandlerList& list) {
+  while (!list.empty()) {
+    InteractionHandler* handler = list.front();
+    handler->unlink();
+    delete handler;
+  }
 }
 
 void InteractionHandler::paint(QPainter& painter, const InteractionState& interaction) {
@@ -190,33 +212,36 @@ void InteractionHandler::contextMenuEvent(QContextMenuEvent* event, InteractionS
 }
 
 void InteractionHandler::makePeerPreceeder(InteractionHandler& handler) {
+  assert(m_parentList && &handler != this);
   handler.unlink();
-  HandlerList::node_algorithms::link_before(this, &handler);
+  handler.insertInto(*m_parentList, m_parentIterator);
 }
 
 void InteractionHandler::makePeerFollower(InteractionHandler& handler) {
+  assert(m_parentList && &handler != this);
   handler.unlink();
-  HandlerList::node_algorithms::link_after(this, &handler);
+  auto position = m_parentIterator;
+  handler.insertInto(*m_parentList, ++position);
 }
 
 void InteractionHandler::makeFirstPreceeder(InteractionHandler& handler) {
   handler.unlink();
-  m_preceeders->push_front(handler);
+  handler.insertInto(*m_preceeders, m_preceeders->begin());
 }
 
 void InteractionHandler::makeLastPreceeder(InteractionHandler& handler) {
   handler.unlink();
-  m_preceeders->push_back(handler);
+  handler.insertInto(*m_preceeders, m_preceeders->end());
 }
 
 void InteractionHandler::makeFirstFollower(InteractionHandler& handler) {
   handler.unlink();
-  m_followers->push_front(handler);
+  handler.insertInto(*m_followers, m_followers->begin());
 }
 
 void InteractionHandler::makeLastFollower(InteractionHandler& handler) {
   handler.unlink();
-  m_followers->push_back(handler);
+  handler.insertInto(*m_followers, m_followers->end());
 }
 
 bool InteractionHandler::defaultInteractionPermitter(const InteractionState& interaction) {

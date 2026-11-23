@@ -4,7 +4,7 @@
 #ifndef SCANTAILOR_INTERACTION_INTERACTIONHANDLER_H_
 #define SCANTAILOR_INTERACTION_INTERACTIONHANDLER_H_
 
-#include <boost/intrusive/list.hpp>
+#include <list>
 #include <memory>
 
 #include "NonCopyable.h"
@@ -17,14 +17,17 @@ class QWheelEvent;
 class QContextMenuEvent;
 class QPointF;
 
-class InteractionHandler
-    : public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
+class InteractionHandler {
   DECLARE_NON_COPYABLE(InteractionHandler)
 
  public:
   InteractionHandler();
 
   virtual ~InteractionHandler();
+
+  bool is_linked() const { return m_parentList != nullptr; }
+
+  void unlink();
 
   void paint(QPainter& painter, const InteractionState& interaction);
 
@@ -82,9 +85,14 @@ class InteractionHandler
   static bool defaultInteractionPermitter(const InteractionState& interaction);
 
  private:
-  class HandlerList : public boost::intrusive::list<InteractionHandler, boost::intrusive::constant_time_size<false>> {};
+  using HandlerList = std::list<InteractionHandler*>;
 
+  void insertInto(HandlerList& list, HandlerList::iterator position);
 
+  void clearAndDispose(HandlerList& list);
+
+  HandlerList* m_parentList = nullptr;
+  HandlerList::iterator m_parentIterator;
   std::shared_ptr<HandlerList> m_preceeders;
   std::shared_ptr<HandlerList> m_followers;
 };

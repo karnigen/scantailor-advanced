@@ -7,6 +7,7 @@ set(sources
     TestImageAllocationLimit.cpp
     TestObliqueFinder.cpp
     TestImageId.cpp
+    TestInteractionHandler.cpp
     TestMargins.cpp
     TestPageId.cpp
     TestPageRange.cpp
