@@ -14,6 +14,7 @@ set(sources
     TestPageRange.cpp
     TestPageSequence.cpp
     TestProjectMigration.cpp
+    TestPageLayoutSettings.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
     TestUnits.cpp)

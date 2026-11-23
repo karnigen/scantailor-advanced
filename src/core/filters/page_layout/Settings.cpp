@@ -6,14 +6,15 @@
 #include <DeviationProvider.h>
 
 #include <QMutex>
-#include <boost/multi_index/composite_key.hpp>
-#include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/mem_fun.hpp>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/ordered_index.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
+#include <cassert>
+#include <cmath>
+#include <cstddef>
+#include <functional>
+#include <iterator>
+#include <list>
 #include <optional>
+#include <set>
+#include <unordered_map>
 #include <utility>
 
 #include "AbstractRelinker.h"
@@ -23,9 +24,6 @@
 #include "Params.h"
 #include "RelinkablePath.h"
 
-
-using namespace ::boost;
-using namespace ::boost::multi_index;
 
 namespace page_layout {
 class Settings::Item {
@@ -37,6 +35,7 @@ class Settings::Item {
   QSizeF contentSizeMM;
   Alignment alignment;
   bool autoMargins;
+  std::size_t sequenceNumber = 0;
 
   Item(const PageId& pageId,
        const Margins& hardMarginsMm,
@@ -167,36 +166,204 @@ class Settings::Impl {
   void enableShowingMiddleRect(bool state);
 
  private:
-  class SequencedTag;
-  class DescWidthTag;
-  class DescHeightTag;
+  class Container {
+   private:
+    using ItemList = std::list<Item>;
+    using ItemMap = std::unordered_map<PageId, ItemList::iterator, std::hash<PageId>>;
 
-  using Container = multi_index_container<
-      Item,
-      indexed_by<hashed_unique<member<Item, PageId, &Item::pageId>, std::hash<PageId>>,
-                 sequenced<tag<SequencedTag>>,
-                 ordered_non_unique<tag<DescWidthTag>,
-                                    // ORDER BY alignedWithOthers DESC, hardWidthMM DESC
-                                    composite_key<Item,
-                                                  const_mem_fun<Item, bool, &Item::alignedWithOthers>,
-                                                  const_mem_fun<Item, double, &Item::hardWidthMM>>,
-                                    composite_key_compare<std::greater<>, std::greater<double>>>,
-                 ordered_non_unique<tag<DescHeightTag>,
-                                    // ORDER BY alignedWithOthers DESC, hardHeightMM DESC
-                                    composite_key<Item,
-                                                  const_mem_fun<Item, bool, &Item::alignedWithOthers>,
-                                                  const_mem_fun<Item, double, &Item::hardHeightMM>>,
-                                    composite_key_compare<std::greater<>, std::greater<double>>>>>;
+   public:
+    using iterator = ItemList::const_iterator;
 
-  using UnorderedItems = Container::index<SequencedTag>::type;
-  using DescWidthOrder = Container::index<DescWidthTag>::type;
-  using DescHeightOrder = Container::index<DescHeightTag>::type;
+    struct DescWidthCompare {
+      bool operator()(const Item* lhs, const Item* rhs) const {
+        if (lhs->alignedWithOthers() != rhs->alignedWithOthers()) {
+          return lhs->alignedWithOthers();
+        }
+        return compareDescending(lhs->hardWidthMM(), rhs->hardWidthMM(), lhs, rhs);
+      }
+
+     private:
+      static bool compareDescending(double lhsValue, double rhsValue, const Item* lhs, const Item* rhs) {
+        const bool lhsIsNan = std::isnan(lhsValue);
+        const bool rhsIsNan = std::isnan(rhsValue);
+        if (lhsIsNan || rhsIsNan) {
+          if (lhsIsNan != rhsIsNan) {
+            return !lhsIsNan;
+          }
+          if (lhs->sequenceNumber != rhs->sequenceNumber) {
+            return lhs->sequenceNumber < rhs->sequenceNumber;
+          }
+          return std::less<const Item*>{}(lhs, rhs);
+        }
+        if (lhsValue != rhsValue) {
+          return lhsValue > rhsValue;
+        }
+        if (lhs->sequenceNumber != rhs->sequenceNumber) {
+          return lhs->sequenceNumber < rhs->sequenceNumber;
+        }
+        return std::less<const Item*>{}(lhs, rhs);
+      }
+    };
+
+    struct DescHeightCompare {
+      bool operator()(const Item* lhs, const Item* rhs) const {
+        if (lhs->alignedWithOthers() != rhs->alignedWithOthers()) {
+          return lhs->alignedWithOthers();
+        }
+        return compareDescending(lhs->hardHeightMM(), rhs->hardHeightMM(), lhs, rhs);
+      }
+
+     private:
+      static bool compareDescending(double lhsValue, double rhsValue, const Item* lhs, const Item* rhs) {
+        const bool lhsIsNan = std::isnan(lhsValue);
+        const bool rhsIsNan = std::isnan(rhsValue);
+        if (lhsIsNan || rhsIsNan) {
+          if (lhsIsNan != rhsIsNan) {
+            return !lhsIsNan;
+          }
+          if (lhs->sequenceNumber != rhs->sequenceNumber) {
+            return lhs->sequenceNumber < rhs->sequenceNumber;
+          }
+          return std::less<const Item*>{}(lhs, rhs);
+        }
+        if (lhsValue != rhsValue) {
+          return lhsValue > rhsValue;
+        }
+        if (lhs->sequenceNumber != rhs->sequenceNumber) {
+          return lhs->sequenceNumber < rhs->sequenceNumber;
+        }
+        return std::less<const Item*>{}(lhs, rhs);
+      }
+    };
+
+    using DescWidthOrder = std::set<const Item*, DescWidthCompare>;
+    using DescHeightOrder = std::set<const Item*, DescHeightCompare>;
+
+    iterator begin() const { return m_items.cbegin(); }
+
+    iterator end() const { return m_items.cend(); }
+
+    iterator find(const PageId& pageId) const {
+      const auto it = m_itemsByPage.find(pageId);
+      return it == m_itemsByPage.end() ? m_items.cend() : it->second;
+    }
+
+    bool empty() const { return m_items.empty(); }
+
+    void clear() {
+      m_descWidthOrder.clear();
+      m_descHeightOrder.clear();
+      m_itemsByPage.clear();
+      m_items.clear();
+      m_nextSequenceNumber = 0;
+    }
+
+    iterator insert(const Item& item) {
+      const auto existing = m_itemsByPage.find(item.pageId);
+      if (existing != m_itemsByPage.end()) {
+        return existing->second;
+      }
+
+      m_items.push_back(item);
+      auto itemIt = std::prev(m_items.end());
+      itemIt->sequenceNumber = m_nextSequenceNumber;
+      const Item* const itemPtr = &*itemIt;
+      bool mapInserted = false;
+      bool widthInserted = false;
+      bool heightInserted = false;
+      try {
+        const auto result = m_itemsByPage.emplace(item.pageId, itemIt);
+        if (!result.second) {
+          m_items.pop_back();
+          return result.first->second;
+        }
+        mapInserted = true;
+        widthInserted = m_descWidthOrder.insert(itemPtr).second;
+        heightInserted = m_descHeightOrder.insert(itemPtr).second;
+        assert(widthInserted && heightInserted);
+        ++m_nextSequenceNumber;
+      } catch (...) {
+        if (widthInserted) {
+          m_descWidthOrder.erase(itemPtr);
+        }
+        if (heightInserted) {
+          m_descHeightOrder.erase(itemPtr);
+        }
+        if (mapInserted) {
+          m_itemsByPage.erase(item.pageId);
+        }
+        m_items.pop_back();
+        throw;
+      }
+      return itemIt;
+    }
+
+    iterator insert(iterator, const Item& item) { return insert(item); }
+
+    bool replace(iterator position, const Item& item) {
+      if (position->pageId != item.pageId) {
+        return false;
+      }
+      return modify(position, [&item](Item& current) {
+        const std::size_t sequenceNumber = current.sequenceNumber;
+        current = item;
+        current.sequenceNumber = sequenceNumber;
+      });
+    }
+
+    template <typename Modifier>
+    bool modify(iterator position, Modifier modifier) {
+      const auto mapIt = m_itemsByPage.find(position->pageId);
+      assert(mapIt != m_itemsByPage.end());
+      Item& item = *mapIt->second;
+      const Item oldItem(item);
+      auto widthNode = m_descWidthOrder.extract(&item);
+      auto heightNode = m_descHeightOrder.extract(&item);
+      try {
+        modifier(item);
+      } catch (...) {
+        item = oldItem;
+        m_descWidthOrder.insert(std::move(widthNode));
+        m_descHeightOrder.insert(std::move(heightNode));
+        throw;
+      }
+      m_descWidthOrder.insert(std::move(widthNode));
+      m_descHeightOrder.insert(std::move(heightNode));
+      return true;
+    }
+
+    iterator erase(iterator position) {
+      const auto mapIt = m_itemsByPage.find(position->pageId);
+      assert(mapIt != m_itemsByPage.end());
+      const Item* const item = &*mapIt->second;
+      m_descWidthOrder.erase(item);
+      m_descHeightOrder.erase(item);
+      m_itemsByPage.erase(mapIt);
+      return m_items.erase(position);
+    }
+
+    void swap(Container& other) {
+      m_items.swap(other.m_items);
+      m_itemsByPage.swap(other.m_itemsByPage);
+      m_descWidthOrder.swap(other.m_descWidthOrder);
+      m_descHeightOrder.swap(other.m_descHeightOrder);
+      std::swap(m_nextSequenceNumber, other.m_nextSequenceNumber);
+    }
+
+    const DescWidthOrder& descWidthOrder() const { return m_descWidthOrder; }
+
+    const DescHeightOrder& descHeightOrder() const { return m_descHeightOrder; }
+
+   private:
+    ItemList m_items;
+    ItemMap m_itemsByPage;
+    DescWidthOrder m_descWidthOrder;
+    DescHeightOrder m_descHeightOrder;
+    std::size_t m_nextSequenceNumber = 0;
+  };
 
   mutable QMutex m_mutex;
   Container m_items;
-  UnorderedItems& m_unorderedItems;
-  DescWidthOrder& m_descWidthOrder;
-  DescHeightOrder& m_descHeightOrder;
   const QRectF m_invalidRect;
   const QSizeF m_invalidSize;
   const Margins m_defaultHardMarginsMM;
@@ -357,9 +524,6 @@ double Settings::Item::influenceHardHeightMM() const {
 
 Settings::Impl::Impl()
     : m_items(),
-      m_unorderedItems(m_items.get<SequencedTag>()),
-      m_descWidthOrder(m_items.get<DescWidthTag>()),
-      m_descHeightOrder(m_items.get<DescHeightTag>()),
       m_invalidRect(),
       m_invalidSize(),
       m_defaultHardMarginsMM(Margins(10.0, 5.0, 10.0, 5.0)),
@@ -391,7 +555,7 @@ void Settings::Impl::performRelinking(const AbstractRelinker& relinker) {
   QMutexLocker locker(&m_mutex);
   Container newItems;
 
-  for (const Item& item : m_unorderedItems) {
+  for (const Item& item : m_items) {
     const RelinkablePath oldPath(item.pageId.imageId().filePath(), RelinkablePath::File);
     Item newItem(item);
     newItem.pageId.imageId().setFilePath(relinker.substitutionPathFor(oldPath));
@@ -401,7 +565,7 @@ void Settings::Impl::performRelinking(const AbstractRelinker& relinker) {
   m_items.swap(newItems);
 
   m_deviationProvider.clear();
-  for (const Item& item : m_unorderedItems) {
+  for (const Item& item : m_items) {
     m_deviationProvider.addOrUpdate(item.pageId);
   }
 }
@@ -417,14 +581,14 @@ void Settings::Impl::removePagesMissingFrom(const PageSequence& pages) {
   }
   std::sort(sortedPages.begin(), sortedPages.end());
 
-  UnorderedItems::const_iterator it(m_unorderedItems.begin());
-  const UnorderedItems::const_iterator end(m_unorderedItems.end());
+  Container::iterator it(m_items.begin());
+  const Container::iterator end(m_items.end());
   while (it != end) {
     if (std::binary_search(sortedPages.begin(), sortedPages.end(), it->pageId)) {
       ++it;
     } else {
       m_deviationProvider.remove(it->pageId);
-      m_unorderedItems.erase(it++);
+      it = m_items.erase(it);
     }
   }
 }
@@ -608,8 +772,8 @@ QSizeF Settings::Impl::computeAggregateHardSizeMMLocked() const {
     return QSizeF(0.0, 0.0);
   }
 
-  const Item& maxWidthItem = *m_descWidthOrder.begin();
-  const Item& maxHeightItem = *m_descHeightOrder.begin();
+  const Item& maxWidthItem = **m_items.descWidthOrder().begin();
+  const Item& maxHeightItem = **m_items.descHeightOrder().begin();
 
   const double width = maxWidthItem.influenceHardWidthMM();
   const double height = maxHeightItem.influenceHardHeightMM();
@@ -656,15 +820,15 @@ QSizeF Settings::Impl::getAggregateHardSizeMM(const PageId& pageId,
   double width = 0.0;
 
   {
-    DescWidthOrder::iterator it(m_descWidthOrder.begin());
-    if (it->pageId != pageId) {
-      width = it->influenceHardWidthMM();
+    Container::DescWidthOrder::const_iterator it(m_items.descWidthOrder().begin());
+    if ((*it)->pageId != pageId) {
+      width = (*it)->influenceHardWidthMM();
     } else {
       ++it;
-      if (it == m_descWidthOrder.end()) {
+      if (it == m_items.descWidthOrder().end()) {
         width = hardSizeMm.width();
       } else {
-        width = std::max(hardSizeMm.width(), qreal(it->influenceHardWidthMM()));
+        width = std::max(hardSizeMm.width(), qreal((*it)->influenceHardWidthMM()));
       }
     }
   }
@@ -672,15 +836,15 @@ QSizeF Settings::Impl::getAggregateHardSizeMM(const PageId& pageId,
   double height = 0.0;
 
   {
-    DescHeightOrder::iterator it(m_descHeightOrder.begin());
-    if (it->pageId != pageId) {
-      height = it->influenceHardHeightMM();
+    Container::DescHeightOrder::const_iterator it(m_items.descHeightOrder().begin());
+    if ((*it)->pageId != pageId) {
+      height = (*it)->influenceHardHeightMM();
     } else {
       ++it;
-      if (it == m_descHeightOrder.end()) {
+      if (it == m_items.descHeightOrder().end()) {
         height = hardSizeMm.height();
       } else {
-        height = std::max(hardSizeMm.height(), qreal(it->influenceHardHeightMM()));
+        height = std::max(hardSizeMm.height(), qreal((*it)->influenceHardHeightMM()));
       }
     }
   }
