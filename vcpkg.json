@@ -2,7 +2,6 @@
   "name": "scantailor-advanced",
   "version-string": "0.0.0",
   "dependencies": [
-    "boost-array",
     "boost-bind",
     "boost-foreach",
     "boost-function",
