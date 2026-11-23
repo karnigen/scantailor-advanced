@@ -3,7 +3,6 @@
   "version-string": "0.0.0",
   "dependencies": [
     "boost-intrusive",
-    "boost-iterator",
     "boost-multi-index",
     {
       "name": "libjpeg-turbo",

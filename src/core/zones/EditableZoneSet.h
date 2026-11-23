@@ -5,11 +5,12 @@
 #define SCANTAILOR_ZONES_EDITABLEZONESET_H_
 
 #include <QObject>
-#include <boost/iterator/iterator_facade.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index_container.hpp>
+#include <cstddef>
+#include <iterator>
 #include <memory>
 
 #include "EditableSpline.h"
@@ -51,19 +52,49 @@ class EditableZoneSet : public QObject {
   };
 
 
-  class const_iterator : public boost::iterator_facade<const_iterator, const Zone, boost::bidirectional_traversal_tag> {
+  class const_iterator {
     friend class EditableZoneSet;
 
    public:
-    const_iterator() : m_zone() {}
+    using iterator_category = std::bidirectional_iterator_tag;
+    using value_type = Zone;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const Zone*;
+    using reference = const Zone&;
 
-    void increment() { ++m_zone.m_iter; }
+    const_iterator() = default;
 
-    void decrement() { --m_zone.m_iter; }
+    reference operator*() const { return m_zone; }
 
-    bool equal(const const_iterator& other) const { return m_zone.m_iter == other.m_zone.m_iter; }
+    pointer operator->() const { return &m_zone; }
 
-    const Zone& dereference() const { return m_zone; }
+    const_iterator& operator++() {
+      ++m_zone.m_iter;
+      return *this;
+    }
+
+    const_iterator operator++(int) {
+      const_iterator prev(*this);
+      ++(*this);
+      return prev;
+    }
+
+    const_iterator& operator--() {
+      --m_zone.m_iter;
+      return *this;
+    }
+
+    const_iterator operator--(int) {
+      const_iterator prev(*this);
+      --(*this);
+      return prev;
+    }
+
+    friend bool operator==(const const_iterator& lhs, const const_iterator& rhs) {
+      return lhs.m_zone.m_iter == rhs.m_zone.m_iter;
+    }
+
+    friend bool operator!=(const const_iterator& lhs, const const_iterator& rhs) { return !(lhs == rhs); }
 
    private:
     explicit const_iterator(ZoneItemsInOrder::const_iterator it) : m_zone(it) {}
