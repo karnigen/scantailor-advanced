@@ -3,7 +3,6 @@
 
 #include "ChangeDewarpingDialog.h"
 
-#include <boost/lambda/lambda.hpp>
 
 #include "PageSelectionAccessor.h"
 
@@ -19,8 +18,6 @@ ChangeDewarpingDialog::ChangeDewarpingDialog(QWidget* parent,
       m_dewarpingMode(dewarpingOptions.dewarpingMode()),
       m_dewarpingOptions(dewarpingOptions),
       m_scopeGroup(new QButtonGroup(this)) {
-  using namespace boost::lambda;
-
   ui.setupUi(this);
   m_scopeGroup->addButton(ui.thisPageRB);
   m_scopeGroup->addButton(ui.allPagesRB);
@@ -46,10 +43,10 @@ ChangeDewarpingDialog::ChangeDewarpingDialog(QWidget* parent,
   }
 
   ui.dewarpingPostDeskewCB->setChecked(dewarpingOptions.needPostDeskew());
-  connect(ui.offRB, &QRadioButton::clicked, var(m_dewarpingMode) = OFF);
-  connect(ui.autoRB, &QRadioButton::clicked, var(m_dewarpingMode) = AUTO);
-  connect(ui.manualRB, &QRadioButton::clicked, var(m_dewarpingMode) = MANUAL);
-  connect(ui.marginalRB, &QRadioButton::clicked, var(m_dewarpingMode) = MARGINAL);
+  connect(ui.offRB, &QRadioButton::clicked, [this] { m_dewarpingMode = OFF; });
+  connect(ui.autoRB, &QRadioButton::clicked, [this] { m_dewarpingMode = AUTO; });
+  connect(ui.manualRB, &QRadioButton::clicked, [this] { m_dewarpingMode = MANUAL; });
+  connect(ui.marginalRB, &QRadioButton::clicked, [this] { m_dewarpingMode = MARGINAL; });
 
   connect(ui.buttonBox, SIGNAL(accepted()), this, SLOT(onSubmit()));
 }

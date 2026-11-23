@@ -2,14 +2,19 @@ set(sources
     main.cpp
     TestContentSpanFinder.cpp
     TestDeskewParams.cpp
+    TestEditableZoneSet.cpp
+    TestFileNameDisambiguator.cpp
     TestImageAllocationLimit.cpp
     TestObliqueFinder.cpp
     TestImageId.cpp
+    TestInteractionHandler.cpp
+    TestInteractionState.cpp
     TestMargins.cpp
     TestPageId.cpp
     TestPageRange.cpp
     TestPageSequence.cpp
     TestProjectMigration.cpp
+    TestPageLayoutSettings.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
     TestUnits.cpp)

@@ -3,24 +3,40 @@
 
 #include "EditableZoneSet.h"
 
-EditableZoneSet::EditableZoneSet() : m_zoneItems(), m_zoneItemsInOrder(m_zoneItems.get<ZoneItemOrderedTag>()) {}
+EditableZoneSet::EditableZoneSet() = default;
 
 void EditableZoneSet::setDefaultProperties(const PropertySet& props) {
   m_defaultProps = props;
 }
 
 void EditableZoneSet::addZone(const EditableSpline::Ptr& spline) {
-  auto newProps = std::make_shared<PropertySet>(m_defaultProps);
-  m_zoneItems.insert(ZoneItem(spline, newProps));
+  insertZone(spline, std::make_shared<PropertySet>(m_defaultProps));
 }
 
 void EditableZoneSet::addZone(const EditableSpline::Ptr& spline, const PropertySet& props) {
-  auto newProps = std::make_shared<PropertySet>(props);
-  m_zoneItems.insert(ZoneItem(spline, newProps));
+  insertZone(spline, std::make_shared<PropertySet>(props));
+}
+
+void EditableZoneSet::insertZone(const EditableSpline::Ptr& spline, std::shared_ptr<PropertySet> properties) {
+  auto [it, inserted] = m_zoneItemsBySpline.try_emplace(spline, m_zoneItemsInOrder.end());
+  if (!inserted) {
+    return;
+  }
+
+  try {
+    it->second = m_zoneItemsInOrder.emplace(m_zoneItemsInOrder.end(), spline, std::move(properties));
+  } catch (...) {
+    m_zoneItemsBySpline.erase(it);
+    throw;
+  }
 }
 
 void EditableZoneSet::removeZone(const EditableSpline::Ptr& spline) {
-  m_zoneItems.erase(spline);
+  const auto it = m_zoneItemsBySpline.find(spline);
+  if (it != m_zoneItemsBySpline.end()) {
+    m_zoneItemsInOrder.erase(it->second);
+    m_zoneItemsBySpline.erase(it);
+  }
 }
 
 void EditableZoneSet::commit() {
@@ -28,18 +44,18 @@ void EditableZoneSet::commit() {
 }
 
 std::shared_ptr<PropertySet> EditableZoneSet::propertiesFor(const EditableSpline::Ptr& spline) {
-  auto it(m_zoneItems.find(spline));
-  if (it != m_zoneItems.end()) {
-    return it->second;
+  const auto it = m_zoneItemsBySpline.find(spline);
+  if (it != m_zoneItemsBySpline.end()) {
+    return it->second->second;
   } else {
     return nullptr;
   }
 }
 
 std::shared_ptr<const PropertySet> EditableZoneSet::propertiesFor(const EditableSpline::Ptr& spline) const {
-  auto it(m_zoneItems.find(spline));
-  if (it != m_zoneItems.end()) {
-    return it->second;
+  const auto it = m_zoneItemsBySpline.find(spline);
+  if (it != m_zoneItemsBySpline.end()) {
+    return it->second->second;
   } else {
     return nullptr;
   }

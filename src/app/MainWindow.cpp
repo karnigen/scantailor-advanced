@@ -28,7 +28,6 @@
 #include <QVBoxLayout>
 #include <QtWidgets/QInputDialog>
 #include <algorithm>
-#include <boost/lambda/lambda.hpp>
 #include <exception>
 #include <memory>
 

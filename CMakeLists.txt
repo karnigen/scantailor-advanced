@@ -76,7 +76,7 @@ endif()
 
 st_set_default_build_type(Release)
 
-# Must be set before Boost (Flatpak and other chroot builds use -DBUILD_TESTS=OFF; issue #61).
+# Must be set before Boost.Test (Flatpak and other chroot builds use -DBUILD_TESTS=OFF; issue #61).
 option(BUILD_TESTS "Build unit tests (math_tests, imageproc_tests, core_tests, foundation_tests, qt_tests)" ON)
 
 if (NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
@@ -110,14 +110,18 @@ if (WIN32)
     real_path_find_glob(png_dir_assumed "${DEPENDENCIES_ROOT}/libpng-[0-9]*.[0-9]*.[0-9]*")
     real_path_find_glob(tiff_dir_assumed "${DEPENDENCIES_ROOT}/tiff-[0-9]*.[0-9]*.[0-9]*")
     get_filename_component(qt_dir_assumed "${DEPENDENCIES_ROOT}/Qt" REALPATH)
-    get_filename_component(boost_dir_assumed "${DEPENDENCIES_ROOT}/Boost" REALPATH)
+    if (BUILD_TESTS)
+      get_filename_component(boost_dir_assumed "${DEPENDENCIES_ROOT}/Boost" REALPATH)
+    endif()
   endif()
   set(JPEG_INSTALL_PREFIX "${jpeg_dir_assumed}" CACHE PATH "Prefix where jpeg is installed")
   set(ZLIB_INSTALL_PREFIX "${zlib_dir_assumed}" CACHE PATH "Prefix where zlib is installed")
   set(PNG_INSTALL_PREFIX "${png_dir_assumed}" CACHE PATH "Prefix where png is installed")
   set(TIFF_INSTALL_PREFIX "${tiff_dir_assumed}" CACHE PATH "Prefix where tiff is installed")
   set(QT_INSTALL_PREFIX "${qt_dir_assumed}" CACHE PATH "Prefix where Qt is installed")
-  set(BOOST_ROOT "${boost_dir_assumed}" CACHE PATH "Prefix where Boost is installed")
+  if (BUILD_TESTS)
+    set(BOOST_ROOT "${boost_dir_assumed}" CACHE PATH "Prefix where Boost is installed")
+  endif()
 
   macro(list_append_existing_path Var Path)
     get_filename_component(_real_path "${Path}" REALPATH)
@@ -128,11 +132,16 @@ if (WIN32)
 
   foreach(_prefix
       "${JPEG_INSTALL_PREFIX}" "${ZLIB_INSTALL_PREFIX}" "${PNG_INSTALL_PREFIX}"
-      "${TIFF_INSTALL_PREFIX}" "${QT_INSTALL_PREFIX}" "${BOOST_ROOT}")
+      "${TIFF_INSTALL_PREFIX}" "${QT_INSTALL_PREFIX}")
     list_append_existing_path(CMAKE_PREFIX_PATH "${_prefix}")
     list_append_existing_path(CMAKE_INCLUDE_PATH "${_prefix}")
     list_append_existing_path(CMAKE_LIBRARY_PATH "${_prefix}/stage/lib")
   endforeach()
+  if (BUILD_TESTS)
+    list_append_existing_path(CMAKE_PREFIX_PATH "${BOOST_ROOT}")
+    list_append_existing_path(CMAKE_INCLUDE_PATH "${BOOST_ROOT}")
+    list_append_existing_path(CMAKE_LIBRARY_PATH "${BOOST_ROOT}/stage/lib")
+  endif()
   list_append_existing_path(CMAKE_INCLUDE_PATH "${TIFF_INSTALL_PREFIX}/libtiff")
 endif()
 
@@ -171,46 +180,40 @@ if (WIN32)
       INTERFACE_COMPILE_DEFINITIONS USE_LIBTIFF_DLL)
 endif()
 
-#================================= Boost ================================#
+#================================= Boost.Test ================================#
 
-#set(Boost_NO_WARN_NEW_VERSIONS ON)
+if (BUILD_TESTS)
+  #set(Boost_NO_WARN_NEW_VERSIONS ON)
 
-if (WIN32)
-  if (MINGW)
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-      set(_boost_architecture "-x64")
-    else()
-      set(_boost_architecture "-x32")
+  if (WIN32)
+    if (MINGW)
+      if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(_boost_architecture "-x64")
+      else()
+        set(_boost_architecture "-x32")
+      endif()
+      set(Boost_ARCHITECTURE ${_boost_architecture} CACHE STRING "")
+
+      #set(Boost_DEBUG ON)
+      string(REGEX MATCHALL "[0-9]+" _boost_compiler_version ${CMAKE_CXX_COMPILER_VERSION})
+      list(GET _boost_compiler_version 0 _boost_compiler_version_major)
+      list(GET _boost_compiler_version 1 _boost_compiler_version_minor)
+      set(Boost_COMPILER "-mgw${_boost_compiler_version_major}" CACHE STRING "")
     endif()
-    set(Boost_ARCHITECTURE ${_boost_architecture} CACHE STRING "")
 
-    #set(Boost_DEBUG ON)
-    string(REGEX MATCHALL "[0-9]+" _boost_compiler_version ${CMAKE_CXX_COMPILER_VERSION})
-    list(GET _boost_compiler_version 0 _boost_compiler_version_major)
-    list(GET _boost_compiler_version 1 _boost_compiler_version_minor)
-    set(Boost_COMPILER "-mgw${_boost_compiler_version_major}" CACHE STRING "")
+    real_path_find_glob(boost_include_dir_hints "${BOOST_ROOT}/include/boost-[_0-9]*/boost")
+    list(APPEND boost_include_dir_hints "${BOOST_ROOT}/include/boost" "${BOOST_ROOT}/boost")
+    find_path(
+        BOOST_INCLUDEDIR config.hpp
+        HINTS ${boost_include_dir_hints}
+        DOC "Boost include directory.")
+
+    set(Boost_USE_STATIC_LIBS ON)
   endif()
+  set(Boost_USE_MULTITHREADED ON)
 
-  real_path_find_glob(boost_include_dir_hints "${BOOST_ROOT}/include/boost-[_0-9]*/boost")
-  list(APPEND boost_include_dir_hints "${BOOST_ROOT}/include/boost" "${BOOST_ROOT}/boost")
-  find_path(
-      BOOST_INCLUDEDIR config.hpp
-      HINTS ${boost_include_dir_hints}
-      DOC "Boost include directory.")
-
-  set(Boost_USE_STATIC_LIBS ON)
-endif()
-set(Boost_USE_MULTITHREADED ON)
-
-if (BUILD_TESTS)
   find_package(Boost 1.60 COMPONENTS unit_test_framework REQUIRED)
-else()
-  find_package(Boost 1.60 REQUIRED)
-endif()
 
-include_directories(${Boost_INCLUDE_DIRS})
-add_definitions(-DBOOST_MULTI_INDEX_DISABLE_SERIALIZATION)
-if (BUILD_TESTS)
   if (NOT Boost_USE_STATIC_LIBS)
     if (WIN32)
       add_dynamic_library_locations(Boost::unit_test_framework)

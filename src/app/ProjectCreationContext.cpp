@@ -3,8 +3,6 @@
 
 #include "ProjectCreationContext.h"
 
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/lambda.hpp>
 #include <cassert>
 
 #include "FixDpiDialog.h"
@@ -24,8 +22,9 @@ ProjectCreationContext::~ProjectCreationContext() {
 namespace {
 template <typename T>
 bool allDpisOK(const T& container) {
-  using namespace boost::lambda;
-  return std::find_if(container.begin(), container.end(), !bind(&ImageFileInfo::isDpiOK, _1)) == container.end();
+  return std::find_if(container.begin(), container.end(),
+                      [](const ImageFileInfo& imageFileInfo) { return !imageFileInfo.isDpiOK(); })
+         == container.end();
 }
 }  // anonymous namespace
 

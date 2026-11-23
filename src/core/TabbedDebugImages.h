@@ -4,8 +4,9 @@
 #ifndef SCANTAILOR_CORE_TABBEDDEBUGIMAGES_H_
 #define SCANTAILOR_CORE_TABBEDDEBUGIMAGES_H_
 
+#include <QPointer>
 #include <QTabWidget>
-#include <boost/intrusive/list.hpp>
+#include <list>
 
 #include "DebugImageView.h"
 
@@ -19,7 +20,7 @@ class TabbedDebugImages : public QTabWidget {
   void currentTabChanged(int idx);
 
  private:
-  using DebugViewList = boost::intrusive::list<DebugImageView, boost::intrusive::constant_time_size<false>>;
+  using DebugViewList = std::list<QPointer<DebugImageView>>;
 
   enum { MAX_LIVE_VIEWS = 3 };
 

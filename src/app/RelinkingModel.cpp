@@ -10,11 +10,9 @@
 #include <QDir>
 #include <QFile>
 #include <QWaitCondition>
-#include <boost/foreach.hpp>
-#include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
+
+#include <list>
+#include <unordered_map>
 
 #include "OutOfMemoryHandler.h"
 #include "PayloadEvent.h"
@@ -58,26 +56,14 @@ class RelinkingModel::StatusUpdateThread : private QThread {
     Task(const QString& p, int r) : path(p), row(r) {}
   };
 
-  class HashedByPathTag;
-  class OrderedByPriorityTag;
-
-  using TaskList = boost::multi_index_container<
-      Task,
-      boost::multi_index::indexed_by<
-          boost::multi_index::hashed_unique<boost::multi_index::tag<HashedByPathTag>,
-                                            boost::multi_index::member<Task, QString, &Task::path>,
-                                            hashes::hash<QString>>,
-          boost::multi_index::sequenced<boost::multi_index::tag<OrderedByPriorityTag>>>>;
-
-  using TasksByPath = TaskList::index<HashedByPathTag>::type;
-  using TasksByPriority = TaskList::index<OrderedByPriorityTag>::type;
+  using TaskList = std::list<Task>;
+  using TasksByPath = std::unordered_map<QString, TaskList::iterator, hashes::hash<QString>>;
 
   void run() override;
 
   RelinkingModel* m_owner;
   TaskList m_tasks;
-  TasksByPath& m_tasksByPath;
-  TasksByPriority& m_tasksByPriority;
+  TasksByPath m_tasksByPath;
   QString m_pathBeingProcessed;
   QMutex m_mutex;
   QWaitCondition m_cond;
@@ -318,12 +304,7 @@ void RelinkingModel::customEvent(QEvent* event) {
 /*========================== StatusUpdateThread =========================*/
 
 RelinkingModel::StatusUpdateThread::StatusUpdateThread(RelinkingModel* owner)
-    : QThread(owner),
-      m_owner(owner),
-      m_tasks(),
-      m_tasksByPath(m_tasks.get<HashedByPathTag>()),
-      m_tasksByPriority(m_tasks.get<OrderedByPriorityTag>()),
-      m_exiting(false) {}
+    : QThread(owner), m_owner(owner), m_tasks(), m_tasksByPath(), m_exiting(false) {}
 
 RelinkingModel::StatusUpdateThread::~StatusUpdateThread() {
   {
@@ -346,10 +327,18 @@ void RelinkingModel::StatusUpdateThread::requestStatusUpdate(const QString& path
     return;
   }
 
-  const std::pair<TasksByPath::iterator, bool> ins(m_tasksByPath.insert(Task(path, row)));
+  auto [it, inserted] = m_tasksByPath.try_emplace(path, m_tasks.end());
+  if (inserted) {
+    try {
+      it->second = m_tasks.emplace(m_tasks.end(), path, row);
+    } catch (...) {
+      m_tasksByPath.erase(it);
+      throw;
+    }
+  }
 
-  // Whether inserted or being already there, move it to the front of priority queue.
-  m_tasksByPriority.relocate(m_tasksByPriority.end(), m_tasks.project<OrderedByPriorityTag>(ins.first));
+  // Whether inserted or already there, move it to the back of the priority queue.
+  m_tasks.splice(m_tasks.end(), m_tasks, it->second);
 
   if (!isRunning()) {
     start();
@@ -385,9 +374,10 @@ void RelinkingModel::StatusUpdateThread::run() try {
       continue;
     }
 
-    const Task task(m_tasksByPriority.front());
+    const Task task(m_tasks.front());
     m_pathBeingProcessed = task.path;
-    m_tasksByPriority.pop_front();
+    m_tasksByPath.erase(task.path);
+    m_tasks.pop_front();
 
     {
       const MutexUnlocker unlocker(&m_mutex);

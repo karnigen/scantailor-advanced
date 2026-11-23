@@ -4,9 +4,8 @@
 #ifndef SCANTAILOR_FOUNDATION_DYNAMICPOOL_H_
 #define SCANTAILOR_FOUNDATION_DYNAMICPOOL_H_
 
-#include <boost/intrusive/list.hpp>
-#include <boost/scoped_array.hpp>
 #include <cstddef>
+#include <memory>
 
 #include "NonCopyable.h"
 
@@ -41,54 +40,58 @@ class DynamicPool {
 
   /**< Don't overallocate too much. */
 
-  struct Chunk : public boost::intrusive::list_base_hook<> {
-    boost::scoped_array<T> storage;
+  struct Chunk {
+    Chunk* next;
+    std::unique_ptr<T[]> storage;
     T* pData;
     size_t remainingElements;
 
-    Chunk() : pData(0), remainingElements(0) {}
+    Chunk() : next(nullptr), pData(nullptr), remainingElements(0) {}
 
-    void init(boost::scoped_array<T>& data, size_t size) {
+    void init(std::unique_ptr<T[]>& data, size_t size) {
       data.swap(storage);
       pData = storage.get();
       remainingElements = size;
     }
   };
 
-  struct DeleteDisposer {
-    void operator()(Chunk* chunk) { delete chunk; }
-  };
-
-  using ChunkList = boost::intrusive::list<Chunk, boost::intrusive::constant_time_size<false>>;
-
   static size_t adviseChunkSize(size_t numElements);
 
-  ChunkList m_chunkList;
+  Chunk* m_head = nullptr;
+  Chunk* m_tail = nullptr;
 };
 
 
 template <typename T>
 DynamicPool<T>::~DynamicPool() {
-  m_chunkList.clear_and_dispose(DeleteDisposer());
+  while (m_head) {
+    Chunk* chunk = m_head;
+    m_head = chunk->next;
+    delete chunk;
+  }
 }
 
 template <typename T>
 T* DynamicPool<T>::alloc(size_t numElements) {
-  Chunk* chunk = 0;
+  Chunk* chunk = m_tail;
 
-  if (!m_chunkList.empty()) {
-    chunk = &m_chunkList.back();
-    if (chunk->remainingElements < numElements) {
-      chunk = 0;
-    }
+  if (chunk && chunk->remainingElements < numElements) {
+    chunk = nullptr;
   }
 
   if (!chunk) {
     // Create a new chunk.
     const size_t chunkSize = adviseChunkSize(numElements);
-    boost::scoped_array<T> data(new T[chunkSize]);
-    chunk = &*m_chunkList.insert(m_chunkList.end(), *new Chunk);
-    chunk->init(data, chunkSize);
+    std::unique_ptr<T[]> data(new T[chunkSize]);
+    std::unique_ptr<Chunk> newChunk(new Chunk);
+    newChunk->init(data, chunkSize);
+    chunk = newChunk.get();
+    if (m_tail) {
+      m_tail->next = chunk;
+    } else {
+      m_head = chunk;
+    }
+    m_tail = newChunk.release();
   }
 
   // Allocate from chunk.

@@ -8,12 +8,10 @@
 
 #include <QString>
 #include <Qt>
-#include <boost/multi_index/hashed_index.hpp>
-#include <boost/multi_index/member.hpp>
-#include <boost/multi_index/sequenced_index.hpp>
-#include <boost/multi_index_container.hpp>
+#include <list>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "ImageId.h"
@@ -87,35 +85,56 @@ class ProjectWriter {
     Page(const PageId& id, int numericId) : id(id), numericId(numericId) {}
   };
 
-  class Sequenced;
+  template <typename Item, typename Key, typename Hash>
+  class OrderedUniqueContainer {
+   public:
+    using iterator = typename std::list<Item>::iterator;
+    using const_iterator = typename std::list<Item>::const_iterator;
+
+    std::pair<iterator, bool> insert(const Key& key, Item item) {
+      auto [it, inserted] = m_index.try_emplace(key, m_items.end());
+      if (!inserted) {
+        return {it->second, false};
+      }
+
+      try {
+        it->second = m_items.emplace(m_items.end(), std::move(item));
+      } catch (...) {
+        m_index.erase(it);
+        throw;
+      }
+      return {it->second, true};
+    }
+
+    iterator find(const Key& key) {
+      const auto it = m_index.find(key);
+      return it == m_index.end() ? m_items.end() : it->second;
+    }
+
+    const_iterator find(const Key& key) const {
+      const auto it = m_index.find(key);
+      return it == m_index.end() ? m_items.end() : it->second;
+    }
+
+    iterator begin() { return m_items.begin(); }
+
+    const_iterator begin() const { return m_items.begin(); }
+
+    iterator end() { return m_items.end(); }
+
+    const_iterator end() const { return m_items.end(); }
+
+   private:
+    std::list<Item> m_items;
+    std::unordered_map<Key, iterator, Hash> m_index;
+  };
 
   using MetadataByImage = std::unordered_map<ImageId, ImageMetadata>;
 
-  using Directories = boost::multi_index::multi_index_container<
-      Directory,
-      boost::multi_index::indexed_by<
-          boost::multi_index::hashed_unique<boost::multi_index::member<Directory, QString, &Directory::path>,
-                                            hashes::hash<QString>>,
-          boost::multi_index::sequenced<boost::multi_index::tag<Sequenced>>>>;
-
-  using Files = boost::multi_index::multi_index_container<
-      File,
-      boost::multi_index::indexed_by<
-          boost::multi_index::hashed_unique<boost::multi_index::member<File, QString, &File::path>,
-                                            hashes::hash<QString>>,
-          boost::multi_index::sequenced<boost::multi_index::tag<Sequenced>>>>;
-
-  using Images = boost::multi_index::multi_index_container<
-      Image,
-      boost::multi_index::indexed_by<
-          boost::multi_index::hashed_unique<boost::multi_index::member<Image, ImageId, &Image::id>, std::hash<ImageId>>,
-          boost::multi_index::sequenced<boost::multi_index::tag<Sequenced>>>>;
-
-  using Pages = boost::multi_index::multi_index_container<
-      Page,
-      boost::multi_index::indexed_by<
-          boost::multi_index::hashed_unique<boost::multi_index::member<Page, PageId, &Page::id>, std::hash<PageId>>,
-          boost::multi_index::sequenced<boost::multi_index::tag<Sequenced>>>>;
+  using Directories = OrderedUniqueContainer<Directory, QString, hashes::hash<QString>>;
+  using Files = OrderedUniqueContainer<File, QString, hashes::hash<QString>>;
+  using Images = OrderedUniqueContainer<Image, ImageId, std::hash<ImageId>>;
+  using Pages = OrderedUniqueContainer<Page, PageId, std::hash<PageId>>;
 
   QDomElement processDirectories(QDomDocument& doc, const QString& projectDirPath) const;
 

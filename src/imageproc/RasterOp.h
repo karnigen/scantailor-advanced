@@ -7,8 +7,8 @@
 #include <QPoint>
 #include <QRect>
 #include <QSize>
-#include <boost/cstdint.hpp>
 #include <cassert>
+#include <cstdint>
 #include <stdexcept>
 
 #include "BinaryImage.h"
@@ -49,7 +49,7 @@ void rasterOp(BinaryImage& dst, const BinaryImage& src);
  */
 class RopSrc {
  public:
-  static uint32_t transform(uint32_t src, uint32_t /*dst*/) { return src; }
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t /*dst*/) { return src; }
 };
 
 
@@ -59,7 +59,7 @@ class RopSrc {
  */
 class RopDst {
  public:
-  static uint32_t transform(uint32_t /*src*/, uint32_t dst) { return dst; }
+  static std::uint32_t transform(std::uint32_t /*src*/, std::uint32_t dst) { return dst; }
 };
 
 
@@ -70,7 +70,7 @@ class RopDst {
 template <typename Arg>
 class RopNot {
  public:
-  static uint32_t transform(uint32_t src, uint32_t dst) { return ~Arg::transform(src, dst); }
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t dst) { return ~Arg::transform(src, dst); }
 };
 
 
@@ -81,7 +81,7 @@ class RopNot {
 template <typename Arg1, typename Arg2>
 class RopAnd {
  public:
-  static uint32_t transform(uint32_t src, uint32_t dst) {
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t dst) {
     return Arg1::transform(src, dst) & Arg2::transform(src, dst);
   }
 };
@@ -94,7 +94,7 @@ class RopAnd {
 template <typename Arg1, typename Arg2>
 class RopOr {
  public:
-  static uint32_t transform(uint32_t src, uint32_t dst) {
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t dst) {
     return Arg1::transform(src, dst) | Arg2::transform(src, dst);
   }
 };
@@ -107,7 +107,7 @@ class RopOr {
 template <typename Arg1, typename Arg2>
 class RopXor {
  public:
-  static uint32_t transform(uint32_t src, uint32_t dst) {
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t dst) {
     return Arg1::transform(src, dst) ^ Arg2::transform(src, dst);
   }
 };
@@ -120,9 +120,9 @@ class RopXor {
 template <typename Arg1, typename Arg2>
 class RopSubtract {
  public:
-  static uint32_t transform(uint32_t src, uint32_t dst) {
-    uint32_t lhs = Arg1::transform(src, dst);
-    uint32_t rhs = Arg2::transform(src, dst);
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t dst) {
+    std::uint32_t lhs = Arg1::transform(src, dst);
+    std::uint32_t rhs = Arg2::transform(src, dst);
     return lhs & (lhs ^ rhs);
   }
 };
@@ -135,9 +135,9 @@ class RopSubtract {
 template <typename Arg1, typename Arg2>
 class RopSubtractWhite {
  public:
-  static uint32_t transform(uint32_t src, uint32_t dst) {
-    uint32_t lhs = Arg1::transform(src, dst);
-    uint32_t rhs = Arg2::transform(src, dst);
+  static std::uint32_t transform(std::uint32_t src, std::uint32_t dst) {
+    std::uint32_t lhs = Arg1::transform(src, dst);
+    std::uint32_t rhs = Arg2::transform(src, dst);
     return lhs | ~(lhs ^ rhs);
   }
 };
@@ -188,13 +188,13 @@ void rasterOpInDirection(BinaryImage& dst,
   const int dstStartBit = dr.x() % 32;
   const int rightmostDstBit = dr.right();  // == dr.x() + dr.width() - 1;
   const int rightmostDstWord = rightmostDstBit / 32 - dr.x() / 32;
-  const uint32_t leftmostDstMask = ~uint32_t(0) >> dstStartBit;
-  const uint32_t rightmostDstMask = ~uint32_t(0) << (31 - rightmostDstBit % 32);
+  const std::uint32_t leftmostDstMask = ~std::uint32_t(0) >> dstStartBit;
+  const std::uint32_t rightmostDstMask = ~std::uint32_t(0) << (31 - rightmostDstBit % 32);
 
   int firstDstWord;
   int lastDstWord;
-  uint32_t firstDstMask;
-  uint32_t lastDstMask;
+  std::uint32_t firstDstMask;
+  std::uint32_t lastDstMask;
   if (dx == 1) {
     firstDstWord = 0;
     lastDstWord = rightmostDstWord;
@@ -210,8 +210,8 @@ void rasterOpInDirection(BinaryImage& dst,
 
   int srcSpanDelta;
   int dstSpanDelta;
-  uint32_t* dstSpan;
-  const uint32_t* srcSpan;
+  std::uint32_t* dstSpan;
+  const std::uint32_t* srcSpan;
   if (dy == 1) {
     srcSpanDelta = src.wordsPerLine();
     dstSpanDelta = dst.wordsPerLine();
@@ -241,21 +241,21 @@ void rasterOpInDirection(BinaryImage& dst,
     // a case because of hardcoded widx + 1.
     if (firstDstWord == lastDstWord) {
       assert(firstDstWord == 0);
-      const uint32_t mask = firstDstMask & lastDstMask;
+      const std::uint32_t mask = firstDstMask & lastDstMask;
 
       for (int i = dr.height(); i > 0; --i, srcSpan += srcSpanDelta, dstSpan += dstSpanDelta) {
-        const uint32_t srcWord = srcSpan[0];
-        const uint32_t dstWord = dstSpan[0];
-        const uint32_t newDstWord = Rop::transform(srcWord, dstWord);
+        const std::uint32_t srcWord = srcSpan[0];
+        const std::uint32_t dstWord = dstSpan[0];
+        const std::uint32_t newDstWord = Rop::transform(srcWord, dstWord);
         dstSpan[0] = (dstWord & ~mask) | (newDstWord & mask);
       }
     } else {
       for (int i = dr.height(); i > 0; --i, srcSpan += srcSpanDelta, dstSpan += dstSpanDelta) {
         int widx = firstDstWord;
         // Handle the first (possibly incomplete) dst word in the line.
-        uint32_t srcWord = srcSpan[widx];
-        uint32_t dstWord = dstSpan[widx];
-        uint32_t newDstWord = Rop::transform(srcWord, dstWord);
+        std::uint32_t srcWord = srcSpan[widx];
+        std::uint32_t dstWord = dstSpan[widx];
+        std::uint32_t newDstWord = Rop::transform(srcWord, dstWord);
         dstSpan[widx] = (dstWord & ~firstDstMask) | (newDstWord & firstDstMask);
 
         while ((widx += dx) != lastDstWord) {
@@ -276,49 +276,49 @@ void rasterOpInDirection(BinaryImage& dst,
 
   if (firstDstWord == lastDstWord) {
     assert(firstDstWord == 0);
-    const uint32_t mask = firstDstMask & lastDstMask;
-    const uint32_t canWord1 = (~uint32_t(0) << srcWord1Shift) & mask;
-    const uint32_t canWord2 = (~uint32_t(0) >> srcWord2Shift) & mask;
+    const std::uint32_t mask = firstDstMask & lastDstMask;
+    const std::uint32_t canWord1 = (~std::uint32_t(0) << srcWord1Shift) & mask;
+    const std::uint32_t canWord2 = (~std::uint32_t(0) >> srcWord2Shift) & mask;
 
     for (int i = dr.height(); i > 0; --i, srcSpan += srcSpanDelta, dstSpan += dstSpanDelta) {
-      uint32_t srcWord = 0;
+      std::uint32_t srcWord = 0;
       if (canWord1) {
-        const uint32_t srcWord1 = srcSpan[0];
+        const std::uint32_t srcWord1 = srcSpan[0];
         srcWord |= srcWord1 << srcWord1Shift;
       }
       if (canWord2) {
-        const uint32_t srcWord2 = srcSpan[1];
+        const std::uint32_t srcWord2 = srcSpan[1];
         srcWord |= srcWord2 >> srcWord2Shift;
       }
-      const uint32_t dstWord = dstSpan[0];
-      const uint32_t newDstWord = Rop::transform(srcWord, dstWord);
+      const std::uint32_t dstWord = dstSpan[0];
+      const std::uint32_t newDstWord = Rop::transform(srcWord, dstWord);
       dstSpan[0] = (dstWord & ~mask) | (newDstWord & mask);
     }
   } else {
-    const uint32_t canFirstWord1 = (~uint32_t(0) << srcWord1Shift) & firstDstMask;
-    const uint32_t canFirstWord2 = (~uint32_t(0) >> srcWord2Shift) & firstDstMask;
-    const uint32_t canLastWord1 = (~uint32_t(0) << srcWord1Shift) & lastDstMask;
-    const uint32_t canLastWord2 = (~uint32_t(0) >> srcWord2Shift) & lastDstMask;
+    const std::uint32_t canFirstWord1 = (~std::uint32_t(0) << srcWord1Shift) & firstDstMask;
+    const std::uint32_t canFirstWord2 = (~std::uint32_t(0) >> srcWord2Shift) & firstDstMask;
+    const std::uint32_t canLastWord1 = (~std::uint32_t(0) << srcWord1Shift) & lastDstMask;
+    const std::uint32_t canLastWord2 = (~std::uint32_t(0) >> srcWord2Shift) & lastDstMask;
 
     for (int i = dr.height(); i > 0; --i, srcSpan += srcSpanDelta, dstSpan += dstSpanDelta) {
       int widx = firstDstWord;
       // Handle the first (possibly incomplete) dst word in the line.
-      uint32_t srcWord = 0;
+      std::uint32_t srcWord = 0;
       if (canFirstWord1) {
-        const uint32_t srcWord1 = srcSpan[widx];
+        const std::uint32_t srcWord1 = srcSpan[widx];
         srcWord |= srcWord1 << srcWord1Shift;
       }
       if (canFirstWord2) {
-        const uint32_t srcWord2 = srcSpan[widx + 1];
+        const std::uint32_t srcWord2 = srcSpan[widx + 1];
         srcWord |= srcWord2 >> srcWord2Shift;
       }
-      uint32_t dstWord = dstSpan[widx];
-      uint32_t newDstWord = Rop::transform(srcWord, dstWord);
+      std::uint32_t dstWord = dstSpan[widx];
+      std::uint32_t newDstWord = Rop::transform(srcWord, dstWord);
       newDstWord = (dstWord & ~firstDstMask) | (newDstWord & firstDstMask);
 
       while ((widx += dx) != lastDstWord) {
-        const uint32_t srcWord1 = srcSpan[widx];
-        const uint32_t srcWord2 = srcSpan[widx + 1];
+        const std::uint32_t srcWord1 = srcSpan[widx];
+        const std::uint32_t srcWord2 = srcSpan[widx + 1];
 
         dstWord = dstSpan[widx];
         dstSpan[widx - dx] = newDstWord;
@@ -329,11 +329,11 @@ void rasterOpInDirection(BinaryImage& dst,
       // Handle the last (possibly incomplete) dst word in the line.
       srcWord = 0;
       if (canLastWord1) {
-        const uint32_t srcWord1 = srcSpan[widx];
+        const std::uint32_t srcWord1 = srcSpan[widx];
         srcWord |= srcWord1 << srcWord1Shift;
       }
       if (canLastWord2) {
-        const uint32_t srcWord2 = srcSpan[widx + 1];
+        const std::uint32_t srcWord2 = srcSpan[widx + 1];
         srcWord |= srcWord2 >> srcWord2Shift;
       }
 

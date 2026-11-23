@@ -6,20 +6,17 @@
 
 #include <QStackedWidget>
 #include <QWidget>
-#include <boost/function.hpp>
-#include <boost/intrusive/list.hpp>
+#include <functional>
 
 #include "AutoRemovingFile.h"
 
 class QImage;
 
-class DebugImageView
-    : public QStackedWidget,
-      public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
+class DebugImageView : public QStackedWidget {
  public:
   explicit DebugImageView(AutoRemovingFile file,
-                          const boost::function<QWidget*(const QImage&)>& imageViewFactory
-                          = boost::function<QWidget*(const QImage&)>(),
+                          const std::function<QWidget*(const QImage&)>& imageViewFactory
+                          = std::function<QWidget*(const QImage&)>(),
                           QWidget* parent = nullptr);
 
   /**
@@ -36,7 +33,7 @@ class DebugImageView
   void imageLoadFailed(quint64 generation, const QString& message);
 
   AutoRemovingFile m_file;
-  boost::function<QWidget*(const QImage&)> m_imageViewFactory;
+  std::function<QWidget*(const QImage&)> m_imageViewFactory;
   QWidget* m_placeholderWidget;
   bool m_isLive;
   quint64 m_loadGeneration = 0;

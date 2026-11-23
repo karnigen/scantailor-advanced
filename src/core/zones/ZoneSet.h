@@ -4,7 +4,6 @@
 #ifndef SCANTAILOR_ZONES_ZONESET_H_
 #define SCANTAILOR_ZONES_ZONESET_H_
 
-#include <boost/iterator/iterator_facade.hpp>
 #include <list>
 
 #include "Zone.h"

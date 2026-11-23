@@ -18,10 +18,6 @@
 #include <Sobel.h>
 
 #include <QPainter>
-#include <boost/foreach.hpp>
-#include <boost/lambda/bind.hpp>
-#include <boost/lambda/if.hpp>
-#include <boost/lambda/lambda.hpp>
 #include <cmath>
 
 #include "DebugImages.h"
@@ -268,8 +264,6 @@ void TextLineTracer::extractTextLines(std::list<std::vector<QPointF>>& out,
                                       const imageproc::GrayImage& image,
                                       const std::pair<QLineF, QLineF>& bounds,
                                       DebugImages* dbg) {
-  using namespace boost::lambda;
-
   const int width = image.width();
   const int height = image.height();
   const QSize size(image.size());
@@ -278,68 +272,78 @@ void TextLineTracer::extractTextLines(std::list<std::vector<QPointF>>& out,
   Grid<float> auxGrid(image.width(), image.height(), 0);
 
   const float downscale = 1.0f / (255.0f * 8.0f);
-  horizontalSobel<float>(width, height, image.data(), image.stride(), _1 * downscale, auxGrid.data(), auxGrid.stride(),
-                         _1 = _2, _1, mainGrid.data(), mainGrid.stride(), _1 = _2);
-  verticalSobel<float>(width, height, image.data(), image.stride(), _1 * downscale, auxGrid.data(), auxGrid.stride(),
-                       _1 = _2, _1, mainGrid.data(), mainGrid.stride(), _1 = _1 * direction[0] + _2 * direction[1]);
+  const auto scale = [downscale](const auto value) { return value * downscale; };
+  const auto assign = [](auto& dst, const auto value) { dst = value; };
+  const auto identity = [](const auto value) { return value; };
+  const auto directionalDerivative
+      = [&direction](auto& dst, const auto derivative) { dst = dst * direction[0] + derivative * direction[1]; };
+  horizontalSobel<float>(width, height, image.data(), image.stride(), scale, auxGrid.data(), auxGrid.stride(), assign,
+                         identity, mainGrid.data(), mainGrid.stride(), assign);
+  verticalSobel<float>(width, height, image.data(), image.stride(), scale, auxGrid.data(), auxGrid.stride(), assign,
+                       identity, mainGrid.data(), mainGrid.stride(), directionalDerivative);
   if (dbg) {
     dbg->add(visualizeGradient(image, mainGrid), "first_dir_deriv");
   }
 
-  gaussBlurGeneric(size, 6.0f, 6.0f, mainGrid.data(), mainGrid.stride(), _1, mainGrid.data(), mainGrid.stride(),
-                   _1 = _2);
+  gaussBlurGeneric(size, 6.0f, 6.0f, mainGrid.data(), mainGrid.stride(), identity, mainGrid.data(), mainGrid.stride(),
+                   assign);
   if (dbg) {
     dbg->add(visualizeGradient(image, mainGrid), "first_dir_deriv_blurred");
   }
 
-  horizontalSobel<float>(width, height, mainGrid.data(), mainGrid.stride(), _1, auxGrid.data(), auxGrid.stride(),
-                         _1 = _2, _1, auxGrid.data(), auxGrid.stride(), _1 = _2);
-  verticalSobel<float>(width, height, mainGrid.data(), mainGrid.stride(), _1, mainGrid.data(), mainGrid.stride(),
-                       _1 = _2, _1, mainGrid.data(), mainGrid.stride(), _1 = _2);
+  horizontalSobel<float>(width, height, mainGrid.data(), mainGrid.stride(), identity, auxGrid.data(), auxGrid.stride(),
+                         assign, identity, auxGrid.data(), auxGrid.stride(), assign);
+  verticalSobel<float>(width, height, mainGrid.data(), mainGrid.stride(), identity, mainGrid.data(), mainGrid.stride(),
+                       assign, identity, mainGrid.data(), mainGrid.stride(), assign);
   rasterOpGeneric(auxGrid.data(), auxGrid.stride(), size, mainGrid.data(), mainGrid.stride(),
-                  _2 = _1 * direction[0] + _2 * direction[1]);
+                  [&direction](const float src, float& dst) { dst = src * direction[0] + dst * direction[1]; });
   if (dbg) {
     dbg->add(visualizeGradient(image, mainGrid), "second_dir_deriv");
   }
 
   float max = 0;
-  rasterOpGeneric(mainGrid.data(), mainGrid.stride(), size, if_then(_1 > var(max), var(max) = _1));
+  rasterOpGeneric(mainGrid.data(), mainGrid.stride(), size, [&max](const float value) {
+    if (value > max) {
+      max = value;
+    }
+  });
   const float threshold = max * 15.0f / 255.0f;
 
   BinaryImage initialBinarization(image.size());
   rasterOpGeneric(initialBinarization, mainGrid.data(), mainGrid.stride(),
-                  if_then_else(_2 > threshold, _1 = uint32_t(1), _1 = uint32_t(0)));
+                  [threshold](auto&& bit, const float value) { bit = value > threshold ? uint32_t(1) : uint32_t(0); });
   if (dbg) {
     dbg->add(initialBinarization, "initialBinarization");
   }
 
   rasterOpGeneric(mainGrid.data(), mainGrid.stride(), size, auxGrid.data(), auxGrid.stride(),
-                  _2 = bind((float (*)(float)) &std::fabs, _1));
+                  [](const float src, float& dst) { dst = std::fabs(src); });
   if (dbg) {
     dbg->add(visualizeGradient(image, auxGrid), "abs");
   }
 
-  gaussBlurGeneric(size, 12.0f, 12.0f, auxGrid.data(), auxGrid.stride(), _1, auxGrid.data(), auxGrid.stride(), _1 = _2);
+  gaussBlurGeneric(size, 12.0f, 12.0f, auxGrid.data(), auxGrid.stride(), identity, auxGrid.data(), auxGrid.stride(),
+                   assign);
   if (dbg) {
     dbg->add(visualizeGradient(image, auxGrid), "blurred");
   }
 
   rasterOpGeneric(mainGrid.data(), mainGrid.stride(), size, auxGrid.data(), auxGrid.stride(),
-                  _2 += _1 - bind((float (*)(float)) &std::fabs, _1));
+                  [](const float src, float& dst) { dst += src - std::fabs(src); });
   if (dbg) {
     dbg->add(visualizeGradient(image, auxGrid), "+= diff");
   }
 
   BinaryImage postBinarization(image.size());
   rasterOpGeneric(postBinarization, auxGrid.data(), auxGrid.stride(),
-                  if_then_else(_2 > threshold, _1 = uint32_t(1), _1 = uint32_t(0)));
+                  [threshold](auto&& bit, const float value) { bit = value > threshold ? uint32_t(1) : uint32_t(0); });
   if (dbg) {
     dbg->add(postBinarization, "postBinarization");
   }
 
   BinaryImage obstacles(image.size());
   rasterOpGeneric(obstacles, auxGrid.data(), auxGrid.stride(),
-                  if_then_else(_2 < -threshold, _1 = uint32_t(1), _1 = uint32_t(0)));
+                  [threshold](auto&& bit, const float value) { bit = value < -threshold ? uint32_t(1) : uint32_t(0); });
   if (dbg) {
     dbg->add(obstacles, "obstacles");
   }
