@@ -12,17 +12,17 @@ TabbedDebugImages::TabbedDebugImages(QWidget* parent) : QTabWidget(parent) {
 
 void TabbedDebugImages::currentTabChanged(const int idx) {
   if (auto* div = dynamic_cast<DebugImageView*>(widget(idx))) {
-    div->unlink();
-    m_liveViews.push_back(*div);
+    m_liveViews.remove_if([div](const QPointer<DebugImageView>& view) { return view.isNull() || view.data() == div; });
+    m_liveViews.emplace_back(div);
     removeExcessLiveViews();
     div->setLive(true);
   }
 }
 
 void TabbedDebugImages::removeExcessLiveViews() {
-  auto remaining = static_cast<int>(m_liveViews.size());
-  for (; remaining > MAX_LIVE_VIEWS; --remaining) {
-    m_liveViews.front().setLive(false);
-    m_liveViews.erase(m_liveViews.begin());
+  m_liveViews.remove_if([](const QPointer<DebugImageView>& view) { return view.isNull(); });
+  while (static_cast<int>(m_liveViews.size()) > MAX_LIVE_VIEWS) {
+    m_liveViews.front()->setLive(false);
+    m_liveViews.pop_front();
   }
 }

@@ -7,15 +7,12 @@
 #include <QStackedWidget>
 #include <QWidget>
 #include <functional>
-#include <boost/intrusive/list.hpp>
 
 #include "AutoRemovingFile.h"
 
 class QImage;
 
-class DebugImageView
-    : public QStackedWidget,
-      public boost::intrusive::list_base_hook<boost::intrusive::link_mode<boost::intrusive::auto_unlink>> {
+class DebugImageView : public QStackedWidget {
  public:
   explicit DebugImageView(AutoRemovingFile file,
                           const std::function<QWidget*(const QImage&)>& imageViewFactory
