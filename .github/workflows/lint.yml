@@ -56,7 +56,7 @@ jobs:
             echo "::error::Comparison base $BASE is unavailable; refusing to skip formatting checks."
             exit 1
           fi
-          if ! CHANGED_PATHS="$(git diff --name-only "$BASE" HEAD -- src/)"; then
+          if ! CHANGED_PATHS="$(git diff --diff-filter=ACMR --name-only "$BASE" HEAD -- src/)"; then
             echo "::error::Could not determine changed source files from $BASE to HEAD."
             exit 1
           fi
