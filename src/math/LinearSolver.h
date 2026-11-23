@@ -6,7 +6,7 @@
 
 #include <NonCopyable.h>
 
-#include <boost/scoped_array.hpp>
+#include <memory>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -198,8 +198,8 @@ void LinearSolver::solve(const T* A, T* X, const T* B, T* tbuffer, size_t* pbuff
 
 template <typename T>
 void LinearSolver::solve(const T* A, T* X, const T* B) const {
-  boost::scoped_array<T> tbuffer(new T[m_colsArowsX * (m_rowsAB + m_colsBX)]);
-  boost::scoped_array<size_t> pbuffer(new size_t[m_rowsAB]);
+  std::unique_ptr<T[]> tbuffer(new T[m_colsArowsX * (m_rowsAB + m_colsBX)]);
+  std::unique_ptr<size_t[]> pbuffer(new size_t[m_rowsAB]);
 
   solve(A, X, B, tbuffer.get(), pbuffer.get());
 }

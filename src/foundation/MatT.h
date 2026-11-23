@@ -4,7 +4,7 @@
 #ifndef SCANTAILOR_FOUNDATION_MATT_H_
 #define SCANTAILOR_FOUNDATION_MATT_H_
 
-#include <boost/scoped_array.hpp>
+#include <memory>
 #include <cassert>
 #include <cstddef>
 
@@ -98,7 +98,7 @@ class MatT {
  private:
   size_t m_rows;
   size_t m_cols;
-  boost::scoped_array<T> m_data;
+  std::unique_ptr<T[]> m_data;
 };
 
 

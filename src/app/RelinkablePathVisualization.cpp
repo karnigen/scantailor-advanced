@@ -10,7 +10,7 @@
 #include <QStyle>
 #include <QStyleOption>
 #include <QStylePainter>
-#include <boost/bind/bind.hpp>
+#include <functional>
 
 #include "ColorSchemeManager.h"
 #include "RelinkablePath.h"
@@ -110,7 +110,7 @@ void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool click
     stylePathComponentButton(btn, pathComponent.exists);
 
     connect(btn, &ComponentButton::clicked,
-            boost::bind(&RelinkablePathVisualization::onClicked, this, componentIdx, pathComponent.prefixPath,
+            std::bind(&RelinkablePathVisualization::onClicked, this, componentIdx, pathComponent.prefixPath,
                         pathComponent.suffixPath, pathComponent.type));
   }
 

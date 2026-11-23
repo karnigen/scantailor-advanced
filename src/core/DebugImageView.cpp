@@ -56,7 +56,7 @@ class DebugImageView::ImageLoader : public BackgroundExecutor::Task {
 
 
 DebugImageView::DebugImageView(AutoRemovingFile file,
-                               const boost::function<QWidget*(const QImage&)>& imageViewFactory,
+                               const std::function<QWidget*(const QImage&)>& imageViewFactory,
                                QWidget* parent)
     : QStackedWidget(parent),
       m_file(file),
@@ -91,7 +91,7 @@ void DebugImageView::imageLoaded(const quint64 generation, const QImage& image) 
 
   if (currentWidget() == m_placeholderWidget) {
     std::unique_ptr<QWidget> imageView;
-    if (m_imageViewFactory.empty()) {
+    if (!m_imageViewFactory) {
       imageView = std::make_unique<BasicImageView>(image);
     } else {
       imageView.reset(m_imageViewFactory(image));

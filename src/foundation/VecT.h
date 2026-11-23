@@ -4,7 +4,7 @@
 #ifndef SCANTAILOR_FOUNDATION_VECT_H_
 #define SCANTAILOR_FOUNDATION_VECT_H_
 
-#include <boost/scoped_array.hpp>
+#include <memory>
 #include <cassert>
 #include <cstddef>
 
@@ -92,7 +92,7 @@ class VecT {
   void swap(VecT& other);
 
  private:
-  boost::scoped_array<T> m_data;
+  std::unique_ptr<T[]> m_data;
   size_t m_size;
 };
 

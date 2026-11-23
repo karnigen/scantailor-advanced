@@ -4,9 +4,7 @@
 #ifndef SCANTAILOR_FOUNDATION_FASTQUEUE_H_
 #define SCANTAILOR_FOUNDATION_FASTQUEUE_H_
 
-#include <boost/foreach.hpp>
 #include <boost/intrusive/list.hpp>
-#include <boost/type_traits/alignment_of.hpp>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -42,8 +40,8 @@ class FastQueue {
 
    public:
     explicit Chunk(size_t capacity) {
-      const uintptr_t p = (uintptr_t) (this + 1);
-      const size_t alignment = boost::alignment_of<T>::value;
+      const std::uintptr_t p = (std::uintptr_t) (this + 1);
+      const size_t alignment = alignof(T);
       pBegin = (T*) (((p + alignment - 1) / alignment) * alignment);
       pEnd = pBegin;
       pBufferEnd = pBegin + capacity;
@@ -57,7 +55,7 @@ class FastQueue {
     }
 
     static size_t storageRequirement(size_t capacity) {
-      return sizeof(Chunk) + boost::alignment_of<T>::value - 1 + capacity * sizeof(T);
+      return sizeof(Chunk) + alignof(T) - 1 + capacity * sizeof(T);
     }
 
     T* pBegin;
