@@ -31,6 +31,12 @@ target_link_libraries(settings_store_init_tests PRIVATE core Catch2::Catch2WithM
 add_test(NAME settings_store_explicit_directory_tests COMMAND settings_store_init_tests "[settings-store-explicit]")
 add_test(NAME settings_store_legacy_copy_tests COMMAND settings_store_init_tests "[settings-store-legacy]")
 add_test(NAME settings_store_migration_tests COMMAND settings_store_init_tests "[settings-store-migration]")
+add_test(NAME settings_store_migration_backup_tests COMMAND settings_store_init_tests "[settings-store-migration-backup]")
+add_test(NAME settings_store_migration_race_tests COMMAND settings_store_init_tests "[settings-store-migration-race]")
+add_test(NAME settings_store_concurrent_write_tests COMMAND settings_store_init_tests "[settings-store-concurrent-write]")
 add_test(NAME settings_store_toml_precedence_tests COMMAND settings_store_init_tests "[settings-store-precedence]")
 add_test(NAME settings_store_invalid_toml_tests COMMAND settings_store_init_tests "[settings-store-invalid-toml]")
 add_test(NAME settings_store_invalid_type_tests COMMAND settings_store_init_tests "[settings-store-invalid-type]")
+set_tests_properties(
+    settings_store_migration_race_tests settings_store_concurrent_write_tests
+    PROPERTIES ENVIRONMENT "SETTINGS_STORE_TEST_EXECUTABLE=$<TARGET_FILE:settings_store_init_tests>")

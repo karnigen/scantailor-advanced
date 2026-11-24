@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLockFile>
 #include <QMetaType>
 #include <QMutex>
 #include <QMutexLocker>
@@ -30,6 +31,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -110,6 +112,56 @@ const toml::node* findNode(const toml::table& document, const QString& key) {
   return nullptr;
 }
 
+using TomlMutation = std::function<bool(toml::table&, QString*)>;
+
+template <typename T>
+bool assignNode(toml::table& document, const QString& key, const T& value, QString* errorMessage) {
+  const QStringList parts = keyParts(key);
+  if (parts.isEmpty()) {
+    return false;
+  }
+  toml::table* table = &document;
+  for (qsizetype i = 0; i < parts.size() - 1; ++i) {
+    const std::string part = parts.at(i).toStdString();
+    toml::node* node = table->get(part);
+    if (!node) {
+      table->insert_or_assign(part, toml::table{});
+      node = table->get(part);
+    }
+    table = node->as_table();
+    if (!table) {
+      *errorMessage = QObject::tr("Cannot update TOML key '%1': '%2' is not a table.").arg(key, parts.at(i));
+      return false;
+    }
+    if (parts.size() > 2 && parts.at(0) == QStringLiteral("CollapsibleGroupBox") && i == 1) {
+      table->is_inline(true);
+    }
+  }
+  table->insert_or_assign(parts.back().toStdString(), value);
+  return true;
+}
+
+bool removeNode(toml::table& document, const QString& key, QString* errorMessage) {
+  const QStringList parts = keyParts(key);
+  if (parts.isEmpty()) {
+    return true;
+  }
+  toml::table* table = &document;
+  for (qsizetype i = 0; i < parts.size() - 1; ++i) {
+    toml::node* node = table->get(parts.at(i).toStdString());
+    if (!node) {
+      return true;
+    }
+    table = node->as_table();
+    if (!table) {
+      *errorMessage = QObject::tr("Cannot remove TOML key '%1': '%2' is not a table.").arg(key, parts.at(i));
+      return false;
+    }
+  }
+  table->erase(parts.back().toStdString());
+  return true;
+}
+
 struct TomlState {
   explicit TomlState(QString path) : filePath(std::move(path)) {
     if (!QFileInfo::exists(filePath)) {
@@ -154,8 +206,11 @@ struct TomlState {
   QString filePath;
   mutable std::mutex mutex;
   toml::table document;
+  std::vector<TomlMutation> pendingMutations;
   QString error;
 };
+
+std::shared_ptr<TomlState> g_activeTomlState;
 
 std::shared_ptr<TomlState> stateForPath(const QString& filePath) {
   static std::mutex statesMutex;
@@ -520,33 +575,43 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!m_state->error.isEmpty()) {
       return;
     }
-    const QStringList parts = keyParts(key);
-    if (parts.isEmpty()) {
+    TomlMutation mutation
+        = [key](toml::table& document, QString* errorMessage) { return removeNode(document, key, errorMessage); };
+    QString mutationError;
+    if (!mutation(m_state->document, &mutationError)) {
+      recordError(mutationError);
       return;
     }
-    toml::table* table = &m_state->document;
-    for (qsizetype i = 0; i < parts.size() - 1; ++i) {
-      toml::node* node = table->get(parts.at(i).toStdString());
-      if (!node) {
-        return;
-      }
-      table = node->as_table();
-      if (!table) {
-        recordTypeError(parts.at(i), QStringLiteral("a table"));
-        return;
-      }
-    }
-    table->erase(parts.back().toStdString());
+    m_state->pendingMutations.push_back(std::move(mutation));
   }
 
   QString sync() override {
+    QLockFile processLock(m_state->filePath + QStringLiteral(".lock"));
+    processLock.setStaleLockTime(30000);
+    if (!processLock.tryLock(10000)) {
+      return QObject::tr("unable to lock the TOML settings file: %1").arg(m_state->filePath);
+    }
+
     std::lock_guard<std::mutex> lock(m_state->mutex);
     if (!m_state->error.isEmpty()) {
       return m_state->error;
     }
+    if (m_state->pendingMutations.empty()) {
+      return {};
+    }
 
+    TomlState latest(m_state->filePath);
+    if (!latest.error.isEmpty()) {
+      return latest.error;
+    }
+    for (const TomlMutation& mutation : m_state->pendingMutations) {
+      QString mutationError;
+      if (!mutation(latest.document, &mutationError)) {
+        return mutationError;
+      }
+    }
     std::ostringstream output;
-    output << m_state->document;
+    output << latest.document;
     const std::string serialized = output.str();
     QSaveFile file(m_state->filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -561,6 +626,8 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!file.commit()) {
       return QObject::tr("unable to atomically replace the TOML file: %1").arg(file.errorString());
     }
+    m_state->document = std::move(latest.document);
+    m_state->pendingMutations.clear();
     return {};
   }
 
@@ -579,38 +646,35 @@ class TomlBackend final : public SettingsStore::Backend {
   }
 
   void recordTypeError(const QString& key, const QString& expected) const {
-    if (m_state->error.isEmpty()) {
-      m_state->error = QObject::tr("Invalid type for configuration key '%1' in %2; expected %3.")
-                           .arg(key, m_state->filePath, expected);
+    recordError(QObject::tr("Invalid type for configuration key '%1' in %2; expected %3.")
+                    .arg(key, m_state->filePath, expected));
+  }
+
+  void recordError(const QString& error) const {
+    if (!error.isEmpty() && m_state->error.isEmpty()) {
+      m_state->error = error;
       qWarning().noquote() << m_state->error;
     }
   }
 
   template <typename T>
   void setNode(const QString& key, T&& value) {
+    using Value = std::decay_t<T>;
+    Value storedValue(std::forward<T>(value));
+    TomlMutation mutation = [key, storedValue](toml::table& document, QString* errorMessage) {
+      return assignNode(document, key, storedValue, errorMessage);
+    };
+
     std::lock_guard<std::mutex> lock(m_state->mutex);
     if (!m_state->error.isEmpty()) {
       return;
     }
-    const QStringList parts = keyParts(key);
-    if (parts.isEmpty()) {
+    QString mutationError;
+    if (!mutation(m_state->document, &mutationError)) {
+      recordError(mutationError);
       return;
     }
-    toml::table* table = &m_state->document;
-    for (qsizetype i = 0; i < parts.size() - 1; ++i) {
-      const std::string part = parts.at(i).toStdString();
-      toml::node* node = table->get(part);
-      if (!node) {
-        table->insert_or_assign(part, toml::table{});
-        node = table->get(part);
-      }
-      table = node->as_table();
-      if (!table) {
-        recordTypeError(parts.at(i), QStringLiteral("a table"));
-        return;
-      }
-    }
-    table->insert_or_assign(parts.back().toStdString(), std::forward<T>(value));
+    m_state->pendingMutations.push_back(std::move(mutation));
   }
 
   std::shared_ptr<TomlState> m_state;
@@ -804,7 +868,7 @@ bool validateTomlValues(TomlBackend& settings) {
   return !settings.hasError();
 }
 
-bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, QString* errorMessage) {
+bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, bool persist, QString* errorMessage) {
   IniBackend source(iniPath);
   QSettings& ini = source.settings();
   ini.sync();
@@ -836,6 +900,10 @@ bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, QString* 
     *errorMessage
         = QObject::tr("Unable to convert values from %1. The original INI file was left unchanged.").arg(iniPath);
     return false;
+  }
+
+  if (!persist) {
+    return true;
   }
 
   const QString writeError = destination.sync();
@@ -891,6 +959,7 @@ bool SettingsStore::initialize(const QString& configDirectory,
   }
 
   if (QFileInfo::exists(tomlPath)) {
+    const std::shared_ptr<TomlState> configState = stateForPath(tomlPath);
     TomlBackend toml(tomlPath);
     if (toml.hasError() || !validateTomlValues(toml)) {
       if (errorMessage) {
@@ -898,13 +967,68 @@ bool SettingsStore::initialize(const QString& configDirectory,
       }
       return false;
     }
-  } else if (QFileInfo::exists(iniPath)) {
-    QString migrationError;
-    if (!migrateIniToToml(iniPath, tomlPath, &migrationError)) {
-      if (errorMessage) {
-        *errorMessage = migrationError;
+    g_activeTomlState = configState;
+  } else {
+    std::unique_ptr<QLockFile> migrationLock;
+    if (writable) {
+      migrationLock = std::make_unique<QLockFile>(tomlPath + QStringLiteral(".migration.lock"));
+      migrationLock->setStaleLockTime(30000);
+      if (!migrationLock->tryLock(10000)) {
+        if (errorMessage) {
+          *errorMessage = QObject::tr("Unable to lock the configuration migration: %1").arg(tomlPath);
+        }
+        return false;
       }
-      return false;
+    }
+
+    if (QFileInfo::exists(tomlPath)) {
+      const std::shared_ptr<TomlState> configState = stateForPath(tomlPath);
+      TomlBackend toml(tomlPath);
+      if (toml.hasError() || !validateTomlValues(toml)) {
+        if (errorMessage) {
+          *errorMessage = toml.errorString();
+        }
+        return false;
+      }
+      g_activeTomlState = configState;
+    } else {
+      QString migrationIniPath;
+      if (QFileInfo::exists(iniPath)) {
+        migrationIniPath = iniPath;
+      } else if (!writable && preserveExistingSettings) {
+        const QString legacyFilePath = IniBackend::legacyFilePath();
+        if (QFileInfo::exists(legacyFilePath)) {
+          migrationIniPath = legacyFilePath;
+        }
+      }
+
+      if (migrationIniPath.isEmpty()) {
+        g_activeTomlState = stateForPath(tomlPath);
+      } else {
+        const std::shared_ptr<TomlState> configState = stateForPath(tomlPath);
+        QString migrationError;
+        if (!migrateIniToToml(migrationIniPath, tomlPath, writable, &migrationError)) {
+          if (errorMessage) {
+            *errorMessage = migrationError;
+          }
+          return false;
+        }
+        g_activeTomlState = configState;
+        if (writable && migrationIniPath == iniPath) {
+          const QString backupPath = iniPath + QStringLiteral(".bak");
+          if (!QFile::rename(iniPath, backupPath)) {
+            initializationWarning
+                += QObject::tr(
+                       " Settings were migrated to TOML, but the original INI could not be renamed to "
+                       "%1; both files were left in place.")
+                       .arg(backupPath);
+          }
+        } else if (!writable) {
+          initializationWarning += QObject::tr(
+              " Legacy INI settings were loaded in memory; changes cannot be saved until the configuration directory "
+              "is writable.");
+        }
+      }
     }
   }
 

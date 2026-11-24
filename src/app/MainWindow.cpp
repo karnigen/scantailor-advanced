@@ -1916,7 +1916,7 @@ void MainWindow::showCommandLineArguments() {
           + "</dd>";
   html += "<dt><code>-c, --config &lt;directory&gt;</code></dt><dd>"
           + tr("Store settings in this directory. The application creates config.toml directly inside it. "
-               "An existing config.ini is migrated once and kept unchanged as a backup.")
+               "An existing config.ini is migrated once and renamed to config.ini.bak after TOML is saved.")
                 .toHtmlEscaped()
           + "</dd>";
   html += "</dl><h3>" + tr("Path").toHtmlEscaped() + "</h3><dl>";

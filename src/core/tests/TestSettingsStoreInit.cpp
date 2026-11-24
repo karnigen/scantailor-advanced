@@ -8,11 +8,15 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QThread>
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("SettingsStoreTestSuite / test_explicit_relative_config_directory_and_profiles",
@@ -83,7 +87,8 @@ TEST_CASE("SettingsStoreTestSuite / test_copy_and_migrate_existing_standard_ini"
   REQUIRE(error.isEmpty());
   CHECK(SettingsStore::configFilePath() == QDir(defaultDirectory).filePath(QStringLiteral("config.toml")));
   CHECK(QFileInfo::exists(legacyFilePath));
-  CHECK(QFileInfo::exists(QDir(defaultDirectory).filePath(QStringLiteral("config.ini"))));
+  CHECK_FALSE(QFileInfo::exists(QDir(defaultDirectory).filePath(QStringLiteral("config.ini"))));
+  CHECK(QFileInfo::exists(QDir(defaultDirectory).filePath(QStringLiteral("config.ini.bak"))));
   CHECK(QFileInfo::exists(SettingsStore::configFilePath()));
 
   SettingsStore settings;
@@ -91,7 +96,8 @@ TEST_CASE("SettingsStoreTestSuite / test_copy_and_migrate_existing_standard_ini"
   CHECK(settings.byteArrayValue(QStringLiteral("window/geometry")) == QByteArray::fromHex("0a0b0c"));
 }
 
-TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_keep_source", "[settings-store-migration]") {
+TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_rename_source_to_backup",
+          "[settings-store-migration]") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
   const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
@@ -103,6 +109,8 @@ TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_keep_source", "
     legacy.setValue(QStringLiteral("settings/thumbnail_quality"), QSize(120, 80));
     legacy.setValue(QStringLiteral("window/nonMaximizedGeometry"), geometry);
     legacy.setValue(QStringLiteral("custom/unknown"), QStringLiteral("preserve me"));
+    legacy.setValue(QStringLiteral("CollapsibleGroupBox/alignmentGroup/collapsed"), false);
+    legacy.setValue(QStringLiteral("CollapsibleGroupBox/colorOperationsOptions/collapsed"), true);
     legacy.beginWriteArray(QStringLiteral("project/recent"));
     legacy.setArrayIndex(0);
     legacy.setValue(QStringLiteral("path"), QStringLiteral("/scans/first.ScanTailor"));
@@ -121,23 +129,200 @@ TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_keep_source", "
   REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
   REQUIRE(error.isEmpty());
   CHECK(SettingsStore::configFilePath() == tempDir.filePath(QStringLiteral("config.toml")));
-  CHECK(QFileInfo::exists(iniPath));
+  const QString backupPath = iniPath + QStringLiteral(".bak");
+  CHECK_FALSE(QFileInfo::exists(iniPath));
+  CHECK(QFileInfo::exists(backupPath));
 
   SettingsStore settings;
   CHECK(settings.boolValue(QStringLiteral("settings/enable_opengl")));
   CHECK(settings.sizeValue(QStringLiteral("settings/thumbnail_quality")) == QSize(120, 80));
   CHECK(settings.byteArrayValue(QStringLiteral("window/nonMaximizedGeometry")) == geometry);
   CHECK(settings.stringValue(QStringLiteral("custom/unknown")) == QStringLiteral("preserve me"));
+  CHECK_FALSE(settings.boolValue(QStringLiteral("CollapsibleGroupBox/alignmentGroup/collapsed")));
+  CHECK(settings.boolValue(QStringLiteral("CollapsibleGroupBox/colorOperationsOptions/collapsed")));
   CHECK((settings.stringList(QStringLiteral("project/recent"))
          == QStringList{QStringLiteral("/scans/first.ScanTailor"), QStringLiteral("/scans/second.ScanTailor")}));
 
-  QFile unchangedIni(iniPath);
-  REQUIRE(unchangedIni.open(QIODevice::ReadOnly));
-  CHECK(unchangedIni.readAll() == originalIni);
+  QFile backup(backupPath);
+  REQUIRE(backup.open(QIODevice::ReadOnly));
+  CHECK(backup.readAll() == originalIni);
+
+  QFile tomlFile(SettingsStore::configFilePath());
+  REQUIRE(tomlFile.open(QIODevice::ReadOnly));
+  const QByteArray tomlContents = tomlFile.readAll();
+  CHECK(tomlContents.contains("alignmentGroup = { collapsed = false }"));
+  CHECK(tomlContents.contains("colorOperationsOptions = { collapsed = true }"));
 
   settings.setValue(QStringLiteral("settings/enable_opengl"), false);
   REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
   CHECK_FALSE(settings.boolValue(QStringLiteral("settings/enable_opengl")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_does_not_overwrite_existing_ini_backup",
+          "[settings-store-migration-backup]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  const QString backupPath = iniPath + QStringLiteral(".bak");
+  const QByteArray existingBackup("keep this backup");
+
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/enable_opengl"), true);
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+  QFile backup(backupPath);
+  REQUIRE(backup.open(QIODevice::WriteOnly));
+  REQUIRE(backup.write(existingBackup) == existingBackup.size());
+  backup.close();
+
+  QString error;
+  REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK_FALSE(error.isEmpty());
+  CHECK(QFileInfo::exists(iniPath));
+  QFile preservedBackup(backupPath);
+  REQUIRE(preservedBackup.open(QIODevice::ReadOnly));
+  CHECK(preservedBackup.readAll() == existingBackup);
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_concurrent_migration_processes", "[settings-store-migration-race]") {
+  if (qEnvironmentVariable("SETTINGS_STORE_MIGRATION_CHILD") == QStringLiteral("1")) {
+    const QString directory = qEnvironmentVariable("SETTINGS_STORE_MIGRATION_DIRECTORY");
+    const QString readyPath = qEnvironmentVariable("SETTINGS_STORE_MIGRATION_READY");
+    const QString releasePath = qEnvironmentVariable("SETTINGS_STORE_MIGRATION_RELEASE");
+    QFile ready(readyPath);
+    REQUIRE(ready.open(QIODevice::WriteOnly));
+    ready.close();
+
+    QElapsedTimer waitTimer;
+    waitTimer.start();
+    while (!QFileInfo::exists(releasePath) && waitTimer.elapsed() < 10000) {
+      QThread::msleep(10);
+    }
+    REQUIRE(QFileInfo::exists(releasePath));
+
+    QString error;
+    REQUIRE(SettingsStore::initialize(directory, true, &error));
+    CHECK(error.isEmpty());
+    return;
+  }
+
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QSettings legacy(tempDir.filePath(QStringLiteral("config.ini")), QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/enable_opengl"), true);
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  const QString releasePath = tempDir.filePath(QStringLiteral("release"));
+  QProcess processes[2];
+  for (int i = 0; i < 2; ++i) {
+    const QString readyPath = tempDir.filePath(QStringLiteral("ready-%1").arg(i));
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("SETTINGS_STORE_MIGRATION_CHILD"), QStringLiteral("1"));
+    environment.insert(QStringLiteral("SETTINGS_STORE_MIGRATION_DIRECTORY"), tempDir.path());
+    environment.insert(QStringLiteral("SETTINGS_STORE_MIGRATION_READY"), readyPath);
+    environment.insert(QStringLiteral("SETTINGS_STORE_MIGRATION_RELEASE"), releasePath);
+    processes[i].setProcessEnvironment(environment);
+    processes[i].setProgram(qEnvironmentVariable("SETTINGS_STORE_TEST_EXECUTABLE"));
+    processes[i].setArguments({QStringLiteral("[settings-store-migration-race]")});
+    processes[i].start();
+    REQUIRE(processes[i].waitForStarted(5000));
+  }
+
+  QElapsedTimer waitTimer;
+  waitTimer.start();
+  while ((!QFileInfo::exists(tempDir.filePath(QStringLiteral("ready-0")))
+          || !QFileInfo::exists(tempDir.filePath(QStringLiteral("ready-1"))))
+         && waitTimer.elapsed() < 10000) {
+    QThread::msleep(10);
+  }
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("ready-0"))));
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("ready-1"))));
+  QFile release(releasePath);
+  REQUIRE(release.open(QIODevice::WriteOnly));
+  release.close();
+
+  for (QProcess& process : processes) {
+    REQUIRE(process.waitForFinished(15000));
+    CHECK(process.exitStatus() == QProcess::NormalExit);
+    CHECK(process.exitCode() == 0);
+  }
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.ini.bak"))));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.ini"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_concurrent_process_writes_preserve_both_updates",
+          "[settings-store-concurrent-write]") {
+  if (qEnvironmentVariable("SETTINGS_STORE_WRITE_CHILD") == QStringLiteral("1")) {
+    SettingsStore settings(qEnvironmentVariable("SETTINGS_STORE_WRITE_PATH"));
+    const QString readyPath = qEnvironmentVariable("SETTINGS_STORE_WRITE_READY");
+    const QString releasePath = qEnvironmentVariable("SETTINGS_STORE_WRITE_RELEASE");
+    QFile ready(readyPath);
+    REQUIRE(ready.open(QIODevice::WriteOnly));
+    ready.close();
+
+    QElapsedTimer waitTimer;
+    waitTimer.start();
+    while (!QFileInfo::exists(releasePath) && waitTimer.elapsed() < 10000) {
+      QThread::msleep(10);
+    }
+    REQUIRE(QFileInfo::exists(releasePath));
+
+    settings.setValue(qEnvironmentVariable("SETTINGS_STORE_WRITE_KEY"), true);
+    CHECK_FALSE(settings.hasError());
+    return;
+  }
+
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString tomlPath = tempDir.filePath(QStringLiteral("config.toml"));
+  {
+    SettingsStore settings(tomlPath);
+    settings.setValue(QStringLiteral("settings/initialized"), true);
+  }
+
+  const QString releasePath = tempDir.filePath(QStringLiteral("write-release"));
+  QProcess processes[2];
+  const QStringList keys{QStringLiteral("settings/firstProcess"), QStringLiteral("settings/secondProcess")};
+  for (int i = 0; i < 2; ++i) {
+    const QString readyPath = tempDir.filePath(QStringLiteral("write-ready-%1").arg(i));
+    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    environment.insert(QStringLiteral("SETTINGS_STORE_WRITE_CHILD"), QStringLiteral("1"));
+    environment.insert(QStringLiteral("SETTINGS_STORE_WRITE_PATH"), tomlPath);
+    environment.insert(QStringLiteral("SETTINGS_STORE_WRITE_READY"), readyPath);
+    environment.insert(QStringLiteral("SETTINGS_STORE_WRITE_RELEASE"), releasePath);
+    environment.insert(QStringLiteral("SETTINGS_STORE_WRITE_KEY"), keys.at(i));
+    processes[i].setProcessEnvironment(environment);
+    processes[i].setProgram(qEnvironmentVariable("SETTINGS_STORE_TEST_EXECUTABLE"));
+    processes[i].setArguments({QStringLiteral("[settings-store-concurrent-write]")});
+    processes[i].start();
+    REQUIRE(processes[i].waitForStarted(5000));
+  }
+
+  QElapsedTimer waitTimer;
+  waitTimer.start();
+  while ((!QFileInfo::exists(tempDir.filePath(QStringLiteral("write-ready-0")))
+          || !QFileInfo::exists(tempDir.filePath(QStringLiteral("write-ready-1"))))
+         && waitTimer.elapsed() < 10000) {
+    QThread::msleep(10);
+  }
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("write-ready-0"))));
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("write-ready-1"))));
+  QFile release(releasePath);
+  REQUIRE(release.open(QIODevice::WriteOnly));
+  release.close();
+
+  for (QProcess& process : processes) {
+    REQUIRE(process.waitForFinished(15000));
+    CHECK(process.exitStatus() == QProcess::NormalExit);
+    CHECK(process.exitCode() == 0);
+  }
+
+  SettingsStore settings(tomlPath);
+  CHECK(settings.boolValue(keys.at(0)));
+  CHECK(settings.boolValue(keys.at(1)));
 }
 
 TEST_CASE("SettingsStoreTestSuite / test_toml_takes_precedence_over_ini", "[settings-store-precedence]") {

@@ -237,9 +237,11 @@ has't been moved due to dirty realization. Their functionality is fully covered 
 * #### ScanTailor Advanced fixes & improvements
   * Configuration files are stored in the standard user configuration directory for the platform.
     Use `--config <directory>` (or `-c <directory>`) to store `config.toml` directly in a chosen directory.
-    An existing `config.ini` is migrated once on first launch and kept unchanged as a backup.
-    Settings are stored as nested TOML tables; window geometry uses a hexadecimal string, sizes use two-number arrays,
-    and recent projects use an array of strings. Unknown TOML keys are preserved. Legacy values that cannot be
+    An existing `config.ini` is migrated once on first launch and renamed to `config.ini.bak` after the TOML file
+    is saved successfully. If the configuration directory is read-only, the INI is loaded in memory and left in place.
+    Settings are stored as nested TOML tables; collapsible-group states use inline tables under
+    `[CollapsibleGroupBox]`, window geometry uses a hexadecimal string, sizes use two-number arrays, and recent
+    projects use an array of strings. Unknown TOML keys are preserved. Legacy values that cannot be
     represented safely stop migration with an error; the source INI remains untouched.
     User profiles are stored in the configuration directory's `profiles` subdirectory.
   

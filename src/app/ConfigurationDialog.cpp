@@ -42,9 +42,10 @@ ConfigurationDialog::ConfigurationDialog(QWidget* parent)
   layout->addWidget(m_pathLabel);
   layout->addWidget(m_profilesPathLabel);
   layout->addWidget(m_statusLabel);
-  layout->addWidget(new QLabel(
-      tr("An existing config.ini is migrated once and kept unchanged as a backup. Unknown TOML keys are retained."),
-      this));
+  layout->addWidget(
+      new QLabel(tr("An existing config.ini is migrated once and renamed to config.ini.bak after TOML is saved. "
+                    "Unknown TOML keys are retained."),
+                 this));
 
   m_contents->setReadOnly(true);
   m_contents->setObjectName(QStringLiteral("configurationContents"));
