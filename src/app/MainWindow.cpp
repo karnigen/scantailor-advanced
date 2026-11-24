@@ -8,6 +8,7 @@
 #include <core/SettingsStore.h>
 
 #include <QActionGroup>
+#include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -282,6 +283,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionGotoPage, SIGNAL(triggered(bool)), this, SLOT(execGotoPageDialog()));
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
   connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
+  connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
   connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
   connect(prevPageBtn, &QToolButton::clicked, this, [this]() {
@@ -1887,6 +1889,51 @@ void MainWindow::showConfigurationDialog() {
   auto* dialog = new ConfigurationDialog(this);
   dialog->setObjectName(QStringLiteral("configurationDialog"));
   dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->show();
+}
+
+void MainWindow::showCommandLineArguments() {
+  if (auto* dialog = findChild<QDialog*>(QStringLiteral("commandLineArgumentsDialog"))) {
+    dialog->raise();
+    dialog->activateWindow();
+    return;
+  }
+
+  auto* dialog = new QDialog(this);
+  dialog->setObjectName(QStringLiteral("commandLineArgumentsDialog"));
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle(tr("Command Line Arguments"));
+
+  auto* layout = new QVBoxLayout(dialog);
+  auto* browser = new QTextBrowser(dialog);
+  browser->setOpenLinks(false);
+  browser->setFrameShape(QFrame::NoFrame);
+
+  QString html = "<html><body>";
+  html += "<p><code>" + QApplication::applicationName().toHtmlEscaped() + " [options] [path]</code></p>";
+  html += "<h3>" + tr("Options").toHtmlEscaped() + "</h3><dl>";
+  html += "<dt><code>-h, --help</code></dt><dd>" + tr("Display help for command line arguments.").toHtmlEscaped()
+          + "</dd>";
+  html += "<dt><code>-c, --config &lt;directory&gt;</code></dt><dd>"
+          + tr("Store settings in this directory. The application creates config.ini directly inside it. "
+               "Future configuration formats, such as TOML, will also be stored in this directory.")
+                .toHtmlEscaped()
+          + "</dd>";
+  html += "</dl><h3>" + tr("Path").toHtmlEscaped() + "</h3><dl>";
+  html += "<dt><code>[path]</code></dt><dd>"
+          + tr("Optional existing project file (.ScanTailor) or directory. A project file is opened; a directory "
+               "is used as the initial input and output location.")
+                .toHtmlEscaped()
+          + "</dd></dl></body></html>";
+  browser->setHtml(html);
+  layout->addWidget(browser);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+  connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::close);
+  layout->addWidget(buttonBox);
+
+  dialog->resize(580, 360);
   dialog->show();
 }
 
