@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>337</width>
-    <height>442</height>
+    <width>520</width>
+    <height>540</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -583,6 +583,59 @@ Higher limits can exhaust memory.</string>
               </spacer>
              </item>
             </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="completionSoundGroupBox">
+         <property name="title">
+          <string>Completion sound</string>
+         </property>
+         <layout class="QVBoxLayout" name="completionSoundLayout">
+          <item>
+           <layout class="QHBoxLayout" name="completionSoundCommandLayout">
+            <item>
+             <widget class="QLabel" name="externalAlarmCommandLabel">
+              <property name="text">
+               <string>Custom command:</string>
+              </property>
+              <property name="buddy">
+               <cstring>externalAlarmCommandEdit</cstring>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="externalAlarmCommandEdit">
+              <property name="toolTip">
+               <string>Optional command to play a sound when batch processing finishes. Leave blank for the system sound.</string>
+              </property>
+              <property name="placeholderText">
+               <string>e.g. paplay /path/to/sound.oga</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="testCompletionSoundButton">
+              <property name="text">
+               <string>Test</string>
+              </property>
+              <property name="toolTip">
+               <string>Play the configured or system completion sound once.</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="completionSoundHelpLabel">
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>Leave the command empty to use the desktop sound. On Linux, common players include paplay and pw-play.</string>
+            </property>
            </widget>
           </item>
          </layout>

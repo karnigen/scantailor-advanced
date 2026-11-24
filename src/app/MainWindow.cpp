@@ -38,6 +38,7 @@
 #include "AutoRemovingFile.h"
 #include "BasicImageView.h"
 #include "ConfigurationDialog.h"
+#include "CompletionSound.h"
 #include "ContentBoxPropagator.h"
 #include "DebugImageView.h"
 #include "DebugImages.h"
@@ -1492,19 +1493,8 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 
       QApplication::alert(this);  // Flash the taskbar entry.
       if (m_checkBeepWhenFinished()) {
-#if defined(Q_OS_UNIX)
-        QString extPlayCmd("play /usr/share/sounds/freedesktop/stereo/bell.oga");
-#else
-        QString extPlayCmd;
-#endif
         SettingsStore settings;
-        QString cmd = settings.stringValue("main_window/external_alarm_cmd", extPlayCmd);
-        if (cmd.isEmpty()) {
-          QApplication::beep();
-        } else {
-          const int result = std::system(cmd.toStdString().c_str());
-          Q_UNUSED(result);
-        }
+        CompletionSound::play(settings.stringValue("main_window/external_alarm_cmd"));
       }
 
       if (m_selectedPage.get(getCurrentView()) == m_thumbSequence->lastPage().id()) {

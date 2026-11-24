@@ -5,6 +5,7 @@
 
 #include <core/ApplicationSettings.h>
 #include <core/ImageAllocationLimit.h>
+#include <core/SettingsStore.h>
 #include <tiff.h>
 
 #include <QtCore/QDir>
@@ -12,6 +13,7 @@
 #include <cmath>
 
 #include "Application.h"
+#include "CompletionSound.h"
 #include "OpenGLSupport.h"
 
 SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
@@ -97,6 +99,15 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
   ui.singleColumnThumbnailsCB->setChecked(settings.isSingleColumnThumbnailDisplayEnabled());
   ui.cancelingSelectionQuestionCB->setChecked(settings.isCancelingSelectionQuestionEnabled());
+
+  ui.externalAlarmCommandEdit->setText(SettingsStore().stringValue("main_window/external_alarm_cmd"));
+  connect(ui.testCompletionSoundButton, &QPushButton::clicked, this, [this]() {
+    if (!CompletionSound::play(ui.externalAlarmCommandEdit->text())) {
+      QMessageBox::warning(
+          this, tr("Completion sound"),
+          tr("No sound player could be started. Enter a working command or install a Linux desktop sound player."));
+    }
+  });
 }
 
 SettingsDialog::~SettingsDialog() = default;
@@ -147,6 +158,19 @@ bool SettingsDialog::commitChanges() {
 
   settings.setSingleColumnThumbnailDisplayEnabled(ui.singleColumnThumbnailsCB->isChecked());
   settings.setCancelingSelectionQuestionEnabled(ui.cancelingSelectionQuestionCB->isChecked());
+
+  SettingsStore config;
+  const QString alarmCommand = ui.externalAlarmCommandEdit->text().trimmed();
+  if (alarmCommand.isEmpty()) {
+    config.remove("main_window/external_alarm_cmd");
+  } else {
+    config.setValue("main_window/external_alarm_cmd", alarmCommand);
+  }
+  if (config.hasError()) {
+    QMessageBox::warning(this, tr("Settings"),
+                         tr("The completion sound command could not be saved. Check application settings and try again."));
+    return false;
+  }
 
   emit settingsChanged();
   return true;
