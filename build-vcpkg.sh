@@ -21,10 +21,9 @@ Options:
       Force CMake reconfiguration and vcpkg manifest dependency synchronization
       even if inputs are unchanged. Does not update the vcpkg Git checkout,
       delete build outputs, or clear caches. Not needed with --clean.
-  --qt-root PATH      Use a local Qt kit ending in <version>/gcc_64;
-                      other dependencies still come from vcpkg.
-  --tests             Build and run the unit tests. Qt Testlib stays enabled
-                      for vcpkg Qt whether or not this option is set.
+  --qt-root PATH      Use a preinstalled Qt kit. The path is saved for this
+                      build directory; vcpkg never builds Qt.
+  --tests             Build and run the unit tests using Qt Testlib from that kit.
   --build-type TYPE   Set CMake build type (default: Release).
   -j, --jobs N        Set parallel build jobs (default: available CPUs).
   -y, --yes           Continue without confirmation.
@@ -39,7 +38,8 @@ JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
 CLEAN="OFF"
 ASSUME_YES="OFF"
 FORCE_CONFIGURE="OFF"
-QT_ROOT=""
+QT_ROOT="${QT_ROOT:-}"
+INITIAL_QT_ROOT="$QT_ROOT"
 INITIAL_ARG_COUNT=$#
 
 while (($#)); do
@@ -120,7 +120,7 @@ read_build_config() {
   BUILD_TYPE="Release"
   BUILD_TESTS="OFF"
   JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')"
-  QT_ROOT=""
+  QT_ROOT="$INITIAL_QT_ROOT"
   VCPKG_ROOT="$INITIAL_VCPKG_ROOT"
 
   [[ -f "$config_file" ]] || return 0
@@ -129,7 +129,7 @@ read_build_config() {
       build_type) BUILD_TYPE="$value" ;;
       build_tests) BUILD_TESTS="$value" ;;
       jobs) JOBS="$value" ;;
-      qt_root) QT_ROOT="$value" ;;
+      qt_root) QT_ROOT="${value:-$QT_ROOT}" ;;
       vcpkg_root) VCPKG_ROOT="$value" ;;
     esac
   done < "$config_file"
@@ -180,9 +180,9 @@ select_interactive_build() {
       qt_root="$(infer_local_qt_root "$dir" || true)"
     fi
     if [[ -n "$qt_root" ]]; then
-      label="local Qt $(display_path "$qt_root")"
+      label="preinstalled Qt $(display_path "$qt_root")"
     else
-      label="vcpkg Qt"
+      label="Qt kit must be configured"
     fi
     if [[ ! -d "$dir" ]]; then
       label="$label, new build"
@@ -224,8 +224,21 @@ EOF
 if [[ "$INITIAL_ARG_COUNT" -eq 0 && -t 0 ]]; then
   select_interactive_build
 fi
+
+if [[ -z "$QT_ROOT" ]]; then
+  BUILD_CONFIG="${SCRIPT_DIR}/build-vcpkg/.build-vcpkg-config"
+  if [[ -f "$BUILD_CONFIG" ]]; then
+    QT_ROOT="$(sed -n 's/^qt_root=//p' "$BUILD_CONFIG" | head -1)"
+  fi
+fi
+if [[ -z "$QT_ROOT" ]]; then
+  echo "Error: no Qt kit configured." >&2
+  echo "Pass --qt-root <Qt-kit-path> or set QT_ROOT; vcpkg will not build Qt." >&2
+  exit 1
+fi
+
 VCPKG_TOOLCHAIN="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-QT_SIGNATURE="vcpkg"
+QT_SIGNATURE=""
 
 if [[ -n "$QT_ROOT" ]]; then
   QT_ROOT="$(cd "$QT_ROOT" 2>/dev/null && pwd)" || {
@@ -249,12 +262,9 @@ if [[ -n "$QT_ROOT" ]]; then
     echo "Error: could not determine Qt version from: $QT_ROOT" >&2
     exit 1
   fi
-  BUILD_DIR="${SCRIPT_DIR}/build-vcpkg-qt${QT_VERSION}"
-  QT_SOURCE="$QT_ROOT"
-else
-  BUILD_DIR="${SCRIPT_DIR}/build-vcpkg"
-  QT_SOURCE="vcpkg"
 fi
+BUILD_DIR="${SCRIPT_DIR}/build-vcpkg"
+QT_SOURCE="$QT_ROOT"
 
 VCPKG_TARGET_TRIPLET="x64-linux-release"
 VCPKG_HOST_TRIPLET="$VCPKG_TARGET_TRIPLET"
@@ -322,9 +332,6 @@ ScanTailor Advanced vcpkg build plan:
 
 Actions:
 EOF
-if [[ -z "$QT_ROOT" ]]; then
-  echo "  vcpkg Qt Testlib: enabled regardless of --tests"
-fi
 if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   cat <<'EOF'
   - Configure CMake with the vcpkg toolchain
@@ -365,13 +372,10 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   fi
   if [[ -n "$QT_ROOT" ]]; then
     EXPECTED_QT_DIR="$QT_ROOT/lib/cmake/Qt6"
-    if [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != "$EXPECTED_QT_DIR" ]]; then
-      rm -f "$BUILD_DIR/CMakeCache.txt"
-      if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
-        cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
-      fi
-    fi
-  elif [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != *"/vcpkg_installed/"* ]]; then
+  else
+    EXPECTED_QT_DIR="${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/Qt6"
+  fi
+  if [[ -n "$CACHED_QT_DIR" && "$CACHED_QT_DIR" != "$EXPECTED_QT_DIR" ]]; then
     rm -f "$BUILD_DIR/CMakeCache.txt"
     if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
       cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
@@ -384,7 +388,16 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   fi
   OLD_QT_SIGNATURE="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^qt_signature=//p')"
   NEW_QT_SIGNATURE="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^qt_signature=//p')"
-  if [[ -n "$OLD_QT_SIGNATURE" && "$OLD_QT_SIGNATURE" != "$NEW_QT_SIGNATURE" ]]; then
+  OLD_VCPKG_TARGET_TRIPLET="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^vcpkg_target_triplet=//p')"
+  NEW_VCPKG_TARGET_TRIPLET="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_target_triplet=//p')"
+  OLD_VCPKG_HOST_TRIPLET="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^vcpkg_host_triplet=//p')"
+  NEW_VCPKG_HOST_TRIPLET="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_host_triplet=//p')"
+  OLD_VCPKG_INSTALLED_DIR="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^vcpkg_installed_dir=//p')"
+  NEW_VCPKG_INSTALLED_DIR="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_installed_dir=//p')"
+  if [[ -n "$OLD_QT_SIGNATURE" && "$OLD_QT_SIGNATURE" != "$NEW_QT_SIGNATURE" ]] ||
+     [[ -n "$OLD_VCPKG_TARGET_TRIPLET" && "$OLD_VCPKG_TARGET_TRIPLET" != "$NEW_VCPKG_TARGET_TRIPLET" ]] ||
+     [[ -n "$OLD_VCPKG_HOST_TRIPLET" && "$OLD_VCPKG_HOST_TRIPLET" != "$NEW_VCPKG_HOST_TRIPLET" ]] ||
+     [[ -n "$OLD_VCPKG_INSTALLED_DIR" && "$OLD_VCPKG_INSTALLED_DIR" != "$NEW_VCPKG_INSTALLED_DIR" ]]; then
     rm -f "$BUILD_DIR/CMakeCache.txt"
     if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
       cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
@@ -392,15 +405,9 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   fi
   rm -f "$VCPKG_SIGNATURE_FILE"
 
-  VCPKG_MANIFEST_OPTIONS=()
+  VCPKG_MANIFEST_OPTIONS=(-DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON)
   VCPKG_FEATURES=(-DVCPKG_MANIFEST_FEATURES=)
-  CMAKE_PREFIX_OPTIONS=()
-  if [[ -n "$QT_ROOT" ]]; then
-    VCPKG_MANIFEST_OPTIONS=(-DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON)
-    CMAKE_PREFIX_OPTIONS=(-DCMAKE_PREFIX_PATH="$QT_ROOT")
-  else
-    VCPKG_FEATURES=(-DVCPKG_MANIFEST_FEATURES=)
-  fi
+  CMAKE_PREFIX_OPTIONS=(-DCMAKE_PREFIX_PATH="$QT_ROOT")
   if [[ "$BUILD_TESTS" == "ON" ]]; then
     VCPKG_FEATURES=(-DVCPKG_MANIFEST_FEATURES=tests)
   fi

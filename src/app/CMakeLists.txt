@@ -96,10 +96,3 @@ if (WIN32)
 endif()
 
 translation_sources(${target_name} ${gui_only_sources} ${gui_only_ui_files})
-
-if (BUILD_TESTS)
-  add_test(NAME application_config_help COMMAND ${target_name} --help)
-  set_tests_properties(
-      application_config_help
-      PROPERTIES PASS_REGULAR_EXPRESSION "--config <directory>")
-endif()

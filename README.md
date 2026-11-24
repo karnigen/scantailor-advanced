@@ -524,15 +524,15 @@ For isolated dependencies, build through vcpkg:
 ./build-vcpkg.sh
 ```
 
-This keeps the CMake build in `build-vcpkg/` and installs vcpkg dependencies under `$VCPKG_ROOT/installed/` (default: `~/vcpkg`), isolated by worktree and build configuration. On x64 Linux, the `x64-linux-release` triplet builds Release dependencies only, including Qt; no Qt Debug libraries are built. A first build may still compile Release dependencies if there is no matching vcpkg binary-cache entry.
+This keeps the CMake build in `build-vcpkg/` and installs non-Qt vcpkg dependencies under `$VCPKG_ROOT/installed/` (default: `~/vcpkg`), isolated by worktree. Qt must be preinstalled and is selected per user with `--qt-root` or the `QT_ROOT` environment variable; the selected path is saved in the ignored `.build-vcpkg-config`. If no kit is configured, the script fails instead of building Qt through vcpkg.
 
-To reuse an existing Qt 6 installation instead of building Qt through vcpkg, pass its kit prefix ending in `<version>/gcc_64` (the `bin` directory is also accepted):
+To configure a preinstalled Qt 6 kit, pass its kit prefix (the `bin` directory is also accepted):
 
 ```bash
-./build-vcpkg.sh --qt-root "$HOME/local/Qt/6.12.0/gcc_64"
+./build-vcpkg.sh --qt-root "/path/to/your/Qt/<version>/gcc_64"
 ```
 
-The local-Qt build is kept separately in `build-vcpkg-qt<version>/`; vcpkg still supplies the remaining project dependencies using Release libraries only. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
+Qt, including Qt Testlib, always comes from the selected preinstalled SDK. vcpkg supplies only the remaining project dependencies using Release libraries. Use `--sync` to force dependency synchronization or `-y` for non-interactive builds.
 
 Running `./build-vcpkg.sh` without arguments in an interactive terminal shows the available build configurations and stored options. Each build directory stores its selection in `.build-vcpkg-config`; build directories remain ignored by Git.
 

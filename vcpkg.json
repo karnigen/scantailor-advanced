@@ -10,57 +10,11 @@
     "tiff",
     "zlib"
   ],
-  "default-features": [
-    "vcpkg-qt"
-  ],
   "features": {
     "tests": {
       "description": "Build the unit tests",
       "dependencies": [
         "catch2"
-      ]
-    },
-    "vcpkg-qt": {
-      "description": "Build and use Qt from vcpkg",
-      "dependencies": [
-        {
-          "name": "qtbase",
-          "default-features": false,
-          "features": [
-            "freetype",
-            "gui",
-            "harfbuzz",
-            "network",
-            "opengl",
-            "testlib",
-            "widgets"
-          ]
-        },
-        {
-          "name": "qtbase",
-          "default-features": false,
-          "features": [
-            "fontconfig",
-            "xcb"
-          ],
-          "platform": "linux"
-        },
-        {
-          "name": "qtbase",
-          "default-features": false,
-          "features": [
-            "windeployqt"
-          ],
-          "platform": "windows"
-        },
-        "qtsvg",
-        {
-          "name": "qttools",
-          "default-features": false,
-          "features": [
-            "linguist"
-          ]
-        }
       ]
     }
   }

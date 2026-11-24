@@ -9,12 +9,15 @@ Use the repository build script for development builds and tests:
 ./build-vcpkg.sh --tests
 ```
 
-Both commands use Release vcpkg dependencies. Qt Testlib is part of the vcpkg Qt
-feature regardless of `--tests`, so toggling the option does not change Qt's
-feature set. `--tests` enables the test targets and runs them through CTest after the build.
+Both commands use a preinstalled Qt SDK selected with `--qt-root` or the
+`QT_ROOT` environment variable. The selected path is saved in the ignored
+`.build-vcpkg-config` file for later runs. Qt is not a vcpkg dependency and is
+never built by this script. Qt Testlib comes from the selected SDK regardless
+of `--tests`; the option only enables the test targets and runs them through
+CTest after the build. Other vcpkg dependencies use Release libraries.
 The test targets cover typed settings round-trips, relative and invalid
-configuration directories, legacy INI copying, profile placement, the
-configuration dialog, and the command-line help option.
+configuration directories, legacy INI copying, profile placement, and the
+configuration dialog.
 
 CI workflows build/package the application with unit tests disabled. The
 macOS workflow also runs a packaged-application smoke test; it does not run the
@@ -105,7 +108,7 @@ in the generic path. Rounding and the selected Qt path can change the result.
 Neither method's quality for real scanned pages follows solely from this
 synthetic comparison.
 
-One reproducible Release build measurement on Linux with vcpkg Qt 6.11.3 used
+One reproducible Release build measurement on Linux with Qt 6.11.3 used
 the deterministic 100×100 high-contrast image in `TestScale.cpp`:
 
 | Target | Qt input | Maximum difference | Mean absolute difference | Pixels differing by more than 1 |
@@ -198,4 +201,5 @@ To build the application without building or running unit tests:
 ```
 
 This skips Catch2 and the test executables. Qt Testlib remains part of the
-vcpkg Qt feature so enabling tests later does not change the Qt dependency set.
+selected preinstalled Qt SDK, so enabling tests later does not change Qt
+dependencies.

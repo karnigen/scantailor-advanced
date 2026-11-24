@@ -1878,8 +1878,16 @@ void MainWindow::showKeyboardShortcuts() {
 }
 
 void MainWindow::showConfigurationDialog() {
-  ConfigurationDialog dialog(this);
-  dialog.exec();
+  if (auto* dialog = findChild<ConfigurationDialog*>(QStringLiteral("configurationDialog"))) {
+    dialog->raise();
+    dialog->activateWindow();
+    return;
+  }
+
+  auto* dialog = new ConfigurationDialog(this);
+  dialog->setObjectName(QStringLiteral("configurationDialog"));
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->show();
 }
 
 void MainWindow::applyMenuMnemonics() {

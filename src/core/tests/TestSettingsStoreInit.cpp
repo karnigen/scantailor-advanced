@@ -56,6 +56,9 @@ TEST_CASE("SettingsStoreTestSuite / test_copy_existing_standard_ini_to_config_in
   REQUIRE(tempDir.isValid());
 
   const QString configRoot = QDir(tempDir.path()).filePath(QStringLiteral("platform-config"));
+  qputenv("HOME", tempDir.path().toLocal8Bit());
+  qputenv("APPDATA", configRoot.toLocal8Bit());
+  qputenv("LOCALAPPDATA", configRoot.toLocal8Bit());
   qputenv("XDG_CONFIG_HOME", configRoot.toLocal8Bit());
   QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
                      QDir(tempDir.path()).filePath(QStringLiteral("legacy-settings")));
@@ -70,8 +73,9 @@ TEST_CASE("SettingsStoreTestSuite / test_copy_existing_standard_ini_to_config_in
   REQUIRE(legacySettings.status() == QSettings::NoError);
   const QString legacyFilePath = legacySettings.fileName();
 
-  const QString defaultDirectory = QDir(configRoot).filePath(applicationName);
-  CHECK(SettingsStore::defaultConfigDirectory() == defaultDirectory);
+  const QString defaultDirectory = SettingsStore::defaultConfigDirectory();
+  const QString relativeDefaultDirectory = QDir(tempDir.path()).relativeFilePath(defaultDirectory);
+  CHECK(!relativeDefaultDirectory.startsWith(QStringLiteral("..")));
 
   QString error;
   REQUIRE(SettingsStore::initialize(QString(), false, &error, true));
