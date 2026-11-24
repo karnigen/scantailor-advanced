@@ -43,7 +43,8 @@ ConfigurationDialog::ConfigurationDialog(QWidget* parent)
   layout->addWidget(m_profilesPathLabel);
   layout->addWidget(m_statusLabel);
   layout->addWidget(
-      new QLabel(tr("An existing config.ini is migrated once and renamed to config.ini.bak after TOML is saved. "
+      new QLabel(tr("An existing config.ini is migrated once. After TOML is saved, the application attempts to rename "
+                    "it to config.ini.bak; if that fails or the backup already exists, config.ini remains in place. "
                     "Unknown TOML keys are retained."),
                  this));
 

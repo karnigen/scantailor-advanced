@@ -6,6 +6,7 @@
 #include <core/DefaultParamsProfileManager.h>
 #include <core/SettingsStore.h>
 
+#include <toml++/toml.h>
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -18,6 +19,8 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <catch2/catch_test_macros.hpp>
+
+#include <string_view>
 
 TEST_CASE("SettingsStoreTestSuite / test_explicit_relative_config_directory_and_profiles",
           "[settings-store-explicit]") {
@@ -154,8 +157,76 @@ TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_rename_source_t
   CHECK(tomlContents.contains("colorOperationsOptions = { collapsed = true }"));
 
   settings.setValue(QStringLiteral("settings/enable_opengl"), false);
-  REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
   CHECK_FALSE(settings.boolValue(QStringLiteral("settings/enable_opengl")));
+  QFile updatedToml(SettingsStore::configFilePath());
+  REQUIRE(updatedToml.open(QIODevice::ReadOnly));
+  CHECK(updatedToml.readAll().contains("enable_opengl = false"));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_empty_ini_migration_writes_schema_document",
+          "[settings-store-empty-ini-migration]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QFile emptyIni(iniPath);
+  REQUIRE(emptyIni.open(QIODevice::WriteOnly));
+  emptyIni.close();
+
+  QString error;
+  REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
+  REQUIRE(error.isEmpty());
+  CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+  CHECK_FALSE(QFileInfo::exists(iniPath));
+  CHECK(QFileInfo::exists(iniPath + QStringLiteral(".bak")));
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::ReadOnly));
+  CHECK(toml.readAll().contains("schema_version = 1"));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_malformed_ini_is_not_archived", "[settings-store-invalid-ini]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  const QByteArray invalidIni("[invalid\nsetting = true\n");
+  QFile ini(iniPath);
+  REQUIRE(ini.open(QIODevice::WriteOnly));
+  REQUIRE(ini.write(invalidIni) == invalidIni.size());
+  ini.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("legacy INI")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+  QFile unchangedIni(iniPath);
+  REQUIRE(unchangedIni.open(QIODevice::ReadOnly));
+  CHECK(unchangedIni.readAll() == invalidIni);
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_invalid_migration_candidate_keeps_ini",
+          "[settings-store-invalid-migration-candidate]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  {
+    QSettings legacy(iniPath, QSettings::IniFormat);
+    legacy.setValue(QStringLiteral("schema_version"), QStringLiteral("not a version"));
+    legacy.sync();
+    REQUIRE(legacy.status() == QSettings::NoError);
+  }
+  QFile source(iniPath);
+  REQUIRE(source.open(QIODevice::ReadOnly));
+  const QByteArray originalIni = source.readAll();
+  source.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("schema_version")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+  QFile unchangedIni(iniPath);
+  REQUIRE(unchangedIni.open(QIODevice::ReadOnly));
+  CHECK(unchangedIni.readAll() == originalIni);
 }
 
 TEST_CASE("SettingsStoreTestSuite / test_migration_does_not_overwrite_existing_ini_backup",
@@ -282,6 +353,7 @@ TEST_CASE("SettingsStoreTestSuite / test_concurrent_process_writes_preserve_both
     SettingsStore settings(tomlPath);
     settings.setValue(QStringLiteral("settings/initialized"), true);
   }
+  SettingsStore observer(tomlPath);
 
   const QString releasePath = tempDir.filePath(QStringLiteral("write-release"));
   QProcess processes[2];
@@ -320,9 +392,17 @@ TEST_CASE("SettingsStoreTestSuite / test_concurrent_process_writes_preserve_both
     CHECK(process.exitCode() == 0);
   }
 
-  SettingsStore settings(tomlPath);
-  CHECK(settings.boolValue(keys.at(0)));
-  CHECK(settings.boolValue(keys.at(1)));
+  QFile persistedFile(tomlPath);
+  REQUIRE(persistedFile.open(QIODevice::ReadOnly));
+  const QByteArray persistedContents = persistedFile.readAll();
+  persistedFile.close();
+  observer.sync();
+  CHECK_FALSE(observer.hasError());
+  CHECK(observer.boolValue(keys.at(0)));
+  CHECK(observer.boolValue(keys.at(1)));
+  QFile unchangedPersistedFile(tomlPath);
+  REQUIRE(unchangedPersistedFile.open(QIODevice::ReadOnly));
+  CHECK(unchangedPersistedFile.readAll() == persistedContents);
 }
 
 TEST_CASE("SettingsStoreTestSuite / test_toml_takes_precedence_over_ini", "[settings-store-precedence]") {
@@ -347,8 +427,17 @@ TEST_CASE("SettingsStoreTestSuite / test_toml_takes_precedence_over_ini", "[sett
     CHECK_FALSE(settings.boolValue(QStringLiteral("settings/enable_opengl")));
     settings.setValue(QStringLiteral("project/lastDir"), QStringLiteral("/scans"));
   }
-  CHECK(SettingsStore(tempDir.filePath(QStringLiteral("config.toml"))).stringValue(QStringLiteral("custom/retained"))
-        == QStringLiteral("keep"));
+  QFile savedToml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(savedToml.open(QIODevice::ReadOnly));
+  const QByteArray savedContents = savedToml.readAll();
+  const toml::table savedDocument
+      = toml::parse(std::string_view(savedContents.constData(), static_cast<std::size_t>(savedContents.size())));
+  const auto lastDir = savedDocument["project"]["lastDir"].value<std::string>();
+  const auto retained = savedDocument["custom"]["retained"].value<std::string>();
+  REQUIRE(lastDir);
+  REQUIRE(retained);
+  CHECK(*lastDir == "/scans");
+  CHECK(*retained == "keep");
   CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.ini"))));
 }
 
@@ -363,7 +452,7 @@ TEST_CASE("SettingsStoreTestSuite / test_invalid_toml_does_not_fall_back_to_ini"
 
   const QByteArray invalidContents("schema_version = [\n");
   QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
-  REQUIRE(toml.open(QIODevice::WriteOnly | QIODevice::Text));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
   REQUIRE(toml.write(invalidContents) == invalidContents.size());
   toml.close();
 
@@ -394,4 +483,94 @@ TEST_CASE("SettingsStoreTestSuite / test_wrong_toml_value_type_is_reported", "[s
   CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
   CHECK(error.contains(QStringLiteral("settings/enable_opengl")));
   CHECK(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.ini"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_schema_version_requires_native_integer", "[settings-store-schema-type]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1.0\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("schema_version")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_numeric_settings_reject_toml_booleans", "[settings-store-numeric-type]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[settings]\ndeskew_deviation_coef = true\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/deskew_deviation_coef")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_sizef_components_reject_toml_booleans", "[settings-store-sizef-type]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[settings]\nmax_logical_thumb_size = [true, 20.0]\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/max_logical_thumb_size")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_invalid_window_geometry_falls_back_without_blocking_writes",
+          "[settings-store-geometry-fallback]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[mainWindow]\nnonMaximizedGeometry = 42\n") > 0);
+  toml.close();
+
+  QString error;
+  REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
+  SettingsStore settings;
+  CHECK(settings.byteArrayValue(QStringLiteral("mainWindow/nonMaximizedGeometry")).isEmpty());
+  CHECK_FALSE(settings.hasError());
+  settings.setValue(QStringLiteral("settings/language"), QStringLiteral("en"));
+  CHECK_FALSE(settings.hasError());
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_readonly_default_keeps_legacy_settings_in_memory",
+          "[settings-store-readonly]") {
+#if defined(Q_OS_LINUX)
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  qputenv("XDG_CONFIG_HOME", QByteArray("/proc/scantailor-readonly-config-test"));
+  QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, tempDir.filePath(QStringLiteral("legacy")));
+  const QString applicationName = QString::fromUtf8(APPLICATION_NAME);
+  QCoreApplication::setOrganizationName(applicationName);
+  QCoreApplication::setApplicationName(applicationName);
+
+  QSettings legacy(QSettings::IniFormat, QSettings::UserScope, applicationName, applicationName);
+  legacy.setValue(QStringLiteral("settings/enable_opengl"), true);
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+  const QString legacyPath = legacy.fileName();
+
+  QString warning;
+  REQUIRE(SettingsStore::initialize(QString(), false, &warning, true));
+  CHECK_FALSE(SettingsStore::configDirectoryWritable());
+  CHECK_FALSE(warning.isEmpty());
+  CHECK_FALSE(QFileInfo::exists(SettingsStore::configFilePath()));
+  SettingsStore settings;
+  CHECK(settings.boolValue(QStringLiteral("settings/enable_opengl")));
+  settings.sync();
+  CHECK(settings.boolValue(QStringLiteral("settings/enable_opengl")));
+  CHECK_FALSE(QFileInfo::exists(SettingsStore::configFilePath()));
+  CHECK(QFileInfo::exists(legacyPath));
+#else
+  SUCCEED("The read-only default-path fixture uses Linux's /proc filesystem.");
+#endif
 }

@@ -183,7 +183,9 @@ struct TomlState {
     }
 
     const auto schemaVersion = document.get("schema_version");
-    const auto version = schemaVersion ? schemaVersion->value<std::int64_t>() : std::nullopt;
+    const auto version = schemaVersion && schemaVersion->type() == toml::node_type::integer
+                             ? schemaVersion->value<std::int64_t>()
+                             : std::nullopt;
     if (!version || *version != kTomlSchemaVersion) {
       error = QObject::tr("Unsupported or missing configuration schema_version in %1 (expected %2).")
                   .arg(filePath)
@@ -208,6 +210,7 @@ struct TomlState {
   toml::table document;
   std::vector<TomlMutation> pendingMutations;
   QString error;
+  QString persistenceError;
 };
 
 std::shared_ptr<TomlState> g_activeTomlState;
@@ -311,7 +314,7 @@ class IniBackend final : public SettingsStore::Backend {
 
   bool contains(const QString& key) const override { return m_settings.contains(key); }
 
-  bool hasError() const override { return m_settings.status() != QSettings::NoError; }
+  bool hasError() const override { return m_settings.status() != QSettings::NoError || !m_persistenceError.isEmpty(); }
 
   QStringList stringList(const QString& key) const override {
     QStringList values;
@@ -351,21 +354,29 @@ class IniBackend final : public SettingsStore::Backend {
 
   QString sync() override {
     m_settings.sync();
+    QString error;
     switch (m_settings.status()) {
       case QSettings::NoError:
-        return QString();
+        break;
       case QSettings::AccessError:
-        return QObject::tr("access to the settings file was denied");
+        error = QObject::tr("access to the settings file was denied");
+        break;
       case QSettings::FormatError:
-        return QObject::tr("the settings file has an invalid format");
+        error = QObject::tr("the settings file has an invalid format");
+        break;
     }
-    return QObject::tr("the settings file could not be saved");
+    if (error.isEmpty() && m_settings.status() != QSettings::NoError) {
+      error = QObject::tr("the settings file could not be saved");
+    }
+    m_persistenceError = error;
+    return error;
   }
 
   QSettings& settings() { return m_settings; }
 
  private:
   mutable QSettings m_settings;
+  QString m_persistenceError;
 };
 
 class TomlBackend final : public SettingsStore::Backend {
@@ -378,7 +389,7 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!node) {
       return defaultValue;
     }
-    const auto value = node->value<bool>();
+    const auto value = node->type() == toml::node_type::boolean ? node->value<bool>() : std::nullopt;
     if (!value) {
       recordTypeError(key, QStringLiteral("a boolean"));
       return defaultValue;
@@ -395,7 +406,7 @@ class TomlBackend final : public SettingsStore::Backend {
       }
       return defaultValue;
     }
-    const auto value = node->value<std::int64_t>();
+    const auto value = node->type() == toml::node_type::integer ? node->value<std::int64_t>() : std::nullopt;
     if (!value || *value < std::numeric_limits<int>::min() || *value > std::numeric_limits<int>::max()) {
       if (ok) {
         *ok = false;
@@ -415,11 +426,11 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!node) {
       return defaultValue;
     }
-    if (const auto value = node->value<double>()) {
-      return *value;
+    if (node->type() == toml::node_type::floating_point) {
+      return *node->value<double>();
     }
-    if (const auto value = node->value<std::int64_t>()) {
-      return static_cast<double>(*value);
+    if (node->type() == toml::node_type::integer) {
+      return static_cast<double>(*node->value<std::int64_t>());
     }
     recordTypeError(key, QStringLiteral("a number"));
     return defaultValue;
@@ -431,7 +442,7 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!node) {
       return defaultValue;
     }
-    const auto value = node->value<std::string>();
+    const auto value = node->type() == toml::node_type::string ? node->value<std::string>() : std::nullopt;
     if (!value) {
       recordTypeError(key, QStringLiteral("a string"));
       return defaultValue;
@@ -445,15 +456,15 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!node) {
       return defaultValue;
     }
-    const auto value = node->value<std::string>();
+    const auto value = node->type() == toml::node_type::string ? node->value<std::string>() : std::nullopt;
     if (!value) {
-      recordTypeError(key, QStringLiteral("a hexadecimal string"));
+      recordByteArrayTypeError(key);
       return defaultValue;
     }
     const QByteArray hex = QByteArray::fromStdString(*value);
     const QByteArray bytes = QByteArray::fromHex(hex);
     if (bytes.toHex() != hex.toLower()) {
-      recordTypeError(key, QStringLiteral("a valid hexadecimal string"));
+      recordByteArrayTypeError(key);
       return defaultValue;
     }
     return bytes;
@@ -470,8 +481,12 @@ class TomlBackend final : public SettingsStore::Backend {
       recordTypeError(key, QStringLiteral("a two-integer array"));
       return defaultValue;
     }
-    const auto width = values->get(0)->value<std::int64_t>();
-    const auto height = values->get(1)->value<std::int64_t>();
+    const toml::node* widthNode = values->get(0);
+    const toml::node* heightNode = values->get(1);
+    const auto width
+        = widthNode && widthNode->type() == toml::node_type::integer ? widthNode->value<std::int64_t>() : std::nullopt;
+    const auto height = heightNode && heightNode->type() == toml::node_type::integer ? heightNode->value<std::int64_t>()
+                                                                                     : std::nullopt;
     if (!width || !height || *width < std::numeric_limits<int>::min() || *width > std::numeric_limits<int>::max()
         || *height < std::numeric_limits<int>::min() || *height > std::numeric_limits<int>::max()) {
       recordTypeError(key, QStringLiteral("a two-integer array"));
@@ -507,7 +522,7 @@ class TomlBackend final : public SettingsStore::Backend {
 
   bool hasError() const override {
     std::lock_guard<std::mutex> lock(m_state->mutex);
-    return !m_state->error.isEmpty();
+    return !m_state->error.isEmpty() || !m_state->persistenceError.isEmpty();
   }
 
   QString errorString() const {
@@ -528,7 +543,7 @@ class TomlBackend final : public SettingsStore::Backend {
     }
     QStringList result;
     for (const toml::node& item : *values) {
-      const auto value = item.value<std::string>();
+      const auto value = item.type() == toml::node_type::string ? item.value<std::string>() : std::nullopt;
       if (!value) {
         recordTypeError(key, QStringLiteral("an array of strings"));
         return {};
@@ -585,29 +600,52 @@ class TomlBackend final : public SettingsStore::Backend {
     m_state->pendingMutations.push_back(std::move(mutation));
   }
 
-  QString sync() override {
+  QString sync() override { return sync(false); }
+
+  QString sync(bool forceWrite) {
+    {
+      std::lock_guard<std::mutex> lock(m_state->mutex);
+      if (!m_state->error.isEmpty()) {
+        return m_state->error;
+      }
+      if (!forceWrite && m_state->pendingMutations.empty() && !QFileInfo::exists(m_state->filePath)) {
+        m_state->persistenceError.clear();
+        return {};
+      }
+    }
+
     QLockFile processLock(m_state->filePath + QStringLiteral(".lock"));
     processLock.setStaleLockTime(30000);
     if (!processLock.tryLock(10000)) {
-      return QObject::tr("unable to lock the TOML settings file: %1").arg(m_state->filePath);
+      const QString error = QObject::tr("unable to lock the TOML settings file: %1").arg(m_state->filePath);
+      std::lock_guard<std::mutex> lock(m_state->mutex);
+      m_state->persistenceError = error;
+      return error;
     }
 
     std::lock_guard<std::mutex> lock(m_state->mutex);
     if (!m_state->error.isEmpty()) {
       return m_state->error;
     }
-    if (m_state->pendingMutations.empty()) {
+    if (!forceWrite && m_state->pendingMutations.empty() && !QFileInfo::exists(m_state->filePath)) {
+      m_state->persistenceError.clear();
       return {};
     }
-
     TomlState latest(m_state->filePath);
     if (!latest.error.isEmpty()) {
-      return latest.error;
+      m_state->persistenceError = latest.error;
+      return m_state->persistenceError;
+    }
+    if (m_state->pendingMutations.empty() && !forceWrite) {
+      m_state->document = std::move(latest.document);
+      m_state->persistenceError.clear();
+      return {};
     }
     for (const TomlMutation& mutation : m_state->pendingMutations) {
       QString mutationError;
       if (!mutation(latest.document, &mutationError)) {
-        return mutationError;
+        m_state->persistenceError = mutationError;
+        return m_state->persistenceError;
       }
     }
     std::ostringstream output;
@@ -615,20 +653,31 @@ class TomlBackend final : public SettingsStore::Backend {
     const std::string serialized = output.str();
     QSaveFile file(m_state->filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-      return QObject::tr("unable to open the TOML file for writing: %1").arg(file.errorString());
+      m_state->persistenceError = QObject::tr("unable to open the TOML file for writing: %1").arg(file.errorString());
+      return m_state->persistenceError;
     }
     if (file.write(serialized.data(), static_cast<qint64>(serialized.size()))
         != static_cast<qint64>(serialized.size())) {
       const QString error = file.errorString();
       file.cancelWriting();
-      return QObject::tr("unable to write the TOML file: %1").arg(error);
+      m_state->persistenceError = QObject::tr("unable to write the TOML file: %1").arg(error);
+      return m_state->persistenceError;
     }
     if (!file.commit()) {
-      return QObject::tr("unable to atomically replace the TOML file: %1").arg(file.errorString());
+      m_state->persistenceError = QObject::tr("unable to atomically replace the TOML file: %1").arg(file.errorString());
+      return m_state->persistenceError;
     }
     m_state->document = std::move(latest.document);
     m_state->pendingMutations.clear();
+    m_state->persistenceError.clear();
     return {};
+  }
+
+  std::string serializedDocument() const {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    std::ostringstream output;
+    output << m_state->document;
+    return output.str();
   }
 
  private:
@@ -636,11 +685,11 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!node) {
       return std::nullopt;
     }
-    if (const auto value = node->value<double>()) {
-      return *value;
+    if (node->type() == toml::node_type::floating_point) {
+      return *node->value<double>();
     }
-    if (const auto value = node->value<std::int64_t>()) {
-      return static_cast<double>(*value);
+    if (node->type() == toml::node_type::integer) {
+      return static_cast<double>(*node->value<std::int64_t>());
     }
     return std::nullopt;
   }
@@ -648,6 +697,15 @@ class TomlBackend final : public SettingsStore::Backend {
   void recordTypeError(const QString& key, const QString& expected) const {
     recordError(QObject::tr("Invalid type for configuration key '%1' in %2; expected %3.")
                     .arg(key, m_state->filePath, expected));
+  }
+
+  void recordByteArrayTypeError(const QString& key) const {
+    if (key == QStringLiteral("mainWindow/nonMaximizedGeometry")) {
+      qWarning().noquote()
+          << QObject::tr("Invalid window geometry in %1; the default window size will be used.").arg(m_state->filePath);
+      return;
+    }
+    recordTypeError(key, QStringLiteral("a hexadecimal string"));
   }
 
   void recordError(const QString& error) const {
@@ -863,9 +921,32 @@ bool validateTomlValues(TomlBackend& settings) {
   }
   settings.sizeValue(QStringLiteral("settings/thumbnail_quality"), QSize());
   settings.sizeFValue(QStringLiteral("settings/max_logical_thumb_size"), QSizeF());
-  settings.byteArrayValue(QStringLiteral("window/nonMaximizedGeometry"), QByteArray());
+  settings.byteArrayValue(QStringLiteral("mainWindow/nonMaximizedGeometry"), QByteArray());
   settings.stringList(QStringLiteral("project/recent"));
   return !settings.hasError();
+}
+
+bool validateTomlCandidate(TomlBackend& settings, QString* errorMessage) {
+  const std::string serialized = settings.serializedDocument();
+  QTemporaryFile candidate;
+  if (!candidate.open()) {
+    *errorMessage = QObject::tr("Unable to create a temporary file to validate the migrated TOML: %1")
+                        .arg(candidate.errorString());
+    return false;
+  }
+  if (candidate.write(serialized.data(), static_cast<qint64>(serialized.size()))
+      != static_cast<qint64>(serialized.size())) {
+    *errorMessage = QObject::tr("Unable to write the temporary migrated TOML: %1").arg(candidate.errorString());
+    return false;
+  }
+  candidate.close();
+
+  TomlBackend parsedCandidate(candidate.fileName());
+  if (parsedCandidate.hasError() || !validateTomlValues(parsedCandidate)) {
+    *errorMessage = QObject::tr("The converted TOML settings are invalid: %1").arg(parsedCandidate.errorString());
+    return false;
+  }
+  return true;
 }
 
 bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, bool persist, QString* errorMessage) {
@@ -883,22 +964,58 @@ bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, bool pers
     return false;
   }
 
-  for (const QString& key : ini.allKeys()) {
+  const QStringList keys = ini.allKeys();
+  if (source.hasError()) {
+    *errorMessage = QObject::tr(
+                        "Unable to parse the legacy INI settings file: %1. The original INI file was left "
+                        "unchanged.")
+                        .arg(iniPath);
+    return false;
+  }
+
+  for (const QString& key : keys) {
     if (key.startsWith(QStringLiteral("project/recent/"))) {
       continue;
     }
-    if (!convertIniValue(destination, key, ini.value(key), errorMessage)) {
+    const QVariant value = ini.value(key);
+    if (source.hasError()) {
+      *errorMessage = QObject::tr(
+                          "Unable to parse the legacy INI settings file: %1. The original INI file was left "
+                          "unchanged.")
+                          .arg(iniPath);
+      return false;
+    }
+    if (!convertIniValue(destination, key, value, errorMessage)) {
       *errorMessage += QObject::tr(" The original INI file was left unchanged.");
       return false;
     }
   }
 
   if (ini.contains(QStringLiteral("project/recent/size"))) {
-    destination.setStringList(QStringLiteral("project/recent"), source.stringList(QStringLiteral("project/recent")));
+    const QStringList recentProjects = source.stringList(QStringLiteral("project/recent"));
+    if (source.hasError()) {
+      *errorMessage = QObject::tr(
+                          "Unable to parse the legacy INI settings file: %1. The original INI file was left "
+                          "unchanged.")
+                          .arg(iniPath);
+      return false;
+    }
+    destination.setStringList(QStringLiteral("project/recent"), recentProjects);
+  }
+  if (source.hasError()) {
+    *errorMessage = QObject::tr(
+                        "Unable to parse the legacy INI settings file: %1. The original INI file was left "
+                        "unchanged.")
+                        .arg(iniPath);
+    return false;
   }
   if (destination.hasError()) {
     *errorMessage
         = QObject::tr("Unable to convert values from %1. The original INI file was left unchanged.").arg(iniPath);
+    return false;
+  }
+  if (!validateTomlCandidate(destination, errorMessage)) {
+    *errorMessage += QObject::tr(" The original INI file was left unchanged.");
     return false;
   }
 
@@ -906,7 +1023,7 @@ bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, bool pers
     return true;
   }
 
-  const QString writeError = destination.sync();
+  const QString writeError = destination.sync(true);
   if (!writeError.isEmpty()) {
     *errorMessage = QObject::tr("Unable to migrate %1 to %2: %3. The original INI file was left unchanged.")
                         .arg(iniPath, tomlPath, writeError);
@@ -950,14 +1067,6 @@ bool SettingsStore::initialize(const QString& configDirectory,
   const QString iniPath = QDir(directory).filePath(QStringLiteral("config.ini"));
   QString initializationWarning = writable ? QString() : probeError;
 
-  if (writable && preserveExistingSettings && !QFileInfo::exists(tomlPath) && !QFileInfo::exists(iniPath)) {
-    const QString legacyFilePath = IniBackend::legacyFilePath();
-    if (QFileInfo::exists(legacyFilePath) && legacyFilePath != iniPath && !QFile::copy(legacyFilePath, iniPath)) {
-      initializationWarning
-          = QObject::tr("Unable to copy the existing settings file from %1 to %2.").arg(legacyFilePath, iniPath);
-    }
-  }
-
   if (QFileInfo::exists(tomlPath)) {
     const std::shared_ptr<TomlState> configState = stateForPath(tomlPath);
     TomlBackend toml(tomlPath);
@@ -992,6 +1101,14 @@ bool SettingsStore::initialize(const QString& configDirectory,
       }
       g_activeTomlState = configState;
     } else {
+      if (writable && preserveExistingSettings && !QFileInfo::exists(tomlPath) && !QFileInfo::exists(iniPath)) {
+        const QString legacyFilePath = IniBackend::legacyFilePath();
+        if (QFileInfo::exists(legacyFilePath) && legacyFilePath != iniPath && !QFile::copy(legacyFilePath, iniPath)) {
+          initializationWarning
+              = QObject::tr("Unable to copy the existing settings file from %1 to %2.").arg(legacyFilePath, iniPath);
+        }
+      }
+
       QString migrationIniPath;
       if (QFileInfo::exists(iniPath)) {
         migrationIniPath = iniPath;

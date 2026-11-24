@@ -237,8 +237,11 @@ has't been moved due to dirty realization. Their functionality is fully covered 
 * #### ScanTailor Advanced fixes & improvements
   * Configuration files are stored in the standard user configuration directory for the platform.
     Use `--config <directory>` (or `-c <directory>`) to store `config.toml` directly in a chosen directory.
-    An existing `config.ini` is migrated once on first launch and renamed to `config.ini.bak` after the TOML file
-    is saved successfully. If the configuration directory is read-only, the INI is loaded in memory and left in place.
+    An existing `config.toml` takes precedence and leaves `config.ini` unchanged. Otherwise, an existing `config.ini`
+    is migrated once; after TOML is saved, the application attempts to rename it to `config.ini.bak`. If the backup
+    already exists or renaming fails, `config.ini` remains in place. In-memory fallback for an INI is available only
+    in the platform-default configuration directory. A directory selected with `--config` must be writable or
+    initialization fails without falling back.
     Settings are stored as nested TOML tables; collapsible-group states use inline tables under
     `[CollapsibleGroupBox]`, window geometry uses a hexadecimal string, sizes use two-number arrays, and recent
     projects use an array of strings. Unknown TOML keys are preserved. Legacy values that cannot be
@@ -483,7 +486,7 @@ This software is licensed under GNU GPLv3, you can read more about it on our [LI
 Install the required dependencies:
 
 ```bash
-sudo apt install build-essential cmake \
+sudo apt install build-essential cmake ninja-build libtomlplusplus-dev \
   qt6-base-dev qt6-svg-dev qt6-tools-dev \
   libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 ```
@@ -530,7 +533,8 @@ For isolated dependencies, build through vcpkg:
 ```
 
 This keeps the CMake build in `build-vcpkg/` and installs non-Qt vcpkg dependencies under `$VCPKG_ROOT/installed/` (default: `~/vcpkg`), isolated by worktree. Qt must be preinstalled and is selected per user with `--qt-root` or the `QT_ROOT` environment variable; the selected path is saved in the ignored `.build-vcpkg-config`. If no kit is configured, the script fails instead of building Qt through vcpkg.
-The CMake generator defaults to Ninja; set `CMAKE_GENERATOR` to another installed generator when needed.
+The CMake generator defaults to Ninja; install `ninja-build` to use it. Set `CMAKE_GENERATOR` to another installed
+generator when needed.
 
 To configure a preinstalled Qt 6 kit, pass its kit prefix (the `bin` directory is also accepted):
 
