@@ -149,6 +149,8 @@ ImageView::ImageView(const QImage& image,
 
   QAction* create = m_noContentMenu->addAction(tr("Create Content Box"));
   QAction* remove = m_haveContentMenu->addAction(tr("Remove Content Box"));
+  create->setToolTip(tr("Create a content box around the area to keep."));
+  remove->setToolTip(tr("Remove the current content box."));
   create->setObjectName("selectContentCreateBox");
   remove->setObjectName("selectContentRemoveBox");
   create->setShortcut(QKeySequence("Ins"));

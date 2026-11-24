@@ -9,7 +9,6 @@
 
 #include <QIntValidator>
 #include <QLineEdit>
-#include <QSettings>
 #include <utility>
 
 #include "../../Utils.h"
@@ -17,6 +16,7 @@
 #include "ApplyMarginsDialog.h"
 #include "ProjectPages.h"
 #include "Settings.h"
+#include "SettingsStore.h"
 
 using namespace core;
 
@@ -32,9 +32,9 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
       m_topBottomLinked(true),
       m_connectionManager(std::bind(&OptionsWidget::setupUiConnections, this)) {
   {
-    QSettings appSettings;
-    m_leftRightLinked = appSettings.value("margins/leftRightLinked", true).toBool();
-    m_topBottomLinked = appSettings.value("margins/topBottomLinked", true).toBool();
+    SettingsStore appSettings;
+    m_leftRightLinked = appSettings.boolValue("margins/leftRightLinked", true);
+    m_topBottomLinked = appSettings.boolValue("margins/topBottomLinked", true);
   }
 
   setupUi(this);
@@ -227,14 +227,14 @@ void OptionsWidget::vertMarginsChanged(const double val) {
 
 void OptionsWidget::topBottomLinkClicked() {
   m_topBottomLinked = !m_topBottomLinked;
-  QSettings().setValue("margins/topBottomLinked", m_topBottomLinked);
+  SettingsStore().setValue("margins/topBottomLinked", m_topBottomLinked);
   updateLinkDisplay(topBottomLink, m_topBottomLinked);
   topBottomLinkToggled(m_topBottomLinked);
 }
 
 void OptionsWidget::leftRightLinkClicked() {
   m_leftRightLinked = !m_leftRightLinked;
-  QSettings().setValue("margins/leftRightLinked", m_leftRightLinked);
+  SettingsStore().setValue("margins/leftRightLinked", m_leftRightLinked);
   updateLinkDisplay(leftRightLink, m_leftRightLinked);
   leftRightLinkToggled(m_leftRightLinked);
 }

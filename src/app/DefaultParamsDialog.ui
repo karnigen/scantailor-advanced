@@ -30,6 +30,9 @@
          <height>0</height>
         </size>
        </property>
+       <property name="toolTip">
+        <string>Choose profile.</string>
+       </property>
       </widget>
      </item>
      <item>
@@ -53,12 +56,18 @@
        <property name="text">
         <string>Save</string>
        </property>
+       <property name="toolTip">
+        <string>Save the current default-parameter profile.</string>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QPushButton" name="profileDeleteButton">
        <property name="text">
         <string>Delete</string>
+       </property>
+       <property name="toolTip">
+        <string>Delete the selected default-parameter profile.</string>
        </property>
       </widget>
      </item>
@@ -236,6 +245,9 @@
                     <height>24</height>
                    </size>
                   </property>
+                  <property name="toolTip">
+                   <string>Rotate the page 90 degrees counter-clockwise.</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -252,6 +264,9 @@
                     <width>24</width>
                     <height>24</height>
                    </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Rotate the page 90 degrees clockwise.</string>
                   </property>
                  </widget>
                 </item>
@@ -329,6 +344,9 @@
                  <widget class="QPushButton" name="resetBtn">
                   <property name="text">
                    <string>Reset</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Click to reset.</string>
                   </property>
                  </widget>
                 </item>
@@ -421,7 +439,11 @@
                </spacer>
               </item>
               <item>
-               <widget class="QComboBox" name="layoutModeCB"/>
+               <widget class="QComboBox" name="layoutModeCB">
+                <property name="toolTip">
+                 <string>Choose layout mode.</string>
+                </property>
+               </widget>
               </item>
               <item>
                <spacer name="horizontalSpacer_58">
@@ -490,6 +512,9 @@
                   <property name="autoRaise">
                    <bool>false</bool>
                   </property>
+                  <property name="toolTip">
+                   <string>Treat the scan as one uncut page.</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -513,6 +538,9 @@
                   <property name="autoExclusive">
                    <bool>true</bool>
                   </property>
+                  <property name="toolTip">
+                   <string>Treat the scan as one page with an offcut.</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -532,6 +560,9 @@
                   </property>
                   <property name="autoExclusive">
                    <bool>true</bool>
+                  </property>
+                  <property name="toolTip">
+                   <string>Split the scan into a two-page spread.</string>
                   </property>
                  </widget>
                 </item>
@@ -704,6 +735,9 @@
                   <property name="autoExclusive">
                    <bool>true</bool>
                   </property>
+                  <property name="toolTip">
+                   <string>Automatically detect the page angle.</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -716,6 +750,9 @@
                   </property>
                   <property name="autoExclusive">
                    <bool>true</bool>
+                  </property>
+                  <property name="toolTip">
+                   <string>Set the page angle manually.</string>
                   </property>
                  </widget>
                 </item>
@@ -743,6 +780,9 @@
                   </property>
                   <property name="singleStep">
                    <double>0.010000000000000</double>
+                  </property>
+                  <property name="toolTip">
+                   <string>Adjust angle.</string>
                   </property>
                  </widget>
                 </item>
@@ -871,6 +911,9 @@
                 <property name="autoExclusive">
                  <bool>true</bool>
                 </property>
+                <property name="toolTip">
+                 <string>Disable automatic page-boundary detection.</string>
+                </property>
                </widget>
               </item>
               <item row="2" column="0" colspan="2">
@@ -959,6 +1002,9 @@
                         <property name="maximum">
                          <double>99999.000000000000000</double>
                         </property>
+                        <property name="toolTip">
+                         <string>Adjust height.</string>
+                        </property>
                        </widget>
                       </item>
                       <item row="0" column="1">
@@ -971,6 +1017,9 @@
                         </property>
                         <property name="maximum">
                          <double>99999.000000000000000</double>
+                        </property>
+                        <property name="toolTip">
+                         <string>Adjust width.</string>
                         </property>
                        </widget>
                       </item>
@@ -1006,6 +1055,9 @@
                 <property name="autoExclusive">
                  <bool>true</bool>
                 </property>
+                <property name="toolTip">
+                 <string>Automatically detect page boundaries.</string>
+                </property>
                </widget>
               </item>
               <item row="1" column="1">
@@ -1021,6 +1073,9 @@
                 </property>
                 <property name="autoExclusive">
                  <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Set page boundaries manually.</string>
                 </property>
                </widget>
               </item>
@@ -1047,6 +1102,9 @@
                 <property name="autoExclusive">
                  <bool>true</bool>
                 </property>
+                <property name="toolTip">
+                 <string>Disable automatic content detection.</string>
+                </property>
                </widget>
               </item>
               <item row="1" column="1" colspan="2">
@@ -1062,6 +1120,9 @@
                 </property>
                 <property name="autoExclusive">
                  <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Automatically detect the content area.</string>
                 </property>
                </widget>
               </item>
@@ -1176,6 +1237,9 @@
                     <property name="checked">
                      <bool>false</bool>
                     </property>
+                    <property name="toolTip">
+                     <string>Toggle this option: Auto Margins.</string>
+                    </property>
                    </widget>
                   </item>
                   <item>
@@ -1257,6 +1321,9 @@ QToolButton:pressed {
                          <height>24</height>
                         </size>
                        </property>
+                       <property name="toolTip">
+                        <string>Link the top and bottom margin values.</string>
+                       </property>
                       </widget>
                      </item>
                      <item row="0" column="0">
@@ -1329,6 +1396,9 @@ QToolButton:pressed {
                        <property name="checked">
                         <bool>false</bool>
                        </property>
+                       <property name="toolTip">
+                        <string>Link the left and right margin values.</string>
+                       </property>
                       </widget>
                      </item>
                      <item row="3" column="1">
@@ -1338,6 +1408,9 @@ QToolButton:pressed {
                        </property>
                        <property name="maximum">
                         <double>9999.000000000000000</double>
+                       </property>
+                       <property name="toolTip">
+                        <string>Adjust right margin.</string>
                        </property>
                       </widget>
                      </item>
@@ -1349,6 +1422,9 @@ QToolButton:pressed {
                        <property name="maximum">
                         <double>9999.000000000000000</double>
                        </property>
+                       <property name="toolTip">
+                        <string>Adjust bottom margin.</string>
+                       </property>
                       </widget>
                      </item>
                      <item row="0" column="1">
@@ -1358,6 +1434,9 @@ QToolButton:pressed {
                        </property>
                        <property name="maximum">
                         <double>9999.000000000000000</double>
+                       </property>
+                       <property name="toolTip">
+                        <string>Adjust top margin.</string>
                        </property>
                       </widget>
                      </item>
@@ -1375,6 +1454,9 @@ QToolButton:pressed {
                        </property>
                        <property name="maximum">
                         <double>9999.000000000000000</double>
+                       </property>
+                       <property name="toolTip">
+                        <string>Adjust left margin.</string>
                        </property>
                       </widget>
                      </item>
@@ -1488,6 +1570,9 @@ QToolButton:pressed {
                   <property name="checked">
                    <bool>true</bool>
                   </property>
+                  <property name="toolTip">
+                   <string>Match this page size to the other selected pages.</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -1556,6 +1641,9 @@ QToolButton:pressed {
                       <string comment="original">Original</string>
                      </property>
                     </item>
+                    <property name="toolTip">
+                     <string>Choose h alignment mode.</string>
+                    </property>
                    </widget>
                   </item>
                   <item row="1" column="1">
@@ -1578,6 +1666,9 @@ QToolButton:pressed {
                       <string comment="original">Original</string>
                      </property>
                     </item>
+                    <property name="toolTip">
+                     <string>Choose v alignment mode.</string>
+                    </property>
                    </widget>
                   </item>
                  </layout>
@@ -1638,6 +1729,9 @@ QToolButton:pressed {
                     <property name="autoExclusive">
                      <bool>true</bool>
                     </property>
+                    <property name="toolTip">
+                     <string>Click to align top left.</string>
+                    </property>
                    </widget>
                   </item>
                   <item row="0" column="1">
@@ -1660,6 +1754,9 @@ QToolButton:pressed {
                     </property>
                     <property name="autoExclusive">
                      <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                     <string>Click to align top.</string>
                     </property>
                    </widget>
                   </item>
@@ -1684,6 +1781,9 @@ QToolButton:pressed {
                     <property name="autoExclusive">
                      <bool>true</bool>
                     </property>
+                    <property name="toolTip">
+                     <string>Click to align top right.</string>
+                    </property>
                    </widget>
                   </item>
                   <item row="1" column="0">
@@ -1706,6 +1806,9 @@ QToolButton:pressed {
                     </property>
                     <property name="autoExclusive">
                      <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                     <string>Click to align left.</string>
                     </property>
                    </widget>
                   </item>
@@ -1733,6 +1836,9 @@ QToolButton:pressed {
                     <property name="autoExclusive">
                      <bool>true</bool>
                     </property>
+                    <property name="toolTip">
+                     <string>Click to align center.</string>
+                    </property>
                    </widget>
                   </item>
                   <item row="1" column="2">
@@ -1755,6 +1861,9 @@ QToolButton:pressed {
                     </property>
                     <property name="autoExclusive">
                      <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                     <string>Click to align right.</string>
                     </property>
                    </widget>
                   </item>
@@ -1779,6 +1888,9 @@ QToolButton:pressed {
                     <property name="autoExclusive">
                      <bool>true</bool>
                     </property>
+                    <property name="toolTip">
+                     <string>Click to align bottom left.</string>
+                    </property>
                    </widget>
                   </item>
                   <item row="2" column="1">
@@ -1802,6 +1914,9 @@ QToolButton:pressed {
                     <property name="autoExclusive">
                      <bool>true</bool>
                     </property>
+                    <property name="toolTip">
+                     <string>Click to align bottom.</string>
+                    </property>
                    </widget>
                   </item>
                   <item row="2" column="2">
@@ -1824,6 +1939,9 @@ QToolButton:pressed {
                     </property>
                     <property name="autoExclusive">
                      <bool>true</bool>
+                    </property>
+                    <property name="toolTip">
+                     <string>Click to align bottom right.</string>
                     </property>
                    </widget>
                   </item>
@@ -1966,12 +2084,18 @@ QToolButton:pressed {
                          <property name="text">
                           <string>Fill offcut</string>
                          </property>
+                         <property name="toolTip">
+                          <string>Fill offcut areas in the processed image.</string>
+                         </property>
                         </widget>
                        </item>
                        <item>
                         <widget class="QCheckBox" name="fillMarginsCB">
                          <property name="text">
                           <string>Fill margins</string>
+                         </property>
+                         <property name="toolTip">
+                          <string>Fill the margins around the page.</string>
                          </property>
                         </widget>
                        </item>
@@ -2000,12 +2124,18 @@ QToolButton:pressed {
                          <property name="text">
                           <string>Savitzky-Golay smoothing</string>
                          </property>
+                         <property name="toolTip">
+                          <string>Toggle this option: Savitzky-Golay smoothing.</string>
+                         </property>
                         </widget>
                        </item>
                        <item>
                         <widget class="QCheckBox" name="morphologicalSmoothingCB">
                          <property name="text">
                           <string>Morphological smoothing</string>
+                         </property>
+                         <property name="toolTip">
+                          <string>Toggle this option: Morphological smoothing.</string>
                          </property>
                         </widget>
                        </item>
@@ -2062,7 +2192,11 @@ QToolButton:pressed {
                         </widget>
                        </item>
                        <item>
-                        <widget class="QComboBox" name="fillingColorBox"/>
+                        <widget class="QComboBox" name="fillingColorBox">
+                         <property name="toolTip">
+                          <string>Choose filling color.</string>
+                         </property>
+                        </widget>
                        </item>
                        <item>
                         <spacer name="horizontalSpacer_44">
@@ -2332,9 +2466,6 @@ QToolButton:pressed {
                             </item>
                             <item>
                              <widget class="QSpinBox" name="reduceNoiseSB">
-                              <property name="toolTip">
-                               <string/>
-                              </property>
                               <property name="frame">
                                <bool>true</bool>
                               </property>
@@ -2349,6 +2480,9 @@ QToolButton:pressed {
                               </property>
                               <property name="value">
                                <number>0</number>
+                              </property>
+                              <property name="toolTip">
+                               <string>Adjust reduce noise.</string>
                               </property>
                              </widget>
                             </item>
@@ -2483,14 +2617,14 @@ QToolButton:pressed {
                             </item>
                             <item>
                              <widget class="QCheckBox" name="posterizeNormalizationCB">
-                              <property name="toolTip">
-                               <string/>
-                              </property>
                               <property name="statusTip">
                                <string/>
                               </property>
                               <property name="text">
                                <string>Normalize</string>
+                              </property>
+                              <property name="toolTip">
+                               <string>Toggle this option: Normalize.</string>
                               </property>
                              </widget>
                             </item>
@@ -2634,7 +2768,11 @@ QToolButton:pressed {
                         </widget>
                        </item>
                        <item>
-                        <widget class="QComboBox" name="thresholdMethodBox"/>
+                        <widget class="QComboBox" name="thresholdMethodBox">
+                         <property name="toolTip">
+                          <string>Choose threshold method.</string>
+                         </property>
+                        </widget>
                        </item>
                        <item>
                         <spacer name="horizontalSpacer_41">
@@ -2744,6 +2882,9 @@ QToolButton:pressed {
                              <property name="tickPosition">
                               <enum>QSlider::TicksBelow</enum>
                              </property>
+                             <property name="toolTip">
+                              <string>Adjust the binarization threshold.</string>
+                             </property>
                             </widget>
                            </item>
                            <item>
@@ -2780,6 +2921,9 @@ QToolButton:pressed {
                                </property>
                                <property name="arrowType">
                                 <enum>Qt::UpArrow</enum>
+                               </property>
+                               <property name="toolTip">
+                                <string>Reset the threshold to its neutral value.</string>
                                </property>
                               </widget>
                              </item>
@@ -3088,7 +3232,11 @@ QToolButton:pressed {
                         </spacer>
                        </item>
                        <item>
-                        <widget class="QComboBox" name="pictureShapeSelector"/>
+                        <widget class="QComboBox" name="pictureShapeSelector">
+                         <property name="toolTip">
+                          <string>Choose picture shape selector.</string>
+                         </property>
+                        </widget>
                        </item>
                        <item>
                         <spacer name="horizontalSpacer_38">
@@ -3148,6 +3296,9 @@ QToolButton:pressed {
                           <property name="maximum">
                            <number>100</number>
                           </property>
+                          <property name="toolTip">
+                           <string>Set how strongly picture boundaries are detected.</string>
+                          </property>
                          </widget>
                         </item>
                         <item>
@@ -3185,6 +3336,9 @@ QToolButton:pressed {
                         <widget class="QCheckBox" name="higherSearchSensitivityCB">
                          <property name="text">
                           <string>Higher search sensivity</string>
+                         </property>
+                         <property name="toolTip">
+                          <string>Search more aggressively for picture boundaries.</string>
                          </property>
                         </widget>
                        </item>
@@ -3237,7 +3391,11 @@ QToolButton:pressed {
                    </spacer>
                   </item>
                   <item>
-                   <widget class="QComboBox" name="colorModeSelector"/>
+                   <widget class="QComboBox" name="colorModeSelector">
+                    <property name="toolTip">
+                     <string>Choose color mode selector.</string>
+                    </property>
+                   </widget>
                   </item>
                   <item>
                    <spacer name="horizontalSpacer_34">
@@ -3313,6 +3471,9 @@ QToolButton:pressed {
                   <property name="duplicatesEnabled">
                    <bool>true</bool>
                   </property>
+                  <property name="toolTip">
+                   <string>Choose dpi selector.</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -3365,6 +3526,9 @@ QToolButton:pressed {
                       <property name="text">
                        <string>Split output</string>
                       </property>
+                      <property name="toolTip">
+                       <string>Save the foreground and background layers as separate output files.</string>
+                      </property>
                      </widget>
                     </item>
                     <item>
@@ -3374,6 +3538,9 @@ QToolButton:pressed {
                       </property>
                       <property name="checked">
                        <bool>true</bool>
+                      </property>
+                      <property name="toolTip">
+                       <string>Use black-and-white processing for the foreground.</string>
                       </property>
                      </widget>
                     </item>
@@ -3411,6 +3578,9 @@ QToolButton:pressed {
                      <widget class="QRadioButton" name="colorForegroundRB">
                       <property name="text">
                        <string>Color foreground</string>
+                      </property>
+                      <property name="toolTip">
+                       <string>Keep the foreground in color or grayscale.</string>
                       </property>
                      </widget>
                     </item>
@@ -3494,6 +3664,9 @@ QToolButton:pressed {
                         <property name="text">
                          <string>Despeckle</string>
                         </property>
+                        <property name="toolTip">
+                         <string>Remove small isolated specks from the output.</string>
+                        </property>
                        </widget>
                       </item>
                      </layout>
@@ -3533,6 +3706,9 @@ QToolButton:pressed {
                     <property name="orientation">
                      <enum>Qt::Horizontal</enum>
                     </property>
+                    <property name="toolTip">
+                     <string>Adjust despeckle.</string>
+                    </property>
                    </widget>
                   </item>
                  </layout>
@@ -3568,7 +3744,11 @@ QToolButton:pressed {
                    </spacer>
                   </item>
                   <item>
-                   <widget class="QComboBox" name="dewarpingModeCB"/>
+                   <widget class="QComboBox" name="dewarpingModeCB">
+                    <property name="toolTip">
+                     <string>Choose how page curvature is corrected.</string>
+                    </property>
+                   </widget>
                   </item>
                   <item>
                    <spacer name="horizontalSpacer_50">
@@ -3604,6 +3784,9 @@ QToolButton:pressed {
                    <widget class="QCheckBox" name="dewarpingPostDeskewCB">
                     <property name="text">
                      <string>Post deskew</string>
+                    </property>
+                    <property name="toolTip">
+                     <string>Apply deskewing after page dewarping.</string>
                     </property>
                    </widget>
                   </item>
@@ -3659,6 +3842,9 @@ QToolButton:pressed {
                   </property>
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="toolTip">
+                   <string>Adjust depth perception.</string>
                   </property>
                  </widget>
                 </item>

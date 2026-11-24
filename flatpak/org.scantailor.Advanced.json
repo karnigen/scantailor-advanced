@@ -21,7 +21,6 @@
       "config-opts": [
         "-DCMAKE_BUILD_TYPE=Release",
         "-DBUILD_TESTS=OFF",
-        "-DPORTABLE_VERSION=OFF",
         "-DINSTALL_FLATPAK_METAINFO=ON"
       ],
       "post-install": [

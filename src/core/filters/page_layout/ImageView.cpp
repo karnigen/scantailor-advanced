@@ -650,10 +650,15 @@ void ImageView::updatePhysSize() {
 void ImageView::setupContextMenuInteraction() {
   m_addHorizontalGuideAction = m_contextMenu->addAction(tr("Add a horizontal guide"));
   m_addVerticalGuideAction = m_contextMenu->addAction(tr("Add a vertical guide"));
-  m_removeAllGuidesAction = m_contextMenu->addAction(tr("Remove all the guides"));
+  m_removeAllGuidesAction = m_contextMenu->addAction(tr("Remove all guides from the project"));
   m_removeGuideUnderMouseAction = m_contextMenu->addAction(tr("Remove this guide"));
+  m_addHorizontalGuideAction->setToolTip(tr("Add a horizontal alignment guide at the cursor position."));
+  m_addVerticalGuideAction->setToolTip(tr("Add a vertical alignment guide at the cursor position."));
+  m_removeAllGuidesAction->setToolTip(tr("Remove every alignment guide from the project."));
+  m_removeGuideUnderMouseAction->setToolTip(tr("Remove the alignment guide under the cursor."));
   m_guideActionsSeparator = m_contextMenu->addSeparator();
   m_showMiddleRectAction = m_contextMenu->addAction(tr("Show hard margins rectangle"));
+  m_showMiddleRectAction->setToolTip(tr("Show or hide the detected hard-margins boundary."));
   m_showMiddleRectAction->setCheckable(true);
   m_showMiddleRectAction->setChecked(m_settings->isShowingMiddleRectEnabled());
 

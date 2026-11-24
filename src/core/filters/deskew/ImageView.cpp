@@ -54,12 +54,14 @@ ImageView::ImageView(const QImage& image, const QImage& downscaledImage, const I
 
   auto* rotateLeft = new QAction(tr("Rotate left"), this);
   rotateLeft->setObjectName("deskewRotateLeft");
+  rotateLeft->setToolTip(tr("Rotate the page counter-clockwise by 0.10 degrees."));
   rotateLeft->setShortcut(QKeySequence(","));
   connect(rotateLeft, SIGNAL(triggered(bool)), SLOT(doRotateLeft()));
   addAction(rotateLeft);
 
   auto* rotateRight = new QAction(tr("Rotate right"), this);
   rotateRight->setObjectName("deskewRotateRight");
+  rotateRight->setToolTip(tr("Rotate the page clockwise by 0.10 degrees."));
   rotateRight->setShortcut(QKeySequence("."));
   connect(rotateRight, SIGNAL(triggered(bool)), SLOT(doRotateRight()));
   addAction(rotateRight);

@@ -103,6 +103,8 @@
      <string>Help</string>
     </property>
     <addaction name="actionKeyboardShortcuts"/>
+     <addaction name="actionCommandLineArguments"/>
+    <addaction name="actionConfiguration"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
    </widget>
@@ -945,6 +947,9 @@ QToolButton:pressed {
          <property name="sizeAdjustPolicy">
           <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
          </property>
+         <property name="toolTip">
+          <string>Choose sort options.</string>
+         </property>
         </widget>
        </item>
       </layout>
@@ -1096,6 +1101,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Show diagnostic information for troubleshooting.</string>
+   </property>
   </action>
   <action name="actionSaveProject">
    <property name="text">
@@ -1106,6 +1114,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Save changes to the current project. Shortcut: Ctrl+S.</string>
    </property>
   </action>
   <action name="actionSaveProjectAs">
@@ -1118,6 +1129,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Save the current project to a different file.</string>
+   </property>
   </action>
   <action name="actionNextPage">
    <property name="text">
@@ -1128,6 +1142,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the next page. Shortcut: PgDown.</string>
    </property>
   </action>
   <action name="actionPrevPage">
@@ -1140,6 +1157,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>true</bool>
    </property>
+   <property name="toolTip">
+    <string>Select the previous page. Shortcut: PgUp.</string>
+   </property>
   </action>
   <action name="actionNewProject">
    <property name="text">
@@ -1150,6 +1170,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Create a new project. Shortcut: Ctrl+N.</string>
    </property>
   </action>
   <action name="actionOpenProject">
@@ -1162,6 +1185,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Open an existing project. Shortcut: Ctrl+O.</string>
+   </property>
   </action>
   <action name="actionPrevPageQ">
    <property name="text">
@@ -1172,6 +1198,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the previous page. Shortcut: Q.</string>
    </property>
   </action>
   <action name="actionNextPageW">
@@ -1184,6 +1213,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>true</bool>
    </property>
+   <property name="toolTip">
+    <string>Select the next page. Shortcut: W.</string>
+   </property>
   </action>
   <action name="actionCloseProject">
    <property name="text">
@@ -1194,6 +1226,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Close the current project. Shortcut: Ctrl+W.</string>
    </property>
   </action>
   <action name="actionQuit">
@@ -1206,6 +1241,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Exit ScanTailor Advanced. Shortcut: Ctrl+Q.</string>
+   </property>
   </action>
   <action name="actionSettings">
    <property name="text">
@@ -1216,6 +1254,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Open application settings.</string>
    </property>
   </action>
   <action name="actionFirstPage">
@@ -1228,6 +1269,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Select the first page. Shortcut: Home.</string>
+   </property>
   </action>
   <action name="actionLastPage">
    <property name="text">
@@ -1238,6 +1282,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the last page. Shortcut: End.</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -1250,10 +1297,32 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Show application and version information.</string>
+   </property>
   </action>
   <action name="actionKeyboardShortcuts">
    <property name="text">
     <string>Keyboard Shortcuts...</string>
+   </property>
+   <property name="toolTip">
+    <string>Show available keyboard shortcuts.</string>
+   </property>
+  </action>
+  <action name="actionCommandLineArguments">
+   <property name="text">
+    <string>Command Line Arguments...</string>
+   </property>
+   <property name="toolTip">
+    <string>Explain command-line options and paths.</string>
+   </property>
+  </action>
+  <action name="actionConfiguration">
+   <property name="text">
+    <string>Configuration...</string>
+   </property>
+   <property name="toolTip">
+    <string>View the configuration file and its location.</string>
    </property>
   </action>
   <action name="actionFixDpi">
@@ -1266,6 +1335,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Correct the resolution metadata of input images.</string>
+   </property>
   </action>
   <action name="actionRelinking">
    <property name="text">
@@ -1276,6 +1348,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Find missing source images for this project.</string>
    </property>
   </action>
   <action name="actionReverseTwoPageOrder">
@@ -1301,6 +1376,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Open the manual Fix Orientation stage. It does not automatically detect upside-down text. Shortcut: O.</string>
    </property>
   </action>
   <action name="actionSwitchFilter2">
@@ -1386,6 +1464,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Display measurements in pixels.</string>
+   </property>
   </action>
   <action name="actionMilimeters">
    <property name="checkable">
@@ -1403,6 +1484,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Display measurements in millimetres.</string>
+   </property>
   </action>
   <action name="actionInches">
    <property name="checkable">
@@ -1416,6 +1500,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Display measurements in inches.</string>
    </property>
   </action>
   <action name="actionCentimetres">
@@ -1431,6 +1518,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Display measurements in centimetres.</string>
+   </property>
   </action>
   <action name="actionDefaults">
    <property name="text">
@@ -1441,6 +1531,9 @@ QToolButton:pressed {
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
+   </property>
+   <property name="toolTip">
+    <string>Edit default processing parameters.</string>
    </property>
   </action>
   <action name="actionPrevSelectedPageQ">
@@ -1509,6 +1602,9 @@ QToolButton:pressed {
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
+   <property name="toolTip">
+    <string>Jump directly to a page number. Shortcut: Ctrl+G.</string>
+   </property>
   </action>
   <action name="actionMagnifyThumbnails">
    <property name="text">
@@ -1517,6 +1613,9 @@ QToolButton:pressed {
    <property name="shortcut">
     <string notr="true">Ctrl++</string>
    </property>
+   <property name="toolTip">
+    <string>Increase the size of page thumbnails. Shortcut: Ctrl++.</string>
+   </property>
   </action>
   <action name="actionDiminishThumbnails">
    <property name="text">
@@ -1524,6 +1623,9 @@ QToolButton:pressed {
    </property>
    <property name="shortcut">
     <string notr="true">Ctrl+-</string>
+   </property>
+   <property name="toolTip">
+    <string>Decrease the size of page thumbnails. Shortcut: Ctrl+-.</string>
    </property>
   </action>
   <action name="actionReloadPage">

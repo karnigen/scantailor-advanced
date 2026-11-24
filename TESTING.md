@@ -2,26 +2,26 @@
 
 ## Running unit tests
 
-With the project configured with `BUILD_TESTS=ON` (the default):
+Use the repository build script for development builds and tests:
 
 ```bash
-mkdir build && cd build
-cmake .. -DBUILD_TESTS=ON
-cmake --build .
-ctest --output-on-failure
+./build-vcpkg.sh
+./build-vcpkg.sh --tests
 ```
 
-The four C++ unit-test suites use Catch2 3 or newer; `build-vcpkg.sh --tests` installs Catch2 through vcpkg. GUI tests remain on Qt Test.
+Both commands use a preinstalled Qt SDK selected with `--qt-root` or the
+`QT_ROOT` environment variable. The selected path is saved in the ignored
+`.build-vcpkg-config` file for later runs. Qt is not a vcpkg dependency and is
+never built by this script. Qt Testlib comes from the selected SDK regardless
+of `--tests`; the option only enables the test targets and runs them through
+CTest after the build. Other vcpkg dependencies use Release libraries.
+The test targets cover typed settings round-trips, relative and invalid
+configuration directories, legacy INI copying, profile placement, and the
+configuration dialog.
 
-Or run each suite individually:
-
-```bash
-./core_tests
-./foundation_tests
-./math_tests
-./imageproc_tests
-./qt_tests
-```
+CI workflows build/package the application with unit tests disabled. The
+macOS workflow also runs a packaged-application smoke test; it does not run the
+unit-test suites.
 
 ## Module coverage
 
@@ -36,6 +36,13 @@ Or run each suite individually:
 - **SelectContentApply**: applying the content filter.
 - **SmartFilenameOrdering**: natural filename ordering.
 - **Units**: unit conversion and formatting (px, mm, cm, in).
+- **SettingsStore**: typed value round-trips and compatibility with the legacy
+  recent-project array layout.
+
+### settings_store_explicit_directory_tests and settings_store_legacy_copy_tests
+- Explicit relative configuration directory validation and creation.
+- `config.ini` and `profiles/` placement.
+- Copying existing standard INI settings without removing the original.
 
 ### foundation_tests
 - **Constants**: mathematical constants (PI, DPI/DPM and degree/radian conversions).
@@ -63,6 +70,10 @@ Or run each suite individually:
   - **testLineEditAcceptsInput**: text entry with `QTest::keyClicks` and checking the resulting text.
   - **testCollapsibleGroupBoxStateAndSignal**: the project's widget's collapsed/expanded state and `collapsedStateChanged` signal.
   - **testErrorWidgetCreation**: creating an `ErrorWidget` and checking its children without showing a window.
+  - **testConfigurationDialogShowsPathsAndReloadsSettings**: displayed settings
+    and profile paths, read-only contents, Copy path, and Reload behavior.
+  - **testSingleColumnSettingUpdatesButtonState**: the single-column setting
+    updates the toggle button state in both directions.
 
 The UX tests use `QApplication` and can simulate interaction (clicks and keyboard input) without opening windows. They provide a foundation for adding tests for more widgets and dialogs.
 
@@ -97,7 +108,7 @@ in the generic path. Rounding and the selected Qt path can change the result.
 Neither method's quality for real scanned pages follows solely from this
 synthetic comparison.
 
-One reproducible Release build measurement on Linux with vcpkg Qt 6.11.3 used
+One reproducible Release build measurement on Linux with Qt 6.11.3 used
 the deterministic 100×100 high-contrast image in `TestScale.cpp`:
 
 | Target | Qt input | Maximum difference | Mean absolute difference | Pixels differing by more than 1 |
@@ -116,16 +127,11 @@ test of the current area-averaging behavior, **not** as proof that Qt
 compatibility is unnecessary or that every scaling mode is correct.
 
 The original `Indexed8` comparison and ±1 threshold remain as an opt-in
-diagnostic, with deterministic input and difference statistics:
-
-```bash
-./build-vcpkg/imageproc_tests '[scale-qt-diagnostic]'
-```
-
-It is excluded from normal CTest runs and fails for `Indexed8` on the Qt 6.11.3
-setup above. Its outcome may differ with Qt version or platform. If Qt
-compatibility is required, resolve the difference rather than treating this
-diagnostic failure as a passing functional test.
+diagnostic with deterministic input and difference statistics. It is excluded
+from normal CTest runs and fails for `Indexed8` on the Qt 6.11.3 setup above.
+Its outcome may differ with Qt version or platform. If Qt compatibility is
+required, resolve the difference rather than treating this diagnostic failure
+as a passing functional test.
 
 The same diagnostic also compares against `RGB32` input, which in Qt 6.11.3
 selects `smoothScaled` instead of the paint-based path used for `Indexed8`. On
@@ -184,23 +190,16 @@ The existing `qt_tests` suite already covers widget-level interactions, includin
 3. **End-to-end tests**: Use tools such as Squish or scripts that control the graphical application. These tests are more costly to maintain.
 4. **Settings smoke check**: Change the remembered image allocation limit in Settings; verify that 0 restores Qt's default and that saved changes take effect after restarting the application.
 
-To measure code coverage with gcov/lcov (for supported compilers):
-
-```bash
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DCMAKE_CXX_FLAGS="--coverage"
-cmake --build .
-ctest
-lcov --capture --directory . --output-file coverage.info
-lcov --remove coverage.info '/usr/*' --output-file coverage.info
-genhtml coverage.info --output-directory coverage_html
-```
+Code-coverage builds are not currently supported by `build-vcpkg.sh`.
 
 ## Disabling tests
 
-If you do not need to build the test executables:
+To build the application without building or running unit tests:
 
 ```bash
-cmake .. -DBUILD_TESTS=OFF
+./build-vcpkg.sh
 ```
 
-This skips Catch2 and Qt Test test executables; the application still requires Qt.
+This skips Catch2 and the test executables. Qt Testlib remains part of the
+selected preinstalled Qt SDK, so enabling tests later does not change Qt
+dependencies.

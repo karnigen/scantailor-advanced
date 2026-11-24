@@ -96,6 +96,7 @@ StageListView::StageListView(QWidget* parent)
   static_cast<QToolButton*>(m_launchBtn)->setMinimumSize({18, 18});
   static_cast<QToolButton*>(m_launchBtn)->setIconSize({18, 18});
   m_launchBtn->setStatusTip(tr("Launch batch processing"));
+  m_launchBtn->setToolTip(tr("Start batch processing for the selected stages."));
   m_launchBtn->hide();
 
   connect(m_launchBtn, SIGNAL(clicked()), this, SIGNAL(launchBatchProcessing()));

@@ -24,6 +24,16 @@
      </property>
      <layout class="QVBoxLayout">
       <item>
+       <widget class="QLabel" name="rotationHelpLabel">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Manual rotation only; upside-down text is not detected automatically.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout">
         <item>
          <spacer>
@@ -53,6 +63,9 @@
             <height>24</height>
            </size>
           </property>
+          <property name="toolTip">
+           <string>Rotate the page 90 degrees counter-clockwise.</string>
+          </property>
          </widget>
         </item>
         <item>
@@ -69,6 +82,9 @@
             <width>24</width>
             <height>24</height>
            </size>
+          </property>
+          <property name="toolTip">
+           <string>Rotate the page 90 degrees clockwise.</string>
           </property>
          </widget>
         </item>
@@ -147,6 +163,9 @@
           <property name="text">
            <string>Reset</string>
           </property>
+          <property name="toolTip">
+           <string>Click to reset.</string>
+          </property>
          </widget>
         </item>
         <item>
@@ -181,6 +200,19 @@
         <property name="text">
          <string>Enable manual trim</string>
         </property>
+        <property name="toolTip">
+         <string>Toggle this option: Enable manual trim.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="trimPreviewHint">
+        <property name="text">
+         <string>Trimmed-off areas are shaded red in the preview.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
        </widget>
       </item>
       <item>
@@ -200,6 +232,9 @@
           <property name="minimum">
            <number>0</number>
           </property>
+          <property name="toolTip">
+           <string>Adjust trim top spin.</string>
+          </property>
          </widget>
         </item>
         <item row="0" column="2">
@@ -216,6 +251,9 @@
          <widget class="QSpinBox" name="trimLeftSpin">
           <property name="minimum">
            <number>0</number>
+          </property>
+          <property name="toolTip">
+           <string>Adjust trim left spin.</string>
           </property>
          </widget>
         </item>
@@ -234,6 +272,9 @@
           <property name="minimum">
            <number>0</number>
           </property>
+          <property name="toolTip">
+           <string>Adjust trim right spin.</string>
+          </property>
          </widget>
         </item>
         <item row="2" column="0">
@@ -250,6 +291,9 @@
          <widget class="QSpinBox" name="trimBottomSpin">
           <property name="minimum">
            <number>0</number>
+          </property>
+          <property name="toolTip">
+           <string>Adjust trim bottom spin.</string>
           </property>
          </widget>
         </item>
@@ -269,6 +313,9 @@
        <widget class="QPushButton" name="resetTrimBtn">
         <property name="text">
          <string>Reset trim</string>
+        </property>
+        <property name="toolTip">
+         <string>Click to reset trim.</string>
         </property>
        </widget>
       </item>
@@ -294,6 +341,9 @@
       <widget class="QPushButton" name="applyToBtn">
        <property name="text">
         <string>Apply to ...</string>
+       </property>
+       <property name="toolTip">
+        <string>Choose which pages receive these settings.</string>
        </property>
       </widget>
      </item>

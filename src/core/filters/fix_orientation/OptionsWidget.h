@@ -34,6 +34,8 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
 
   void rotated(OrthogonalRotation rotation);
 
+  void trimChanged(ImageTrim trim);
+
  private slots:
 
   void rotateLeft();

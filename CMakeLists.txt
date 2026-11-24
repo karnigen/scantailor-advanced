@@ -222,10 +222,6 @@ if (BUILD_TESTS)
 endif()
 
 # Prepare config.h
-option(PORTABLE_VERSION "Whether to build the portable version." ON)
-if (PORTABLE_VERSION)
-  set(PORTABLE_CONFIG_DIR "config")
-endif()
 set(APPLICATION_NAME "${target_name}")
 if (WIN32)
   set(TRANSLATION_DIRS ".:translations")

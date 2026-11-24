@@ -78,6 +78,9 @@
      <property name="autoRaise">
       <bool>true</bool>
      </property>
+     <property name="toolTip">
+      <string>Reduce the number of processing threads.</string>
+     </property>
     </widget>
    </item>
    <item>
@@ -90,6 +93,9 @@
      </property>
      <property name="tickPosition">
       <enum>QSlider::NoTicks</enum>
+     </property>
+     <property name="toolTip">
+      <string>Set the maximum number of processing threads.</string>
      </property>
     </widget>
    </item>
@@ -130,6 +136,9 @@
      </property>
      <property name="autoRaise">
       <bool>true</bool>
+     </property>
+     <property name="toolTip">
+      <string>Increase the number of processing threads.</string>
      </property>
     </widget>
    </item>

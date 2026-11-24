@@ -78,6 +78,9 @@
          <property name="readOnly">
           <bool>true</bool>
          </property>
+         <property name="toolTip">
+          <string>Review loaded files.</string>
+         </property>
         </widget>
        </item>
       </layout>
@@ -137,6 +140,9 @@
          </property>
          <property name="readOnly">
           <bool>true</bool>
+         </property>
+         <property name="toolTip">
+          <string>Review failed files.</string>
          </property>
         </widget>
        </item>

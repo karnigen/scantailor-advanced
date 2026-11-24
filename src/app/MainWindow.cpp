@@ -5,8 +5,10 @@
 
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
+#include <core/SettingsStore.h>
 
 #include <QActionGroup>
+#include <QApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -35,6 +37,8 @@
 #include "Application.h"
 #include "AutoRemovingFile.h"
 #include "BasicImageView.h"
+#include "CompletionSound.h"
+#include "ConfigurationDialog.h"
 #include "ContentBoxPropagator.h"
 #include "DebugImageView.h"
 #include "DebugImages.h"
@@ -71,6 +75,7 @@
 #include "SystemLoadWidget.h"
 #include "TabbedDebugImages.h"
 #include "ThumbnailFactory.h"
+#include "ThumbnailViewMode.h"
 #include "UnitsProvider.h"
 #include "Utils.h"
 #include "WorkerThreadPool.h"
@@ -164,6 +169,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
 
   setupUi(this);
   setupIcons();
+  focusButton->setChecked(SettingsStore().boolValue("mainWindow/keepCurrentPageInView", true));
 
   applyMenuMnemonics();
 
@@ -239,7 +245,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
     }
   });
 
-  thumbColumnViewBtn->setChecked(settings.isSingleColumnThumbnailDisplayEnabled());
+  setSingleColumnViewButtonState(*thumbColumnViewBtn, settings.isSingleColumnThumbnailDisplayEnabled());
   deviationHighlightingBtn->setChecked(settings.isHighlightDeviationEnabled());
 
   addAction(actionFirstPage);
@@ -279,6 +285,8 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionGotoPage, SIGNAL(triggered(bool)), this, SLOT(execGotoPageDialog()));
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
   connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
+  connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
+  connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
   connect(prevPageBtn, &QToolButton::clicked, this, [this]() {
     if (filterSelectedBtn->isChecked()) {
@@ -327,8 +335,12 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(selectionModeBtn, SIGNAL(clicked(bool)), m_thumbSequence.get(), SLOT(setSelectionModeEnabled(bool)));
 
   connect(thumbView->verticalScrollBar(), SIGNAL(sliderMoved(int)), this, SLOT(thumbViewScrolled()));
-  connect(thumbView->verticalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(thumbViewScrolled()));
-  connect(focusButton, SIGNAL(clicked(bool)), this, SLOT(thumbViewFocusToggled(bool)));
+  connect(thumbView->verticalScrollBar(), &QScrollBar::actionTriggered, this,
+          [this](int) { QTimer::singleShot(0, this, [this]() { thumbViewScrolled(); }); });
+  connect(focusButton, &QToolButton::clicked, this, [this](bool checked) {
+    SettingsStore().setValue("mainWindow/keepCurrentPageInView", checked);
+    thumbViewFocusToggled(checked);
+  });
   connect(sortOptions, SIGNAL(currentIndexChanged(int)), this, SLOT(pageOrderingChanged(int)));
   connect(thumbColumnViewBtn, &QToolButton::clicked, this, [this, &settings](bool checked) {
     settings.setSingleColumnThumbnailDisplayEnabled(checked);
@@ -371,10 +383,9 @@ MainWindow::MainWindow(const QString& initialDirectory)
   updateWindowTitle();
   updateMainArea();
 
-  QSettings qSettings;
-  if (qSettings.value("mainWindow/maximized") == false) {
-    const QVariant geom(qSettings.value("mainWindow/nonMaximizedGeometry"));
-    if (!restoreGeometry(geom.toByteArray())) {
+  SettingsStore qSettings;
+  if (!qSettings.boolValue("mainWindow/maximized", true)) {
+    if (!restoreGeometry(qSettings.byteArrayValue("mainWindow/nonMaximizedGeometry"))) {
       resize(1014, 689);  // A sensible value.
     }
   }
@@ -518,6 +529,7 @@ void MainWindow::createBatchProcessingWidget() {
                                     iconProvider.getIcon("stop-pressed"), m_batchProcessingWidget.get());
   stopBtn->setIconSize({128, 128});
   stopBtn->setStatusTip(tr("Stop batch processing"));
+  stopBtn->setToolTip(tr("Stop the current batch-processing run."));
 
   class LowerPanel : public QWidget {
    public:
@@ -594,7 +606,7 @@ void MainWindow::timerEvent(QTimerEvent* const event) {
 
   if (closeProjectInteractive()) {
     m_closing = true;
-    QSettings settings;
+    SettingsStore settings;
     settings.setValue("mainWindow/maximized", isMaximized());
     if (!isMaximized()) {
       settings.setValue("mainWindow/nonMaximizedGeometry", saveGeometry());
@@ -1071,11 +1083,14 @@ void MainWindow::pageContextMenuRequested(const PageInfo& pageInfo_, const QPoin
 
   auto& iconProvider = IconProvider::getInstance();
   QAction* insBefore = menu.addAction(iconProvider.getIcon("insert-before"), tr("Insert before ..."));
+  insBefore->setToolTip(tr("Add input images before the selected page."));
   QAction* insAfter = menu.addAction(iconProvider.getIcon("insert-after"), tr("Insert after ..."));
+  insAfter->setToolTip(tr("Add input images after the selected page."));
 
   menu.addSeparator();
 
   QAction* remove = menu.addAction(iconProvider.getIcon("user-trash"), tr("Remove from project ..."));
+  remove->setToolTip(tr("Remove the selected pages from the project without deleting source files."));
 
   QAction* action = menu.exec(screenPos);
   if (action == insBefore) {
@@ -1105,7 +1120,8 @@ void MainWindow::pastLastPageContextMenuRequested(const QPoint& screenPos) {
   }
 
   QMenu menu(thumbView);
-  menu.addAction(IconProvider::getInstance().getIcon("insert-here"), tr("Insert here ..."));
+  QAction* insertHere = menu.addAction(IconProvider::getInstance().getIcon("insert-here"), tr("Insert here ..."));
+  insertHere->setToolTip(tr("Add input images at the end of the project."));
 
   if (menu.exec(screenPos)) {
     showInsertFileDialog(BEFORE, ImageId());
@@ -1482,19 +1498,8 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 
       QApplication::alert(this);  // Flash the taskbar entry.
       if (m_checkBeepWhenFinished()) {
-#if defined(Q_OS_UNIX)
-        QString extPlayCmd("play /usr/share/sounds/freedesktop/stereo/bell.oga");
-#else
-        QString extPlayCmd;
-#endif
-        QSettings settings;
-        QString cmd = settings.value("main_window/external_alarm_cmd", extPlayCmd).toString();
-        if (cmd.isEmpty()) {
-          QApplication::beep();
-        } else {
-          const int result = std::system(cmd.toStdString().c_str());
-          Q_UNUSED(result);
-        }
+        SettingsStore settings;
+        CompletionSound::play(settings.stringValue("main_window/external_alarm_cmd"));
       }
 
       if (m_selectedPage.get(getCurrentView()) == m_thumbSequence->lastPage().id()) {
@@ -1585,10 +1590,10 @@ void MainWindow::saveProjectAsTriggered() {
   if (!m_projectFile.isEmpty()) {
     projectDir = QFileInfo(m_projectFile).absolutePath();
   } else {
-    QSettings settings;
+    SettingsStore settings;
     projectDir = m_initialDirectory;
     if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
-      projectDir = settings.value("project/lastDir").toString();
+      projectDir = settings.stringValue("project/lastDir");
     }
   }
 
@@ -1607,7 +1612,7 @@ void MainWindow::saveProjectAsTriggered() {
     m_projectFile = projectFile;
     updateWindowTitle();
 
-    QSettings settings;
+    SettingsStore settings;
     settings.setValue("project/lastDir", QFileInfo(m_projectFile).absolutePath());
 
     RecentProjects rp;
@@ -1639,7 +1644,7 @@ void MainWindow::openProject() {
 
   QString projectDir(m_initialDirectory);
   if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
-    projectDir = QSettings().value("project/lastDir").toString();
+    projectDir = SettingsStore().stringValue("project/lastDir");
   }
   QFileDialog dialog(this, tr("Open Project"), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)");
   dialog.setFileMode(QFileDialog::ExistingFile);
@@ -1682,7 +1687,7 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
   rp.setMostRecent(context->projectFile());
   rp.write();
 
-  QSettings().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
+  SettingsStore().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
 
   switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
                      context->projectFile(), context->projectReader());
@@ -1721,6 +1726,7 @@ void MainWindow::onSettingsChanged() {
   }
 
   updateThumbnailViewMode();
+  setSingleColumnViewButtonState(*thumbColumnViewBtn, settings.isSingleColumnThumbnailDisplayEnabled());
 
   const QSizeF maxLogicalThumbSize = settings.getMaxLogicalThumbnailSize();
   if (m_maxLogicalThumbSize != maxLogicalThumbSize) {
@@ -1757,6 +1763,7 @@ void MainWindow::showKeyboardShortcuts() {
             + "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" + shortcut.toHtmlEscaped()
             + "</b></td></tr>";
   }
+
   html += "</table><h2>" + tr("Keyboard shortcuts").toHtmlEscaped() + "</h2>";
   html += "<table width='100%' cellspacing='0' cellpadding='7'>";
   html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Action").toHtmlEscaped()
@@ -1870,6 +1877,64 @@ void MainWindow::showKeyboardShortcuts() {
 
   dialog.resize(640, 720);
   dialog.exec();
+}
+
+void MainWindow::showConfigurationDialog() {
+  if (auto* dialog = findChild<ConfigurationDialog*>(QStringLiteral("configurationDialog"))) {
+    dialog->raise();
+    dialog->activateWindow();
+    return;
+  }
+
+  auto* dialog = new ConfigurationDialog(this);
+  dialog->setObjectName(QStringLiteral("configurationDialog"));
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->show();
+}
+
+void MainWindow::showCommandLineArguments() {
+  if (auto* dialog = findChild<QDialog*>(QStringLiteral("commandLineArgumentsDialog"))) {
+    dialog->raise();
+    dialog->activateWindow();
+    return;
+  }
+
+  auto* dialog = new QDialog(this);
+  dialog->setObjectName(QStringLiteral("commandLineArgumentsDialog"));
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle(tr("Command Line Arguments"));
+
+  auto* layout = new QVBoxLayout(dialog);
+  auto* browser = new QTextBrowser(dialog);
+  browser->setOpenLinks(false);
+  browser->setFrameShape(QFrame::NoFrame);
+
+  QString html = "<html><body>";
+  html += "<p><code>" + QApplication::applicationName().toHtmlEscaped() + " [options] [path]</code></p>";
+  html += "<h3>" + tr("Options").toHtmlEscaped() + "</h3><dl>";
+  html += "<dt><code>-h, --help</code></dt><dd>" + tr("Display help for command line arguments.").toHtmlEscaped()
+          + "</dd>";
+  html += "<dt><code>-c, --config &lt;directory&gt;</code></dt><dd>"
+          + tr("Store settings in this directory. The application creates config.ini directly inside it. "
+               "Future configuration formats, such as TOML, will also be stored in this directory.")
+                .toHtmlEscaped()
+          + "</dd>";
+  html += "</dl><h3>" + tr("Path").toHtmlEscaped() + "</h3><dl>";
+  html += "<dt><code>[path]</code></dt><dd>"
+          + tr("Optional existing project file (.ScanTailor) or directory. A project file is opened; a directory "
+               "is used as the initial input and output location.")
+                .toHtmlEscaped()
+          + "</dd></dl></body></html>";
+  browser->setHtml(html);
+  layout->addWidget(browser);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+  connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::close);
+  layout->addWidget(buttonBox);
+
+  dialog->resize(580, 360);
+  dialog->show();
 }
 
 void MainWindow::applyMenuMnemonics() {

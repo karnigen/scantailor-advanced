@@ -26,6 +26,7 @@ class Task::UiUpdater : public FilterResult {
             const QImage& image,
             const ImageId& imageId,
             const ImageTransformation& xform,
+            const ImageTrim& trim,
             bool batchProcessing);
 
   void updateUI(FilterUiInterface* ui) override;
@@ -38,6 +39,7 @@ class Task::UiUpdater : public FilterResult {
   QImage m_downscaledImage;
   ImageId m_imageId;
   ImageTransformation m_xform;
+  ImageTrim m_trim;
   bool m_batchProcessing;
 };
 
@@ -76,7 +78,7 @@ FilterResultPtr Task::process(const TaskStatus& status, FilterData data) {
   if (m_nextTask) {
     return m_nextTask->process(status, FilterData(data, xform));
   } else {
-    return std::make_shared<UiUpdater>(m_filter, data.origImage(), m_imageId, xform, m_batchProcessing);
+    return std::make_shared<UiUpdater>(m_filter, data.origImage(), m_imageId, xform, trim, m_batchProcessing);
   }
 }
 
@@ -97,12 +99,14 @@ Task::UiUpdater::UiUpdater(std::shared_ptr<Filter> filter,
                            const QImage& image,
                            const ImageId& imageId,
                            const ImageTransformation& xform,
+                           const ImageTrim& trim,
                            const bool batchProcessing)
     : m_filter(std::move(filter)),
       m_image(image),
       m_downscaledImage(ImageView::createDownscaledImage(image)),
       m_imageId(imageId),
       m_xform(xform),
+      m_trim(trim),
       m_batchProcessing(batchProcessing) {}
 
 void Task::UiUpdater::updateUI(FilterUiInterface* ui) {
@@ -117,8 +121,9 @@ void Task::UiUpdater::updateUI(FilterUiInterface* ui) {
   optWidget->postUpdateUI(m_xform.preRotation());
   ui->setOptionsWidget(optWidget, ui->KEEP_OWNERSHIP);
 
-  auto* view = new ImageView(m_image, m_downscaledImage, m_xform);
+  auto* view = new ImageView(m_image, m_downscaledImage, m_xform, m_trim);
   ui->setImageWidget(view, ui->TRANSFER_OWNERSHIP);
   QObject::connect(optWidget, SIGNAL(rotated(OrthogonalRotation)), view, SLOT(setPreRotation(OrthogonalRotation)));
+  QObject::connect(optWidget, &OptionsWidget::trimChanged, view, &ImageView::setTrim);
 }
 }  // namespace fix_orientation

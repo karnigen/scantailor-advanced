@@ -95,6 +95,9 @@
           <property name="text">
            <string>Change ...</string>
           </property>
+          <property name="toolTip">
+           <string>Change the output resolution and choose which pages to update.</string>
+          </property>
          </widget>
         </item>
         <item>
@@ -146,7 +149,11 @@
          </spacer>
         </item>
         <item>
-         <widget class="QComboBox" name="colorModeSelector"/>
+         <widget class="QComboBox" name="colorModeSelector">
+          <property name="toolTip">
+           <string>Choose color mode selector.</string>
+          </property>
+         </widget>
         </item>
         <item>
          <spacer name="horizontalSpacer_2">
@@ -222,6 +229,9 @@
              <property name="text">
               <string>Fill offcut</string>
              </property>
+             <property name="toolTip">
+              <string>Fill offcut areas in the processed image.</string>
+             </property>
             </widget>
            </item>
            <item>
@@ -238,6 +248,9 @@
             <widget class="QCheckBox" name="fillMarginsCB">
              <property name="text">
               <string>Fill margins</string>
+             </property>
+             <property name="toolTip">
+              <string>Fill the margins around the page.</string>
              </property>
             </widget>
            </item>
@@ -266,12 +279,18 @@
              <property name="text">
               <string>Savitzky-Golay smoothing</string>
              </property>
+             <property name="toolTip">
+              <string>Toggle this option: Savitzky-Golay smoothing.</string>
+             </property>
             </widget>
            </item>
            <item>
             <widget class="QCheckBox" name="morphologicalSmoothingCB">
              <property name="text">
               <string>Morphological smoothing</string>
+             </property>
+             <property name="toolTip">
+              <string>Toggle this option: Morphological smoothing.</string>
              </property>
             </widget>
            </item>
@@ -328,7 +347,11 @@
             </widget>
            </item>
            <item>
-            <widget class="QComboBox" name="fillingColorBox"/>
+            <widget class="QComboBox" name="fillingColorBox">
+             <property name="toolTip">
+              <string>Choose filling color.</string>
+             </property>
+            </widget>
            </item>
            <item>
             <spacer name="horizontalSpacer_44">
@@ -383,7 +406,11 @@
             </widget>
            </item>
            <item>
-            <widget class="QComboBox" name="thresholdMethodBox"/>
+            <widget class="QComboBox" name="thresholdMethodBox">
+             <property name="toolTip">
+              <string>Choose threshold method.</string>
+             </property>
+            </widget>
            </item>
            <item>
             <spacer name="horizontalSpacer_41">
@@ -702,9 +729,6 @@
                 </item>
                 <item>
                  <widget class="QSpinBox" name="reduceNoiseSB">
-                  <property name="toolTip">
-                   <string/>
-                  </property>
                   <property name="frame">
                    <bool>true</bool>
                   </property>
@@ -719,6 +743,9 @@
                   </property>
                   <property name="value">
                    <number>0</number>
+                  </property>
+                  <property name="toolTip">
+                   <string>Adjust reduce noise.</string>
                   </property>
                  </widget>
                 </item>
@@ -853,14 +880,14 @@
                 </item>
                 <item>
                  <widget class="QCheckBox" name="posterizeNormalizationCB">
-                  <property name="toolTip">
-                   <string/>
-                  </property>
                   <property name="statusTip">
                    <string/>
                   </property>
                   <property name="text">
                    <string>Normalize</string>
+                  </property>
+                  <property name="toolTip">
+                   <string>Toggle this option: Normalize.</string>
                   </property>
                  </widget>
                 </item>
@@ -974,7 +1001,11 @@
             </spacer>
            </item>
            <item>
-            <widget class="QComboBox" name="pictureShapeSelector"/>
+            <widget class="QComboBox" name="pictureShapeSelector">
+             <property name="toolTip">
+              <string>Choose picture shape selector.</string>
+             </property>
+            </widget>
            </item>
            <item>
             <spacer name="horizontalSpacer_24">
@@ -1037,6 +1068,9 @@
               <property name="maximum">
                <number>100</number>
               </property>
+              <property name="toolTip">
+               <string>Set how strongly picture boundaries are detected.</string>
+              </property>
              </widget>
             </item>
             <item>
@@ -1074,6 +1108,9 @@
             <widget class="QCheckBox" name="higherSearchSensitivityCB">
              <property name="text">
               <string>Higher search sensitivity</string>
+             </property>
+             <property name="toolTip">
+              <string>Search more aggressively for picture boundaries.</string>
              </property>
             </widget>
            </item>
@@ -1114,6 +1151,9 @@
          <widget class="QPushButton" name="applyColorsButton">
           <property name="text">
            <string>Apply To ...</string>
+          </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
           </property>
          </widget>
         </item>
@@ -1169,6 +1209,9 @@
             <property name="text">
              <string>Split output</string>
             </property>
+            <property name="toolTip">
+             <string>Save the foreground and background layers as separate output files.</string>
+            </property>
            </widget>
           </item>
           <item>
@@ -1178,6 +1221,9 @@
             </property>
             <property name="checked">
              <bool>true</bool>
+            </property>
+            <property name="toolTip">
+             <string>Use black-and-white processing for the foreground.</string>
             </property>
            </widget>
           </item>
@@ -1212,6 +1258,9 @@
            <widget class="QRadioButton" name="colorForegroundRB">
             <property name="text">
              <string>Color foreground</string>
+            </property>
+            <property name="toolTip">
+             <string>Keep the foreground in color or grayscale.</string>
             </property>
            </widget>
           </item>
@@ -1251,6 +1300,9 @@
          <widget class="QPushButton" name="applySplittingButton">
           <property name="text">
            <string>Apply To ...</string>
+          </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
           </property>
          </widget>
         </item>
@@ -1332,6 +1384,9 @@
               <property name="text">
                <string>Despeckle</string>
               </property>
+              <property name="toolTip">
+               <string>Remove small isolated specks from the output.</string>
+              </property>
              </widget>
             </item>
            </layout>
@@ -1371,6 +1426,9 @@
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
           </property>
+          <property name="toolTip">
+           <string>Adjust despeckle.</string>
+          </property>
          </widget>
         </item>
        </layout>
@@ -1394,6 +1452,9 @@
          <widget class="QPushButton" name="applyDespeckleButton">
           <property name="text">
            <string>Apply To ...</string>
+          </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
           </property>
          </widget>
         </item>
@@ -1488,6 +1549,9 @@
           <property name="text">
            <string>Apply To ...</string>
           </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
+          </property>
          </widget>
         </item>
         <item>
@@ -1543,6 +1607,9 @@
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
+        <property name="toolTip">
+         <string>Adjust depth perception.</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -1564,6 +1631,9 @@
          <widget class="QPushButton" name="applyDepthPerceptionButton">
           <property name="text">
            <string>Apply To ...</string>
+          </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
           </property>
          </widget>
         </item>
@@ -1653,6 +1723,9 @@
          <widget class="QPushButton" name="changeDewarpingButton">
           <property name="text">
            <string>Change ...</string>
+          </property>
+          <property name="toolTip">
+           <string>Change the dewarping mode and choose which pages to update.</string>
           </property>
          </widget>
         </item>

@@ -7,10 +7,11 @@
 
 #include <foundation/NonCopyable.h>
 
-#include <QSettings>
 #include <QSize>
 #include <QSizeF>
 #include <QString>
+
+#include "SettingsStore.h"
 
 class ApplicationSettings {
   DECLARE_NON_COPYABLE(ApplicationSettings)
@@ -172,7 +173,7 @@ class ApplicationSettings {
   static const int DEFAULT_ZONE_CREATION_MODE;  // 0 = polygonal
   static const bool DEFAULT_OUTPUT_SHOW_GUIDES;
 
-  QSettings m_settings;
+  SettingsStore m_settings;
 };
 
 
