@@ -44,6 +44,7 @@ void ImageView::drawGuides(QPainter& painter) {
 
 void ImageView::contextMenuEvent(QContextMenuEvent* event) {
   QMenu menu(this);
+  menu.setToolTipsVisible(true);
   QAction* showGuidesAction = menu.addAction(tr("Show guides"));
   showGuidesAction->setToolTip(tr("Show or hide center guides in the output preview."));
   showGuidesAction->setCheckable(true);

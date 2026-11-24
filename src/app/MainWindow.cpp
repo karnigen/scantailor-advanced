@@ -335,7 +335,8 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(selectionModeBtn, SIGNAL(clicked(bool)), m_thumbSequence.get(), SLOT(setSelectionModeEnabled(bool)));
 
   connect(thumbView->verticalScrollBar(), SIGNAL(sliderMoved(int)), this, SLOT(thumbViewScrolled()));
-  connect(thumbView->verticalScrollBar(), SIGNAL(actionTriggered(int)), this, SLOT(thumbViewScrolled()));
+  connect(thumbView->verticalScrollBar(), &QScrollBar::actionTriggered, this,
+          [this](int) { QTimer::singleShot(0, this, [this]() { thumbViewScrolled(); }); });
   connect(focusButton, &QToolButton::clicked, this, [this](bool checked) {
     SettingsStore().setValue("mainWindow/keepCurrentPageInView", checked);
     thumbViewFocusToggled(checked);

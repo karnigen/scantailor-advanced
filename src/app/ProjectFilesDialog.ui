@@ -80,7 +80,7 @@
         <item>
          <widget class="QListView" name="offProjectList">
           <property name="toolTip">
-           <string>Files in the output folder that are not currently in the project.</string>
+           <string>Files in the input folder that are not currently in the project.</string>
           </property>
           <property name="selectionMode">
            <enum>QAbstractItemView::ExtendedSelection</enum>

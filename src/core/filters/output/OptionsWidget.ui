@@ -1210,7 +1210,7 @@
              <string>Split output</string>
             </property>
             <property name="toolTip">
-             <string>Split a two-page spread into separate output pages.</string>
+             <string>Save the foreground and background layers as separate output files.</string>
             </property>
            </widget>
           </item>

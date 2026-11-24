@@ -440,7 +440,7 @@ QToolButton:pressed {
            <bool>true</bool>
           </property>
           <property name="toolTip">
-           <string>Match this page size to the other selected pages.</string>
+           <string>Match this page size to the maximum width and height in the project.</string>
           </property>
          </widget>
         </item>
