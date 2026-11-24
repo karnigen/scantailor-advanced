@@ -118,6 +118,8 @@ class Settings::Impl {
 
   std::unique_ptr<Params> getPageParams(const PageId& pageId) const;
 
+  std::unordered_map<PageId, QSizeF> getPageSizesSnapshot() const;
+
   bool isParamsNull(const PageId& pageId) const;
 
   void setPageParams(const PageId& pageId, const Params& params);
@@ -127,8 +129,7 @@ class Settings::Impl {
                                        const QRectF& contentRect,
                                        const QSizeF& contentSizeMm,
                                        QSizeF* aggHardSizeBefore,
-                                       QSizeF* aggHardSizeAfter,
-                                       const Params* expectedParams);
+                                       QSizeF* aggHardSizeAfter);
 
   Margins getHardMarginsMM(const PageId& pageId) const;
 
@@ -404,6 +405,10 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
   return m_impl->getPageParams(pageId);
 }
 
+std::unordered_map<PageId, QSizeF> Settings::getPageSizesSnapshot() const {
+  return m_impl->getPageSizesSnapshot();
+}
+
 void Settings::setPageParams(const PageId& pageId, const Params& params) {
   return m_impl->setPageParams(pageId, params);
 }
@@ -415,16 +420,7 @@ Params Settings::updateContentSizeAndGetParams(const PageId& pageId,
                                                QSizeF* aggHardSizeBefore,
                                                QSizeF* aggHardSizeAfter) {
   return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, aggHardSizeBefore,
-                                               aggHardSizeAfter, nullptr);
-}
-
-Params Settings::updateContentSizeAndGetParamsIfUnchanged(const PageId& pageId,
-                                                          const QRectF& pageRect,
-                                                          const QRectF& contentRect,
-                                                          const QSizeF& contentSizeMm,
-                                                          const Params& expectedParams) {
-  return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, nullptr, nullptr,
-                                               &expectedParams);
+                                               aggHardSizeAfter);
 }
 
 Margins Settings::getHardMarginsMM(const PageId& pageId) const {
@@ -629,6 +625,19 @@ std::unique_ptr<Params> Settings::Impl::getPageParams(const PageId& pageId) cons
                                   it->autoMargins);
 }
 
+std::unordered_map<PageId, QSizeF> Settings::Impl::getPageSizesSnapshot() const {
+  const QMutexLocker locker(&m_mutex);
+
+  std::unordered_map<PageId, QSizeF> snapshot;
+  for (const Item& item : m_items) {
+    QSizeF size(item.contentSizeMM);
+    size += QSizeF(item.hardMarginsMM.left() + item.hardMarginsMM.right(),
+                   item.hardMarginsMM.top() + item.hardMarginsMM.bottom());
+    snapshot.emplace(item.pageId, size);
+  }
+  return snapshot;
+}
+
 void Settings::Impl::setPageParams(const PageId& pageId, const Params& params) {
   const QMutexLocker locker(&m_mutex);
 
@@ -650,22 +659,10 @@ Params Settings::Impl::updateContentSizeAndGetParams(const PageId& pageId,
                                                      const QRectF& contentRect,
                                                      const QSizeF& contentSizeMm,
                                                      QSizeF* aggHardSizeBefore,
-                                                     QSizeF* aggHardSizeAfter,
-                                                     const Params* expectedParams) {
+                                                     QSizeF* aggHardSizeAfter) {
   const QMutexLocker locker(&m_mutex);
 
   const Container::iterator it(m_items.find(pageId));
-  if (expectedParams) {
-    if (it == m_items.end()) {
-      return *expectedParams;
-    }
-    if ((it->pageRect != expectedParams->pageRect()) || (it->contentRect != expectedParams->contentRect())
-        || (it->contentSizeMM != expectedParams->contentSizeMM())) {
-      return Params(it->hardMarginsMM, it->pageRect, it->contentRect, it->contentSizeMM, it->alignment,
-                    it->autoMargins);
-    }
-  }
-
   if (aggHardSizeBefore) {
     *aggHardSizeBefore = getAggregateHardSizeMMLocked();
   }

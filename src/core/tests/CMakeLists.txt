@@ -17,6 +17,7 @@ set(sources
     TestProjectMigration.cpp
     TestSettingsStore.cpp
     TestPageLayoutSettings.cpp
+    TestPageLayoutCacheDrivenTask.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
     TestUnits.cpp)

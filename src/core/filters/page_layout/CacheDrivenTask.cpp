@@ -37,8 +37,8 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
     return;
   }
 
-  Params newParams(m_settings->updateContentSizeAndGetParamsIfUnchanged(pageInfo.id(), pageRect, contentRect,
-                                                                        params->contentSizeMM(), *params));
+  const Params newParams(params->hardMarginsMM(), pageRect, contentRect, params->contentSizeMM(), params->alignment(),
+                         params->isAutoMarginsEnabled());
 
   const QRectF adaptedContentRect(Utils::adaptContentRect(xform, contentRect));
   const QPolygonF contentRectPhys(xform.transformBack().map(adaptedContentRect));

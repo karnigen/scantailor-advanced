@@ -22,6 +22,10 @@ class PageOrderProvider : public std::enable_shared_from_this<PageOrderProvider>
    */
   virtual bool precedes(const PageId& lhsPage, bool lhsIncomplete, const PageId& rhsPage, bool rhsIncomplete) const = 0;
 
+  /**
+   * Returns a provider view for a sequence of comparisons. Providers backed by mutable state
+   * should override this to freeze the values used for ordering.
+   */
   virtual std::shared_ptr<const PageOrderProvider> snapshot() const;
 
   virtual std::shared_ptr<const PageOrderProvider> reversed() const;

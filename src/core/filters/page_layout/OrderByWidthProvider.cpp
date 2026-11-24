@@ -3,6 +3,8 @@
 
 #include "OrderByWidthProvider.h"
 
+#include <PageSizeOrderSnapshot.h>
+
 #include <utility>
 
 #include "Params.h"
@@ -39,4 +41,9 @@ bool OrderByWidthProvider::precedes(const PageId& lhsPage,
   }
   return lhsSize.width() < rhsSize.width();
 }  // OrderByWidthProvider::precedes
+
+std::shared_ptr<const PageOrderProvider> OrderByWidthProvider::snapshot() const {
+  return std::make_shared<PageSizeOrderSnapshot>(m_settings->getPageSizesSnapshot(),
+                                                 PageSizeOrderSnapshot::Axis::WIDTH);
+}
 }  // namespace page_layout

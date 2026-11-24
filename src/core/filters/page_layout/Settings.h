@@ -7,15 +7,16 @@
 #include <DeviationProvider.h>
 
 #include <memory>
+#include <unordered_map>
 
+#include <PageId.h>
+#include <QSizeF>
 #include "Margins.h"
 #include "NonCopyable.h"
 
-class PageId;
 class Margins;
 class PageSequence;
 class AbstractRelinker;
-class QSizeF;
 class QRectF;
 
 namespace page_layout {
@@ -62,6 +63,8 @@ class Settings {
    */
   std::unique_ptr<Params> getPageParams(const PageId& pageId) const;
 
+  std::unordered_map<PageId, QSizeF> getPageSizesSnapshot() const;
+
   bool isParamsNull(const PageId& pageId) const;
 
   /**
@@ -78,12 +81,6 @@ class Settings {
                                        const QSizeF& contentSizeMm,
                                        QSizeF* aggHardSizeBefore = nullptr,
                                        QSizeF* aggHardSizeAfter = nullptr);
-
-  Params updateContentSizeAndGetParamsIfUnchanged(const PageId& pageId,
-                                                  const QRectF& pageRect,
-                                                  const QRectF& contentRect,
-                                                  const QSizeF& contentSizeMm,
-                                                  const Params& expectedParams);
 
   /**
    * \brief Returns the hard margins for the specified page.

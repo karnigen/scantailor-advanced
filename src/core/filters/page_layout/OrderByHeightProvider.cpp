@@ -3,6 +3,8 @@
 
 #include "OrderByHeightProvider.h"
 
+#include <PageSizeOrderSnapshot.h>
+
 #include <utility>
 
 #include "Params.h"
@@ -39,4 +41,9 @@ bool OrderByHeightProvider::precedes(const PageId& lhsPage,
   }
   return lhsSize.height() < rhsSize.height();
 }  // OrderByHeightProvider::precedes
+
+std::shared_ptr<const PageOrderProvider> OrderByHeightProvider::snapshot() const {
+  return std::make_shared<PageSizeOrderSnapshot>(m_settings->getPageSizesSnapshot(),
+                                                 PageSizeOrderSnapshot::Axis::HEIGHT);
+}
 }  // namespace page_layout

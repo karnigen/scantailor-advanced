@@ -2,14 +2,18 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include "../filters/page_layout/Alignment.h"
-#include "../filters/page_layout/Params.h"
+#include "../filters/page_layout/OrderByHeightProvider.h"
+#include "../filters/page_layout/OrderByWidthProvider.h"
 #include "../filters/page_layout/Settings.h"
 
 #include <ImageId.h>
 #include <PageId.h>
 
 #include <QSizeF>
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
+#include <vector>
 
 
 TEST_CASE("PageLayoutSettingsTestSuite / test_aggregate_dimensions_track_independent_maxima") {
@@ -49,38 +53,58 @@ TEST_CASE("PageLayoutSettingsTestSuite / test_equal_dimensions_keep_both_ordered
   CHECK(settings.getAggregateHardSizeMM() == QSizeF(120.0, 60.0));
 }
 
-TEST_CASE("PageLayoutSettingsTestSuite / stale thumbnail snapshot cannot overwrite newer worker geometry") {
-  page_layout::Settings settings;
-  const PageId pageId(ImageId("/page.tif", 0), PageId::SINGLE_PAGE);
-  const page_layout::Params initialParams(Margins(5.0, 5.0, 5.0, 5.0), QRectF(0.0, 0.0, 100.0, 100.0),
-                                          QRectF(10.0, 10.0, 80.0, 80.0), QSizeF(80.0, 80.0), page_layout::Alignment(),
-                                          false);
-  settings.setPageParams(pageId, initialParams);
+TEST_CASE("PageLayoutSettingsTestSuite / size ordering uses a stable snapshot during sorting") {
+  const auto settings = std::make_shared<page_layout::Settings>();
+  const PageId first(ImageId("/first.tif", 0), PageId::SINGLE_PAGE);
+  const PageId middle(ImageId("/middle.tif", 0), PageId::SINGLE_PAGE);
+  const PageId last(ImageId("/last.tif", 0), PageId::SINGLE_PAGE);
+  settings->setContentSizeMM(first, QSizeF(10.0, 80.0));
+  settings->setContentSizeMM(middle, QSizeF(20.0, 20.0));
+  settings->setContentSizeMM(last, QSizeF(80.0, 10.0));
+  for (const PageId& pageId : {first, middle, last}) {
+    settings->setHardMarginsMM(pageId, Margins(0.0, 0.0, 0.0, 0.0));
+  }
 
-  const std::unique_ptr<page_layout::Params> thumbnailSnapshot = settings.getPageParams(pageId);
-  REQUIRE(thumbnailSnapshot);
+  const auto widthProvider = std::make_shared<page_layout::OrderByWidthProvider>(settings);
+  const auto heightProvider = std::make_shared<page_layout::OrderByHeightProvider>(settings);
+  const auto widthSnapshot = widthProvider->snapshot();
+  const auto heightSnapshot = heightProvider->snapshot();
+  const auto reversedWidthSnapshot = widthProvider->reversed()->snapshot();
 
-  const QRectF thumbnailPageRect(0.0, 0.0, 110.0, 110.0);
-  const QRectF thumbnailContentRect(12.0, 12.0, 86.0, 86.0);
-  const page_layout::Params thumbnailParams = settings.updateContentSizeAndGetParamsIfUnchanged(
-      pageId, thumbnailPageRect, thumbnailContentRect, QSizeF(86.0, 86.0), *thumbnailSnapshot);
-  CHECK(thumbnailParams.pageRect() == thumbnailPageRect);
+  const auto mutateSettings = [&settings, &first, &middle, &last](const bool reverse) {
+    if (reverse) {
+      settings->setContentSizeMM(first, QSizeF(100.0, 10.0));
+      settings->setContentSizeMM(middle, QSizeF(50.0, 100.0));
+      settings->setContentSizeMM(last, QSizeF(1.0, 50.0));
+    } else {
+      settings->setContentSizeMM(first, QSizeF(1.0, 100.0));
+      settings->setContentSizeMM(middle, QSizeF(100.0, 10.0));
+      settings->setContentSizeMM(last, QSizeF(50.0, 50.0));
+    }
+  };
+  const auto sortWhileSettingsChange
+      = [&mutateSettings](const std::shared_ptr<const PageOrderProvider>& provider, std::vector<PageId> pages) {
+          int comparisonCount = 0;
+          std::sort(pages.begin(), pages.end(), [&](const PageId& lhs, const PageId& rhs) {
+            mutateSettings(comparisonCount++ % 2 == 0);
+            return provider->precedes(lhs, false, rhs, false);
+          });
+          return pages;
+        };
 
-  const std::unique_ptr<page_layout::Params> staleSnapshot = settings.getPageParams(pageId);
-  REQUIRE(staleSnapshot);
-  const QRectF workerPageRect(0.0, 0.0, 200.0, 300.0);
-  const QRectF workerContentRect(20.0, 30.0, 160.0, 250.0);
-  const page_layout::Params workerParams
-      = settings.updateContentSizeAndGetParams(pageId, workerPageRect, workerContentRect, QSizeF(160.0, 250.0));
+  const std::vector<PageId> initialOrder{last, first, middle};
+  const auto widthOrder = sortWhileSettingsChange(widthSnapshot, initialOrder);
+  CHECK(widthOrder[0] == first);
+  CHECK(widthOrder[1] == middle);
+  CHECK(widthOrder[2] == last);
 
-  const page_layout::Params returnedParams = settings.updateContentSizeAndGetParamsIfUnchanged(
-      pageId, staleSnapshot->pageRect(), staleSnapshot->contentRect(), staleSnapshot->contentSizeMM(), *staleSnapshot);
-  const std::unique_ptr<page_layout::Params> currentParams = settings.getPageParams(pageId);
-  REQUIRE(currentParams);
-  CHECK(returnedParams.pageRect() == workerPageRect);
-  CHECK(returnedParams.contentRect() == workerContentRect);
-  CHECK(returnedParams.contentSizeMM() == QSizeF(160.0, 250.0));
-  CHECK(currentParams->pageRect() == workerParams.pageRect());
-  CHECK(currentParams->contentRect() == workerParams.contentRect());
-  CHECK(currentParams->contentSizeMM() == workerParams.contentSizeMM());
+  const auto heightOrder = sortWhileSettingsChange(heightSnapshot, initialOrder);
+  CHECK(heightOrder[0] == last);
+  CHECK(heightOrder[1] == middle);
+  CHECK(heightOrder[2] == first);
+
+  const auto reversedWidthOrder = sortWhileSettingsChange(reversedWidthSnapshot, initialOrder);
+  CHECK(reversedWidthOrder[0] == last);
+  CHECK(reversedWidthOrder[1] == middle);
+  CHECK(reversedWidthOrder[2] == first);
 }
