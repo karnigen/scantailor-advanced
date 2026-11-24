@@ -169,6 +169,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
 
   setupUi(this);
   setupIcons();
+  focusButton->setChecked(SettingsStore().boolValue("mainWindow/keepCurrentPageInView", true));
 
   applyMenuMnemonics();
 
@@ -334,8 +335,11 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(selectionModeBtn, SIGNAL(clicked(bool)), m_thumbSequence.get(), SLOT(setSelectionModeEnabled(bool)));
 
   connect(thumbView->verticalScrollBar(), SIGNAL(sliderMoved(int)), this, SLOT(thumbViewScrolled()));
-  connect(thumbView->verticalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(thumbViewScrolled()));
-  connect(focusButton, SIGNAL(clicked(bool)), this, SLOT(thumbViewFocusToggled(bool)));
+  connect(thumbView->verticalScrollBar(), SIGNAL(actionTriggered(int)), this, SLOT(thumbViewScrolled()));
+  connect(focusButton, &QToolButton::clicked, this, [this](bool checked) {
+    SettingsStore().setValue("mainWindow/keepCurrentPageInView", checked);
+    thumbViewFocusToggled(checked);
+  });
   connect(sortOptions, SIGNAL(currentIndexChanged(int)), this, SLOT(pageOrderingChanged(int)));
   connect(thumbColumnViewBtn, &QToolButton::clicked, this, [this, &settings](bool checked) {
     settings.setSingleColumnThumbnailDisplayEnabled(checked);
