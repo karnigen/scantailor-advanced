@@ -1380,6 +1380,10 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     return;
   }
 
+  if (isBatchProcessingInProgress()) {
+    feedWorkerPool();
+  }
+
   bool batchFailureRecorded = false;
   bool batchPageSkipped = false;
   QString batchPageName;
@@ -1509,20 +1513,22 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
       return;
     }
 
-    do {
-      const BackgroundTaskPtr task(m_batchQueue->takeForProcessing());
-      if (!task) {
-        break;
-      }
-      m_workerThreadPool->submitTask(task);
-    } while (m_workerThreadPool->hasSpareCapacity());
-
     const PageInfo page(m_batchQueue->selectedPage());
     if (!page.isNull()) {
       m_thumbSequence->setSelection(page.id());
     }
   }
 }  // MainWindow::filterResult
+
+void MainWindow::feedWorkerPool() {
+  do {
+    const BackgroundTaskPtr task(m_batchQueue->takeForProcessing());
+    if (!task) {
+      break;
+    }
+    m_workerThreadPool->submitTask(task);
+  } while (m_workerThreadPool->hasSpareCapacity());
+}
 
 void MainWindow::debugToggled(const bool enabled) {
   m_debug = enabled;

@@ -1,6 +1,7 @@
 set(sources
     TestContentSpanFinder.cpp
     TestDeskewParams.cpp
+    TestDeviationProvider.cpp
     TestEditableZoneSet.cpp
     TestFileNameDisambiguator.cpp
     TestImageAllocationLimit.cpp
