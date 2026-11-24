@@ -79,6 +79,11 @@ void OptionsWidget::appliedTo(const std::set<PageId>& pages) {
 
   m_settings->applyRotation(pages, m_rotation);
   m_settings->applyTrim(pages, currentTrimFromControls());
+  if (std::any_of(pages.begin(), pages.end(),
+                  [this](const PageId& pageId) { return pageId.imageId() == m_pageId.imageId(); })) {
+    emit rotated(m_rotation);
+    emit trimChanged(currentTrimFromControls());
+  }
 
   if (pages.size() > 1) {
     emit invalidateAllThumbnails();
@@ -92,6 +97,8 @@ void OptionsWidget::appliedTo(const std::set<PageId>& pages) {
 void OptionsWidget::appliedToAllPages(const std::set<PageId>& pages) {
   m_settings->applyRotation(pages, m_rotation);
   m_settings->applyTrim(pages, currentTrimFromControls());
+  emit rotated(m_rotation);
+  emit trimChanged(currentTrimFromControls());
   emit invalidateAllThumbnails();
 }
 
@@ -122,6 +129,7 @@ void OptionsWidget::trimEnableToggled(const bool checked) {
   resetTrimBtn->setEnabled(checked);
   if (!checked) {
     m_settings->clearTrim(m_pageId.imageId());
+    emit trimChanged(ImageTrim());
     emit invalidateThumbnail(m_pageId);
     return;
   }
@@ -146,6 +154,7 @@ void OptionsWidget::resetTrim() {
     pushTrimFromControls();
   } else {
     m_settings->clearTrim(m_pageId.imageId());
+    emit trimChanged(ImageTrim());
     emit invalidateThumbnail(m_pageId);
   }
 }
@@ -187,6 +196,7 @@ void OptionsWidget::pushTrimFromControls() {
     return;
   }
   m_settings->setTrim(m_pageId.imageId(), trim);
+  emit trimChanged(trim);
   emit invalidateThumbnail(m_pageId);
 }
 
