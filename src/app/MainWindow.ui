@@ -1378,7 +1378,7 @@ QToolButton:pressed {
     <bool>false</bool>
    </property>
    <property name="toolTip">
-    <string>Open the Fix Orientation stage. Shortcut: O.</string>
+    <string>Open the manual Fix Orientation stage. It does not automatically detect upside-down text. Shortcut: O.</string>
    </property>
   </action>
   <action name="actionSwitchFilter2">

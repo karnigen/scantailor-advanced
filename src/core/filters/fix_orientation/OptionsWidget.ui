@@ -24,6 +24,16 @@
      </property>
      <layout class="QVBoxLayout">
       <item>
+       <widget class="QLabel" name="rotationHelpLabel">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Manual rotation only; upside-down text is not detected automatically.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout">
         <item>
          <spacer>
