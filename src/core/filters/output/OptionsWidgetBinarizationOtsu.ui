@@ -107,6 +107,9 @@
      <property name="tickPosition">
       <enum>QSlider::TicksBelow</enum>
      </property>
+     <property name="toolTip">
+      <string>Adjust the binarization threshold.</string>
+     </property>
     </widget>
    </item>
    <item>
@@ -143,6 +146,9 @@
        </property>
        <property name="arrowType">
         <enum>Qt::UpArrow</enum>
+       </property>
+       <property name="toolTip">
+        <string>Reset the threshold to its neutral value.</string>
        </property>
       </widget>
      </item>

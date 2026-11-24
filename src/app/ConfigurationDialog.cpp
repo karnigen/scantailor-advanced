@@ -30,27 +30,36 @@ ConfigurationDialog::ConfigurationDialog(QWidget* parent)
   auto* layout = new QVBoxLayout(this);
   const QString mode = SettingsStore::configDirectoryExplicit() ? tr("Custom directory") : tr("Platform default");
   auto* modeLabel = new QLabel(tr("Location: %1").arg(mode), this);
+  modeLabel->setToolTip(tr("Shows whether the configuration directory is custom or platform default."));
   modeLabel->setObjectName(QStringLiteral("configurationMode"));
   layout->addWidget(modeLabel);
   m_pathLabel->setObjectName(QStringLiteral("configurationFilePath"));
+  m_pathLabel->setToolTip(tr("Full path to the configuration file."));
   m_profilesPathLabel->setObjectName(QStringLiteral("configurationProfilesPath"));
+  m_profilesPathLabel->setToolTip(tr("Full path to the folder containing parameter profiles."));
   m_statusLabel->setObjectName(QStringLiteral("configurationDirectoryStatus"));
+  m_statusLabel->setToolTip(tr("Shows whether the configuration directory can be written to."));
   layout->addWidget(m_pathLabel);
   layout->addWidget(m_profilesPathLabel);
   layout->addWidget(m_statusLabel);
 
   m_contents->setReadOnly(true);
   m_contents->setObjectName(QStringLiteral("configurationContents"));
+  m_contents->setToolTip(tr("Read-only contents of the configuration file."));
   m_contents->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
   layout->addWidget(m_contents);
 
   auto* buttonsLayout = new QHBoxLayout;
   auto* copyButton = new QPushButton(tr("Copy path"), this);
   copyButton->setObjectName(QStringLiteral("configurationCopyPathButton"));
+  copyButton->setToolTip(tr("Copy the configuration file path to the clipboard."));
   auto* openButton = new QPushButton(tr("Open folder"), this);
+  openButton->setToolTip(tr("Open the configuration folder in the file manager."));
   auto* reloadButton = new QPushButton(tr("Reload"), this);
   reloadButton->setObjectName(QStringLiteral("configurationReloadButton"));
+  reloadButton->setToolTip(tr("Reload the configuration file contents from disk."));
   auto* closeButton = new QPushButton(tr("Close"), this);
+  closeButton->setToolTip(tr("Close this dialog."));
   buttonsLayout->addWidget(copyButton);
   buttonsLayout->addWidget(openButton);
   buttonsLayout->addWidget(reloadButton);

@@ -25,12 +25,18 @@
         <property name="enabled">
          <bool>true</bool>
         </property>
+        <property name="toolTip">
+         <string>Enter inp dir line.</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QPushButton" name="inpDirBrowseBtn">
         <property name="text">
          <string>Browse</string>
+        </property>
+        <property name="toolTip">
+         <string>Choose the directory containing the input images.</string>
         </property>
        </widget>
       </item>
@@ -44,12 +50,19 @@
      </property>
      <layout class="QHBoxLayout">
       <item>
-       <widget class="QLineEdit" name="outDirLine"/>
+       <widget class="QLineEdit" name="outDirLine">
+        <property name="toolTip">
+         <string>Enter out dir line.</string>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QPushButton" name="outDirBrowseBtn">
         <property name="text">
          <string>Browse</string>
+        </property>
+        <property name="toolTip">
+         <string>Choose where processed images will be saved.</string>
         </property>
        </widget>
       </item>
@@ -66,6 +79,9 @@
        <layout class="QVBoxLayout">
         <item>
          <widget class="QListView" name="offProjectList">
+          <property name="toolTip">
+           <string>Files in the output folder that are not currently in the project.</string>
+          </property>
           <property name="selectionMode">
            <enum>QAbstractItemView::ExtendedSelection</enum>
           </property>
@@ -75,6 +91,9 @@
          <widget class="QPushButton" name="offProjectSelectAllBtn">
           <property name="text">
            <string>Select All</string>
+          </property>
+          <property name="toolTip">
+           <string>Select all files not currently in the project.</string>
           </property>
          </widget>
         </item>
@@ -177,6 +196,9 @@ p, li { white-space: pre-wrap; }
        <layout class="QVBoxLayout">
         <item>
          <widget class="QListView" name="inProjectList">
+          <property name="toolTip">
+           <string>Files currently included in the project.</string>
+          </property>
           <property name="enabled">
            <bool>true</bool>
           </property>
@@ -190,6 +212,9 @@ p, li { white-space: pre-wrap; }
           <property name="text">
            <string>Select All</string>
           </property>
+          <property name="toolTip">
+           <string>Select all files currently in the project.</string>
+          </property>
          </widget>
         </item>
        </layout>
@@ -202,12 +227,18 @@ p, li { white-space: pre-wrap; }
      <property name="text">
       <string>Right to left layout (for Hebrew and Arabic)</string>
      </property>
+     <property name="toolTip">
+      <string>Arrange two-page spreads right to left.</string>
+     </property>
     </widget>
    </item>
    <item>
     <widget class="QCheckBox" name="forceFixDpi">
      <property name="text">
       <string>Fix DPIs, even if they look OK</string>
+     </property>
+     <property name="toolTip">
+      <string>Correct image resolution even when the current value appears valid.</string>
      </property>
     </widget>
    </item>

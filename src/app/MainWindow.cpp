@@ -523,6 +523,7 @@ void MainWindow::createBatchProcessingWidget() {
                                     iconProvider.getIcon("stop-pressed"), m_batchProcessingWidget.get());
   stopBtn->setIconSize({128, 128});
   stopBtn->setStatusTip(tr("Stop batch processing"));
+  stopBtn->setToolTip(tr("Stop the current batch-processing run."));
 
   class LowerPanel : public QWidget {
    public:
@@ -1076,11 +1077,14 @@ void MainWindow::pageContextMenuRequested(const PageInfo& pageInfo_, const QPoin
 
   auto& iconProvider = IconProvider::getInstance();
   QAction* insBefore = menu.addAction(iconProvider.getIcon("insert-before"), tr("Insert before ..."));
+  insBefore->setToolTip(tr("Add input images before the selected page."));
   QAction* insAfter = menu.addAction(iconProvider.getIcon("insert-after"), tr("Insert after ..."));
+  insAfter->setToolTip(tr("Add input images after the selected page."));
 
   menu.addSeparator();
 
   QAction* remove = menu.addAction(iconProvider.getIcon("user-trash"), tr("Remove from project ..."));
+  remove->setToolTip(tr("Remove the selected pages from the project without deleting source files."));
 
   QAction* action = menu.exec(screenPos);
   if (action == insBefore) {
@@ -1110,7 +1114,8 @@ void MainWindow::pastLastPageContextMenuRequested(const QPoint& screenPos) {
   }
 
   QMenu menu(thumbView);
-  menu.addAction(IconProvider::getInstance().getIcon("insert-here"), tr("Insert here ..."));
+  QAction* insertHere = menu.addAction(IconProvider::getInstance().getIcon("insert-here"), tr("Insert here ..."));
+  insertHere->setToolTip(tr("Add input images at the end of the project."));
 
   if (menu.exec(screenPos)) {
     showInsertFileDialog(BEFORE, ImageId());

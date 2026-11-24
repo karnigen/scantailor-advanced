@@ -31,6 +31,9 @@
         <property name="checked">
          <bool>true</bool>
         </property>
+        <property name="toolTip">
+         <string>Select this option: Off.</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -40,6 +43,9 @@
         </property>
         <property name="text">
          <string>Auto (experimental)</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: Auto (experimental).</string>
         </property>
        </widget>
       </item>
@@ -51,12 +57,18 @@
         <property name="text">
          <string>Marginal (experimental)</string>
         </property>
+        <property name="toolTip">
+         <string>Select this option: Marginal (experimental).</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="manualRB">
         <property name="text">
          <string>Manual</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: Manual.</string>
         </property>
        </widget>
       </item>
@@ -73,6 +85,9 @@
        <widget class="QCheckBox" name="dewarpingPostDeskewCB">
         <property name="text">
          <string>Post deskew</string>
+        </property>
+        <property name="toolTip">
+         <string>Apply deskewing after page dewarping.</string>
         </property>
        </widget>
       </item>
@@ -93,6 +108,9 @@
         <property name="checked">
          <bool>true</bool>
         </property>
+        <property name="toolTip">
+         <string>Select this option: This page only.</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -100,12 +118,18 @@
         <property name="text">
          <string>All pages</string>
         </property>
+        <property name="toolTip">
+         <string>Select this option: All pages.</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="thisPageAndFollowersRB">
         <property name="text">
          <string>This page and the following ones</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: This page and the following ones.</string>
         </property>
        </widget>
       </item>
@@ -131,6 +155,9 @@
           <widget class="QRadioButton" name="selectedPagesRB">
            <property name="text">
             <string>Selected pages</string>
+           </property>
+           <property name="toolTip">
+            <string>Select this option: Selected pages.</string>
            </property>
           </widget>
          </item>

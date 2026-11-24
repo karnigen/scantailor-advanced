@@ -28,12 +28,18 @@
         <property name="checked">
          <bool>true</bool>
         </property>
+        <property name="toolTip">
+         <string>Select this option: This page only (already applied).</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="allPagesRB">
         <property name="text">
          <string>All pages</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: All pages.</string>
         </property>
        </widget>
       </item>
@@ -42,12 +48,18 @@
         <property name="text">
          <string>This page and the following ones</string>
         </property>
+        <property name="toolTip">
+         <string>Select this option: This page and the following ones.</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="thisEveryOtherRB">
         <property name="text">
          <string>This page and the following every other page</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: This page and the following every other page.</string>
         </property>
        </widget>
       </item>
@@ -56,12 +68,18 @@
         <property name="text">
          <string>Every other page</string>
         </property>
+        <property name="toolTip">
+         <string>Select this option: Every other page.</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="selectedPagesRB">
         <property name="text">
          <string>Selected pages</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: Selected pages.</string>
         </property>
        </widget>
       </item>
@@ -101,6 +119,9 @@
        <widget class="QRadioButton" name="everyOtherSelectedRB">
         <property name="text">
          <string>Every other selected page</string>
+        </property>
+        <property name="toolTip">
+         <string>Select this option: Every other selected page.</string>
         </property>
        </widget>
       </item>
@@ -153,6 +174,9 @@
         <property name="checked">
          <bool>true</bool>
         </property>
+        <property name="toolTip">
+         <string>Toggle this option: Left.</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -162,6 +186,9 @@
         </property>
         <property name="checked">
          <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string>Toggle this option: Right.</string>
         </property>
        </widget>
       </item>
@@ -173,6 +200,9 @@
         <property name="checked">
          <bool>true</bool>
         </property>
+        <property name="toolTip">
+         <string>Toggle this option: Top.</string>
+        </property>
        </widget>
       </item>
       <item>
@@ -182,6 +212,9 @@
         </property>
         <property name="checked">
          <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string>Toggle this option: Bottom.</string>
         </property>
        </widget>
       </item>

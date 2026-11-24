@@ -88,6 +88,8 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
 
     if (canOfferAllocationLimitIncrease(m_limitInfo)) {
       m_limitButton = new QPushButton(tr("Review image allocation limit..."), this);
+      m_limitButton->setToolTip(
+          tr("Review the image allocation limit and optionally increase it for this application."));
       layout->addWidget(m_limitButton);
       connect(m_limitButton, &QPushButton::clicked, this, [this]() {
         if (m_waitingForLimitUpdate) {
@@ -146,6 +148,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     m_waitingForLimitUpdate = true;
     m_limitUpdateTimer.start();
     m_limitButton->setText(tr("Cancel"));
+    m_limitButton->setToolTip(tr("Cancel waiting for active image loads before changing the limit."));
     m_explanation->setText(tr("Waiting for active image loads to finish..."));
     applyLimitWhenAvailable();
   }
@@ -153,12 +156,16 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
   void cancelLimitUpdate() {
     m_waitingForLimitUpdate = false;
     m_limitButton->setText(tr("Review image allocation limit..."));
+    m_limitButton->setToolTip(
+        tr("Review the image allocation limit and optionally increase it for this application."));
     m_explanation->setText(m_initialExplanation);
   }
 
   void finishLimitUpdate(const QString& message) {
     m_waitingForLimitUpdate = false;
     m_limitButton->setText(tr("Review image allocation limit..."));
+    m_limitButton->setToolTip(
+        tr("Review the image allocation limit and optionally increase it for this application."));
     m_explanation->setText(message);
   }
 

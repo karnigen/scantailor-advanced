@@ -24,6 +24,7 @@ void CollapsibleGroupBox::initialize() {
   m_expandIcon = IconProvider::getInstance().getIcon("expand");
   m_collapseButton = new QToolButton(this);
   m_collapseButton->setObjectName("collapseButton");
+  m_collapseButton->setToolTip(tr("Collapse or expand this section."));
   m_collapseButton->setAutoRaise(true);
   m_collapseButton->setFixedSize(14, 14);
   m_collapseButton->setIconSize({10, 10});

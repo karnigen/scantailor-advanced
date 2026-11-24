@@ -46,6 +46,9 @@
           <property name="checked">
            <bool>false</bool>
           </property>
+          <property name="toolTip">
+           <string>Toggle this option: Auto Margins.</string>
+          </property>
          </widget>
         </item>
         <item>
@@ -126,6 +129,9 @@ QToolButton:pressed {
               <height>24</height>
              </size>
             </property>
+            <property name="toolTip">
+             <string>Link the top and bottom margin values.</string>
+            </property>
            </widget>
           </item>
           <item row="0" column="0">
@@ -198,6 +204,9 @@ QToolButton:pressed {
             <property name="checked">
              <bool>false</bool>
             </property>
+            <property name="toolTip">
+             <string>Link the left and right margin values.</string>
+            </property>
            </widget>
           </item>
           <item row="0" column="1">
@@ -210,6 +219,9 @@ QToolButton:pressed {
             </property>
             <property name="maximum">
              <double>9999.000000000000000</double>
+            </property>
+            <property name="toolTip">
+             <string>Adjust top margin.</string>
             </property>
            </widget>
           </item>
@@ -224,6 +236,9 @@ QToolButton:pressed {
             <property name="maximum">
              <double>9999.000000000000000</double>
             </property>
+            <property name="toolTip">
+             <string>Adjust bottom margin.</string>
+            </property>
            </widget>
           </item>
           <item row="2" column="1">
@@ -236,6 +251,9 @@ QToolButton:pressed {
             </property>
             <property name="maximum">
              <double>9999.000000000000000</double>
+            </property>
+            <property name="toolTip">
+             <string>Adjust left margin.</string>
             </property>
            </widget>
           </item>
@@ -256,6 +274,9 @@ QToolButton:pressed {
             </property>
             <property name="maximum">
              <double>9999.000000000000000</double>
+            </property>
+            <property name="toolTip">
+             <string>Adjust right margin.</string>
             </property>
            </widget>
           </item>
@@ -286,7 +307,11 @@ QToolButton:pressed {
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="sourceDpiCombo"/>
+         <widget class="QComboBox" name="sourceDpiCombo">
+          <property name="toolTip">
+           <string>Choose source dpi.</string>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QLineEdit" name="sourceXDpi">
@@ -295,6 +320,9 @@ QToolButton:pressed {
             <width>40</width>
             <height>16777215</height>
            </size>
+          </property>
+          <property name="toolTip">
+           <string>Enter source x dpi.</string>
           </property>
          </widget>
         </item>
@@ -312,6 +340,9 @@ QToolButton:pressed {
             <width>40</width>
             <height>16777215</height>
            </size>
+          </property>
+          <property name="toolTip">
+           <string>Enter source y dpi.</string>
           </property>
          </widget>
         </item>
@@ -337,12 +368,18 @@ QToolButton:pressed {
           <property name="text">
            <string>Apply To ...</string>
           </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
+          </property>
          </widget>
         </item>
         <item>
          <widget class="QPushButton" name="fixDpiBtn">
           <property name="text">
            <string>Fix all...</string>
+          </property>
+          <property name="toolTip">
+           <string>Review and correct resolution settings for project pages.</string>
           </property>
          </widget>
         </item>
@@ -401,6 +438,9 @@ QToolButton:pressed {
           </property>
           <property name="checked">
            <bool>true</bool>
+          </property>
+          <property name="toolTip">
+           <string>Match this page size to the other selected pages.</string>
           </property>
          </widget>
         </item>
@@ -470,6 +510,9 @@ QToolButton:pressed {
               <string comment="original">Original</string>
              </property>
             </item>
+            <property name="toolTip">
+             <string>Choose h alignment mode.</string>
+            </property>
            </widget>
           </item>
           <item row="1" column="1">
@@ -492,6 +535,9 @@ QToolButton:pressed {
               <string comment="original">Original</string>
              </property>
             </item>
+            <property name="toolTip">
+             <string>Choose v alignment mode.</string>
+            </property>
            </widget>
           </item>
          </layout>
@@ -552,6 +598,9 @@ QToolButton:pressed {
             <property name="autoExclusive">
              <bool>true</bool>
             </property>
+            <property name="toolTip">
+             <string>Click to align top left.</string>
+            </property>
            </widget>
           </item>
           <item row="0" column="1">
@@ -574,6 +623,9 @@ QToolButton:pressed {
             </property>
             <property name="autoExclusive">
              <bool>true</bool>
+            </property>
+            <property name="toolTip">
+             <string>Click to align top.</string>
             </property>
            </widget>
           </item>
@@ -598,6 +650,9 @@ QToolButton:pressed {
             <property name="autoExclusive">
              <bool>true</bool>
             </property>
+            <property name="toolTip">
+             <string>Click to align top right.</string>
+            </property>
            </widget>
           </item>
           <item row="1" column="0">
@@ -620,6 +675,9 @@ QToolButton:pressed {
             </property>
             <property name="autoExclusive">
              <bool>true</bool>
+            </property>
+            <property name="toolTip">
+             <string>Click to align left.</string>
             </property>
            </widget>
           </item>
@@ -647,6 +705,9 @@ QToolButton:pressed {
             <property name="autoExclusive">
              <bool>true</bool>
             </property>
+            <property name="toolTip">
+             <string>Click to align center.</string>
+            </property>
            </widget>
           </item>
           <item row="1" column="2">
@@ -669,6 +730,9 @@ QToolButton:pressed {
             </property>
             <property name="autoExclusive">
              <bool>true</bool>
+            </property>
+            <property name="toolTip">
+             <string>Click to align right.</string>
             </property>
            </widget>
           </item>
@@ -693,6 +757,9 @@ QToolButton:pressed {
             <property name="autoExclusive">
              <bool>true</bool>
             </property>
+            <property name="toolTip">
+             <string>Click to align bottom left.</string>
+            </property>
            </widget>
           </item>
           <item row="2" column="1">
@@ -716,6 +783,9 @@ QToolButton:pressed {
             <property name="autoExclusive">
              <bool>true</bool>
             </property>
+            <property name="toolTip">
+             <string>Click to align bottom.</string>
+            </property>
            </widget>
           </item>
           <item row="2" column="2">
@@ -738,6 +808,9 @@ QToolButton:pressed {
             </property>
             <property name="autoExclusive">
              <bool>true</bool>
+            </property>
+            <property name="toolTip">
+             <string>Click to align bottom right.</string>
             </property>
            </widget>
           </item>
@@ -787,6 +860,9 @@ QToolButton:pressed {
          <widget class="QPushButton" name="applyAlignmentBtn">
           <property name="text">
            <string>Apply To ...</string>
+          </property>
+          <property name="toolTip">
+           <string>Choose which pages receive these settings.</string>
           </property>
          </widget>
         </item>

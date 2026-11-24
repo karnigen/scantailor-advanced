@@ -35,6 +35,9 @@
      <property name="text">
       <string>Beep when finished</string>
      </property>
+     <property name="toolTip">
+      <string>Play a sound when batch processing finishes.</string>
+     </property>
     </widget>
    </item>
    <item row="1" column="2">

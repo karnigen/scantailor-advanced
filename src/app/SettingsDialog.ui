@@ -38,6 +38,9 @@
             <property name="text">
              <string>Accelerate user interface with OpenGL</string>
             </property>
+            <property name="toolTip">
+             <string>Use OpenGL to accelerate the image interface.</string>
+            </property>
            </widget>
           </item>
           <item>
@@ -51,6 +54,9 @@
            <widget class="QCheckBox" name="autoSaveProjectCB">
             <property name="text">
              <string>Auto-save the existing project</string>
+            </property>
+            <property name="toolTip">
+             <string>Save project changes automatically.</string>
             </property>
            </widget>
           </item>
@@ -143,7 +149,11 @@ Higher limits can exhaust memory.</string>
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="colorSchemeBox"/>
+             <widget class="QComboBox" name="colorSchemeBox">
+              <property name="toolTip">
+               <string>Choose color scheme.</string>
+              </property>
+             </widget>
             </item>
             <item>
              <spacer name="horizontalSpacer">
@@ -170,7 +180,11 @@ Higher limits can exhaust memory.</string>
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="languageBox"/>
+             <widget class="QComboBox" name="languageBox">
+              <property name="toolTip">
+               <string>Choose language.</string>
+              </property>
+             </widget>
             </item>
             <item>
              <spacer name="horizontalSpacer_4">
@@ -291,12 +305,18 @@ Higher limits can exhaust memory.</string>
             <property name="text">
              <string>Single column thumbnail display</string>
             </property>
+            <property name="toolTip">
+             <string>Show thumbnails in a single vertical column.</string>
+            </property>
            </widget>
           </item>
           <item>
            <widget class="QCheckBox" name="cancelingSelectionQuestionCB">
             <property name="text">
              <string>Show question on canceling multi page selection</string>
+            </property>
+            <property name="toolTip">
+             <string>Ask for confirmation when cancelling multi-page selection.</string>
             </property>
            </widget>
           </item>
@@ -319,7 +339,11 @@ Higher limits can exhaust memory.</string>
              </widget>
             </item>
             <item row="0" column="1">
-             <widget class="QComboBox" name="tiffCompressionBWBox"/>
+             <widget class="QComboBox" name="tiffCompressionBWBox">
+              <property name="toolTip">
+               <string>Choose tiff compression bw.</string>
+              </property>
+             </widget>
             </item>
             <item row="1" column="0">
              <widget class="QLabel" name="tiffCompressionColorLabel">
@@ -329,7 +353,11 @@ Higher limits can exhaust memory.</string>
              </widget>
             </item>
             <item row="1" column="1">
-             <widget class="QComboBox" name="tiffCompressionColorBox"/>
+             <widget class="QComboBox" name="tiffCompressionColorBox">
+              <property name="toolTip">
+               <string>Choose tiff compression color.</string>
+              </property>
+             </widget>
             </item>
            </layout>
           </item>
@@ -409,6 +437,9 @@ Higher limits can exhaust memory.</string>
             <property name="text">
              <string>Highlight the thumbnails of pages with high deviation</string>
             </property>
+            <property name="toolTip">
+             <string>Highlight pages whose size differs significantly from others.</string>
+            </property>
            </widget>
           </item>
           <item>
@@ -436,7 +467,7 @@ Higher limits can exhaust memory.</string>
                <item row="1" column="1">
                 <widget class="QDoubleSpinBox" name="selectContentDeviationCoefSB">
                  <property name="toolTip">
-                  <string>Deviation multiplier: a higher value means lower sensivity.</string>
+                  <string>Higher values reduce sensitivity to small deviations.</string>
                  </property>
                  <property name="minimum">
                   <double>0.100000000000000</double>
@@ -459,7 +490,7 @@ Higher limits can exhaust memory.</string>
                <item row="0" column="1">
                 <widget class="QDoubleSpinBox" name="deskewDeviationCoefSB">
                  <property name="toolTip">
-                  <string>Deviation multiplier: a higher value means lower sensivity.</string>
+                  <string>Higher values reduce sensitivity to small deviations.</string>
                  </property>
                  <property name="minimum">
                   <double>0.100000000000000</double>
@@ -507,7 +538,7 @@ Higher limits can exhaust memory.</string>
                <item row="2" column="1">
                 <widget class="QDoubleSpinBox" name="marginsDeviationCoefSB">
                  <property name="toolTip">
-                  <string>Deviation multiplier: a higher value means lower sensivity.</string>
+                  <string>Higher values reduce sensitivity to small deviations.</string>
                  </property>
                  <property name="minimum">
                   <double>0.100000000000000</double>
