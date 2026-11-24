@@ -5,11 +5,11 @@
 
 #include <foundation/ScopedIncDec.h>
 
-#include <QSettings>
 #include <QtCore/QEvent>
 #include <QtGui/QShowEvent>
 
 #include "IconProvider.h"
+#include "SettingsStore.h"
 
 CollapsibleGroupBox::CollapsibleGroupBox(QWidget* parent) : QGroupBox(parent) {
   initialize();
@@ -169,20 +169,16 @@ void CollapsibleGroupBox::loadState() {
 
   setUpdatesEnabled(false);
 
-  QSettings settings;
+  SettingsStore settings;
 
-  if (isCheckable()) {
-    QVariant val = settings.value(key + "/checked");
-    if (!val.isNull()) {
-      setChecked(val.toBool());
-    }
+  const QString checkedKey = key + "/checked";
+  if (isCheckable() && settings.contains(checkedKey)) {
+    setChecked(settings.boolValue(checkedKey));
   }
 
-  {
-    QVariant val = settings.value(key + "/collapsed");
-    if (!val.isNull()) {
-      setCollapsed(val.toBool());
-    }
+  const QString collapsedKey = key + "/collapsed";
+  if (settings.contains(collapsedKey)) {
+    setCollapsed(settings.boolValue(collapsedKey));
   }
 
   setUpdatesEnabled(true);
@@ -198,7 +194,7 @@ void CollapsibleGroupBox::saveState() {
     return;
   }
 
-  QSettings settings;
+  SettingsStore settings;
 
   if (isCheckable()) {
     settings.setValue(key + "/checked", isChecked());

@@ -6,7 +6,6 @@
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
-#include <QSettings>
 #include <QSurfaceFormat>
 
 bool OpenGLSupport::supported() {

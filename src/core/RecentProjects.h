@@ -17,7 +17,7 @@ class RecentProjects {
   enum { DEFAULT_MAX_ITEMS = 7 };
 
   /**
-   * \brief Reads the list of recent projects from QSettings
+   * \brief Reads the list of recent projects from application settings
    *        without validating them.
    *
    * The current list will be overwritten.

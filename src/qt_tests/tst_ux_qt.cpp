@@ -4,12 +4,19 @@
 #include "tst_ux_qt.h"
 
 #include <CollapsibleGroupBox.h>
+#include <ConfigurationDialog.h>
 #include <ErrorWidget.h>
+#include <ThumbnailViewMode.h>
+#include <core/SettingsStore.h>
 
 #include <QCheckBox>
+#include <QClipboard>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalSpy>
+#include <QToolButton>
 #include <QWidget>
 #include <QtTest/QtTest>
 
@@ -74,4 +81,48 @@ void TestUxQt::testCollapsibleGroupBoxStateAndSignal() {
 void TestUxQt::testErrorWidgetCreation() {
   ErrorWidget widget("Error de prueba", Qt::PlainText);
   QVERIFY(widget.findChildren<QWidget*>().size() >= 1);
+}
+
+void TestUxQt::testConfigurationDialogShowsPathsAndReloadsSettings() {
+  SettingsStore settings;
+  settings.setValue(QStringLiteral("testing/dialog"), QStringLiteral("before reload"));
+
+  ConfigurationDialog dialog;
+  const auto* filePath = dialog.findChild<QLabel*>(QStringLiteral("configurationFilePath"));
+  const auto* profilesPath = dialog.findChild<QLabel*>(QStringLiteral("configurationProfilesPath"));
+  const auto* directoryStatus = dialog.findChild<QLabel*>(QStringLiteral("configurationDirectoryStatus"));
+  auto* contents = dialog.findChild<QPlainTextEdit*>(QStringLiteral("configurationContents"));
+  auto* copyButton = dialog.findChild<QPushButton*>(QStringLiteral("configurationCopyPathButton"));
+  auto* reloadButton = dialog.findChild<QPushButton*>(QStringLiteral("configurationReloadButton"));
+
+  QVERIFY(filePath);
+  QVERIFY(filePath->text().contains(SettingsStore::configFilePath()));
+  QVERIFY(profilesPath);
+  QVERIFY(profilesPath->text().contains(SettingsStore::profilesDirectory()));
+  QVERIFY(directoryStatus);
+  QVERIFY(directoryStatus->text().contains(QStringLiteral("writable")));
+  QVERIFY(contents);
+  QVERIFY(contents->isReadOnly());
+  QVERIFY(contents->toPlainText().contains(QStringLiteral("before reload")));
+  QVERIFY(copyButton);
+  QVERIFY(reloadButton);
+
+  QTest::mouseClick(copyButton, Qt::LeftButton);
+  QCOMPARE(QApplication::clipboard()->text(), SettingsStore::configFilePath());
+
+  settings.setValue(QStringLiteral("testing/dialog"), QStringLiteral("after reload"));
+  QTest::mouseClick(reloadButton, Qt::LeftButton);
+  QVERIFY(contents->toPlainText().contains(QStringLiteral("after reload")));
+}
+
+void TestUxQt::testSingleColumnSettingUpdatesButtonState() {
+  QToolButton button;
+  button.setCheckable(true);
+  QVERIFY(!button.isChecked());
+
+  setSingleColumnViewButtonState(button, true);
+  QVERIFY(button.isChecked());
+
+  setSingleColumnViewButtonState(button, false);
+  QVERIFY(!button.isChecked());
 }

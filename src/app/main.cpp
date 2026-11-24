@@ -9,6 +9,7 @@
 #include <core/FontIconPack.h>
 #include <core/IconProvider.h>
 #include <core/ImageAllocationLimit.h>
+#include <core/SettingsStore.h>
 #include <core/StyledIconPack.h>
 
 #include <QCommandLineParser>
@@ -16,7 +17,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
-#include <QSettings>
+#include <QMessageBox>
+#include <QMetaObject>
 #include <QStringList>
 #include <QTextStream>
 
@@ -38,9 +40,15 @@ int main(int argc, char* argv[]) {
 
   QCommandLineParser parser;
   parser.setApplicationDescription(
-      QObject::tr("ScanTailor Advanced. Specify a project file to open it, or an existing directory "
-                  "to use as the initial input/output location."));
+      QObject::tr("ScanTailor Advanced. Specify a project file or an existing directory to use as the initial "
+                  "input/output location. The default configuration directory is %1.")
+          .arg(SettingsStore::defaultConfigDirectory()));
   parser.addHelpOption();
+  const QCommandLineOption configOption({"c", "config"},
+                                        QObject::tr("Store settings in this directory (config.ini is created "
+                                                    "directly inside it)."),
+                                        QObject::tr("directory"));
+  parser.addOption(configOption);
   parser.addPositionalArgument("path", QObject::tr("Optional project file (.ScanTailor) or initial directory."));
   parser.process(app);
 
@@ -88,11 +96,27 @@ int main(int argc, char* argv[]) {
   Application::setLibraryPaths(QStringList(Application::applicationDirPath()));
 #endif
 
-  QSettings::setDefaultFormat(QSettings::IniFormat);
-  if (app.isPortableVersion()) {
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, app.getPortableConfigPath());
+  QString configError;
+  const bool explicitConfigDirectory = parser.isSet(configOption);
+  if (!SettingsStore::initialize(parser.value(configOption), explicitConfigDirectory, &configError,
+                                 /*preserveExistingSettings=*/!explicitConfigDirectory)) {
+    QTextStream errorStream(stderr);
+    errorStream << configError << '\n';
+    QMessageBox::critical(nullptr, QObject::tr("Configuration error"), configError);
+    return 2;
   }
-  QSettings settings;
+  if (!configError.isEmpty()) {
+    qWarning().noquote() << configError;
+    if (!explicitConfigDirectory) {
+      QMessageBox::warning(nullptr, QObject::tr("Configuration warning"), configError);
+    }
+  }
+  SettingsStore::setWriteErrorHandler([&app](const QString& message) {
+    QMetaObject::invokeMethod(
+        &app, [message]() { QMessageBox::critical(nullptr, QObject::tr("Configuration error"), message); },
+        Qt::QueuedConnection);
+  });
+  SettingsStore settings;
 
   ImageAllocationLimit::defaultLimitMb();
   if (!ImageAllocationLimit::hasEnvironmentOverride()) {
@@ -117,7 +141,7 @@ int main(int argc, char* argv[]) {
 
   auto* mainWnd = new MainWindow(initialDirectory);
   mainWnd->setAttribute(Qt::WA_DeleteOnClose);
-  if (settings.value("mainWindow/maximized") == false) {
+  if (!settings.boolValue("mainWindow/maximized", true)) {
     mainWnd->show();
   } else {
     // mainWnd->showMaximized();  // Doesn't work for Windows.

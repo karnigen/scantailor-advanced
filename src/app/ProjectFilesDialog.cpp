@@ -4,10 +4,10 @@
 #include "ProjectFilesDialog.h"
 
 #include <core/IconProvider.h>
+#include <core/SettingsStore.h>
 
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QSettings>
 #include <QSortFilterProxyModel>
 #include <QVector>
 #include <deque>
@@ -234,11 +234,11 @@ QString ProjectFilesDialog::sanitizePath(const QString& path) {
 }
 
 void ProjectFilesDialog::inpDirBrowse() {
-  QSettings settings;
+  SettingsStore settings;
 
   QString initialDir(inpDirLine->text());
   if (initialDir.isEmpty() || !QDir(initialDir).exists()) {
-    initialDir = settings.value("lastInputDir").toString();
+    initialDir = settings.stringValue("lastInputDir");
   }
   if (initialDir.isEmpty() || !QDir(initialDir).exists()) {
     initialDir = m_initialDirectory;

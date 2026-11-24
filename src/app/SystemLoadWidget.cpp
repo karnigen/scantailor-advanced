@@ -4,8 +4,8 @@
 #include "SystemLoadWidget.h"
 
 #include <core/IconProvider.h>
+#include <core/SettingsStore.h>
 
-#include <QSettings>
 #include <QThread>
 #include <QToolTip>
 
@@ -22,7 +22,7 @@ SystemLoadWidget::SystemLoadWidget(QWidget* parent) : QWidget(parent), m_maxThre
       m_maxThreads = 2;
     }
   }
-  int numThreads = std::min<int>(m_maxThreads, QSettings().value(key, m_maxThreads).toInt());
+  int numThreads = std::min<int>(m_maxThreads, SettingsStore().intValue(key, m_maxThreads));
 
   ui.slider->setRange(1, m_maxThreads);
   ui.slider->setValue(numThreads);
@@ -43,7 +43,7 @@ void SystemLoadWidget::sliderMoved(int threads) {
 }
 
 void SystemLoadWidget::valueChanged(int threads) {
-  QSettings settings;
+  SettingsStore settings;
   if (threads == m_maxThreads) {
     settings.remove(key);
   } else {

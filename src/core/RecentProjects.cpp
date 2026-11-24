@@ -4,36 +4,32 @@
 #include "RecentProjects.h"
 
 #include <QFile>
-#include <QSettings>
+#include <QStringList>
+
+#include "SettingsStore.h"
 
 void RecentProjects::read() {
-  QSettings settings;
+  SettingsStore settings;
   std::list<QString> newList;
 
-  const int size = settings.beginReadArray("project/recent");
-  for (int i = 0; i < size; ++i) {
-    settings.setArrayIndex(i);
-    const QString path(settings.value("path").toString());
+  const QStringList paths = settings.stringList("project/recent");
+  for (const QString& path : paths) {
     newList.push_back(path);
   }
-  settings.endArray();
 
   m_projectFiles.swap(newList);
 }
 
 void RecentProjects::write(const int maxItems) const {
-  QSettings settings;
-  settings.beginWriteArray("project/recent");
-  int idx = 0;
+  SettingsStore settings;
+  QStringList paths;
   for (const QString& path : m_projectFiles) {
-    if (idx >= maxItems) {
+    if (paths.size() >= maxItems) {
       break;
     }
-    settings.setArrayIndex(idx);
-    settings.setValue("path", path);
-    ++idx;
+    paths.push_back(path);
   }
-  settings.endArray();
+  settings.setStringList("project/recent", paths);
 }
 
 bool RecentProjects::validate() {

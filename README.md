@@ -235,11 +235,10 @@ has't been moved due to dirty realization. Their functionality is fully covered 
 ### ScanTailor Advanced
 
 * #### ScanTailor Advanced fixes & improvements
-  * Portability.  
-    The settings and program files are stored in the folder with the application.  
-    *Note: If installed into a system directory, where config and data files can't be written into the
-    folder with the application executable, ScanTailor Advanced works as a standalone app and stores
-    its settings and application data in the appropriate system specific paths.*
+  * Configuration files are stored in the standard user configuration directory for the platform.
+    Use `--config <directory>` (or `-c <directory>`) to store `config.ini` directly in a chosen directory.
+    Existing settings from the previous standard configuration file are copied on first launch; the original is kept.
+    User profiles are stored in the configuration directory's `profiles` subdirectory.
   
   * Page splitting settings now influence on the output by filling offcut.
     Fill offcut option has been added.
@@ -421,7 +420,7 @@ has't been moved due to dirty realization. Their functionality is fully covered 
   
   Peculiarities:
     1. There are two default profiles: "Default" and "Source". The "Default" profile represents default ST filter settings, the "Source" one represents the settings giving the source as output without any changes.
-    2. A user can create its own profiles. User profiles are stored in `config/profiles` folder or in an system specific one for application data.
+    2. A user can create its own profiles. User profiles are stored in the `profiles` subdirectory of the application configuration directory.
     3. The system consider the units settings from the [measurement units system](#measurement-units-system). Units are stored in the profile and ST automatically converts the values if needed.
 
 * #### Collapsible filter options.
@@ -484,19 +483,21 @@ sudo apt install build-essential cmake \
   libjpeg-dev libpng-dev libtiff-dev zlib1g-dev
 ```
 
-Configure and build (out-of-tree build is required):
+For a local development build, use the repository build script:
 
 ```bash
-mkdir build && cd build
-cmake .. -DBUILD_TESTS=OFF
-make -j$(nproc)
+./build-vcpkg.sh
 ```
 
-Building the unit tests requires Catch2 3 or newer. From the project root, the vcpkg build script installs it and enables tests:
+To build and run the unit tests, use:
 
 ```bash
 ./build-vcpkg.sh --tests
 ```
+
+See [TESTING.md](./TESTING.md) for the test policy and details. Do not run
+individual test executables or CTest directly; the build script configures,
+builds, and runs the test suites.
 
 Release builds do not target the build machine's CPU by default, so binaries can be
 distributed to other compatible machines. For a GCC build used only on the same
@@ -515,9 +516,7 @@ scantailor-advanced -h
 
 One existing directory starts Open/New Project workflows at that directory. One existing project file opens it directly. A missing path is rejected. Without a path, existing project/input settings and the desktop environment retain their normal behavior.
 
-For **offline or minimal chroot** builds where unit tests cannot be built (issue #61), use `cmake -DBUILD_TESTS=OFF ..` to skip the test targets.
-
-The executable will be in the `build` directory. To install system-wide: `sudo make install`.
+The executable will be in the `build-vcpkg` directory.
 
 For isolated dependencies, build through vcpkg:
 

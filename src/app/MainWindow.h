@@ -189,6 +189,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void showKeyboardShortcuts();
 
+  void showConfigurationDialog();
+
   void handleOutOfMemorySituation();
 
   void reloadCurrentPage();

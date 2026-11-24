@@ -65,7 +65,6 @@ jobs:
             -DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON \
             -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" \
             -DCMAKE_MACOSX_BUNDLE=ON \
-            -DPORTABLE_VERSION=OFF \
             -DBUILD_TESTS=OFF \
             -DCMAKE_BUILD_TYPE=Release
 

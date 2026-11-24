@@ -23,7 +23,8 @@ Options:
       delete build outputs, or clear caches. Not needed with --clean.
   --qt-root PATH      Use a local Qt kit ending in <version>/gcc_64;
                       other dependencies still come from vcpkg.
-  --tests             Build and run the unit tests.
+  --tests             Build and run the unit tests. Qt Testlib stays enabled
+                      for vcpkg Qt whether or not this option is set.
   --build-type TYPE   Set CMake build type (default: Release).
   -j, --jobs N        Set parallel build jobs (default: available CPUs).
   -y, --yes           Continue without confirmation.
@@ -321,6 +322,9 @@ ScanTailor Advanced vcpkg build plan:
 
 Actions:
 EOF
+if [[ -z "$QT_ROOT" ]]; then
+  echo "  vcpkg Qt Testlib: enabled regardless of --tests"
+fi
 if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   cat <<'EOF'
   - Configure CMake with the vcpkg toolchain
@@ -394,12 +398,11 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   if [[ -n "$QT_ROOT" ]]; then
     VCPKG_MANIFEST_OPTIONS=(-DVCPKG_MANIFEST_NO_DEFAULT_FEATURES=ON)
     CMAKE_PREFIX_OPTIONS=(-DCMAKE_PREFIX_PATH="$QT_ROOT")
+  else
+    VCPKG_FEATURES=(-DVCPKG_MANIFEST_FEATURES=)
   fi
   if [[ "$BUILD_TESTS" == "ON" ]]; then
     VCPKG_FEATURES=(-DVCPKG_MANIFEST_FEATURES=tests)
-    if [[ -z "$QT_ROOT" ]]; then
-      VCPKG_FEATURES=("-DVCPKG_MANIFEST_FEATURES=tests;vcpkg-qt-tests")
-    fi
   fi
 
   cmake \

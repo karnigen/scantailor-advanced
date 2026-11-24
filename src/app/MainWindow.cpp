@@ -5,6 +5,7 @@
 
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
+#include <core/SettingsStore.h>
 
 #include <QActionGroup>
 #include <QDialog>
@@ -35,6 +36,7 @@
 #include "Application.h"
 #include "AutoRemovingFile.h"
 #include "BasicImageView.h"
+#include "ConfigurationDialog.h"
 #include "ContentBoxPropagator.h"
 #include "DebugImageView.h"
 #include "DebugImages.h"
@@ -71,6 +73,7 @@
 #include "SystemLoadWidget.h"
 #include "TabbedDebugImages.h"
 #include "ThumbnailFactory.h"
+#include "ThumbnailViewMode.h"
 #include "UnitsProvider.h"
 #include "Utils.h"
 #include "WorkerThreadPool.h"
@@ -239,7 +242,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
     }
   });
 
-  thumbColumnViewBtn->setChecked(settings.isSingleColumnThumbnailDisplayEnabled());
+  setSingleColumnViewButtonState(*thumbColumnViewBtn, settings.isSingleColumnThumbnailDisplayEnabled());
   deviationHighlightingBtn->setChecked(settings.isHighlightDeviationEnabled());
 
   addAction(actionFirstPage);
@@ -279,6 +282,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionGotoPage, SIGNAL(triggered(bool)), this, SLOT(execGotoPageDialog()));
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
   connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
+  connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
   connect(prevPageBtn, &QToolButton::clicked, this, [this]() {
     if (filterSelectedBtn->isChecked()) {
@@ -371,10 +375,9 @@ MainWindow::MainWindow(const QString& initialDirectory)
   updateWindowTitle();
   updateMainArea();
 
-  QSettings qSettings;
-  if (qSettings.value("mainWindow/maximized") == false) {
-    const QVariant geom(qSettings.value("mainWindow/nonMaximizedGeometry"));
-    if (!restoreGeometry(geom.toByteArray())) {
+  SettingsStore qSettings;
+  if (!qSettings.boolValue("mainWindow/maximized", true)) {
+    if (!restoreGeometry(qSettings.byteArrayValue("mainWindow/nonMaximizedGeometry"))) {
       resize(1014, 689);  // A sensible value.
     }
   }
@@ -594,7 +597,7 @@ void MainWindow::timerEvent(QTimerEvent* const event) {
 
   if (closeProjectInteractive()) {
     m_closing = true;
-    QSettings settings;
+    SettingsStore settings;
     settings.setValue("mainWindow/maximized", isMaximized());
     if (!isMaximized()) {
       settings.setValue("mainWindow/nonMaximizedGeometry", saveGeometry());
@@ -1487,8 +1490,8 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 #else
         QString extPlayCmd;
 #endif
-        QSettings settings;
-        QString cmd = settings.value("main_window/external_alarm_cmd", extPlayCmd).toString();
+        SettingsStore settings;
+        QString cmd = settings.stringValue("main_window/external_alarm_cmd", extPlayCmd);
         if (cmd.isEmpty()) {
           QApplication::beep();
         } else {
@@ -1585,10 +1588,10 @@ void MainWindow::saveProjectAsTriggered() {
   if (!m_projectFile.isEmpty()) {
     projectDir = QFileInfo(m_projectFile).absolutePath();
   } else {
-    QSettings settings;
+    SettingsStore settings;
     projectDir = m_initialDirectory;
     if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
-      projectDir = settings.value("project/lastDir").toString();
+      projectDir = settings.stringValue("project/lastDir");
     }
   }
 
@@ -1607,7 +1610,7 @@ void MainWindow::saveProjectAsTriggered() {
     m_projectFile = projectFile;
     updateWindowTitle();
 
-    QSettings settings;
+    SettingsStore settings;
     settings.setValue("project/lastDir", QFileInfo(m_projectFile).absolutePath());
 
     RecentProjects rp;
@@ -1639,7 +1642,7 @@ void MainWindow::openProject() {
 
   QString projectDir(m_initialDirectory);
   if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
-    projectDir = QSettings().value("project/lastDir").toString();
+    projectDir = SettingsStore().stringValue("project/lastDir");
   }
   QFileDialog dialog(this, tr("Open Project"), projectDir, tr("Scan Tailor Projects") + " (*.ScanTailor)");
   dialog.setFileMode(QFileDialog::ExistingFile);
@@ -1682,7 +1685,7 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
   rp.setMostRecent(context->projectFile());
   rp.write();
 
-  QSettings().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
+  SettingsStore().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
 
   switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
                      context->projectFile(), context->projectReader());
@@ -1721,6 +1724,7 @@ void MainWindow::onSettingsChanged() {
   }
 
   updateThumbnailViewMode();
+  setSingleColumnViewButtonState(*thumbColumnViewBtn, settings.isSingleColumnThumbnailDisplayEnabled());
 
   const QSizeF maxLogicalThumbSize = settings.getMaxLogicalThumbnailSize();
   if (m_maxLogicalThumbSize != maxLogicalThumbSize) {
@@ -1757,6 +1761,7 @@ void MainWindow::showKeyboardShortcuts() {
             + "</td><td style='border-bottom:1px solid " + borderColor + ";'><b>" + shortcut.toHtmlEscaped()
             + "</b></td></tr>";
   }
+
   html += "</table><h2>" + tr("Keyboard shortcuts").toHtmlEscaped() + "</h2>";
   html += "<table width='100%' cellspacing='0' cellpadding='7'>";
   html += "<tr bgcolor='" + headerColor + "'><th align='left'>" + tr("Action").toHtmlEscaped()
@@ -1869,6 +1874,11 @@ void MainWindow::showKeyboardShortcuts() {
   layout->addWidget(buttonBox);
 
   dialog.resize(640, 720);
+  dialog.exec();
+}
+
+void MainWindow::showConfigurationDialog() {
+  ConfigurationDialog dialog(this);
   dialog.exec();
 }
 

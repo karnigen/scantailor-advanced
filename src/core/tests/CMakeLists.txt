@@ -13,6 +13,7 @@ set(sources
     TestPageRange.cpp
     TestPageSequence.cpp
     TestProjectMigration.cpp
+    TestSettingsStore.cpp
     TestPageLayoutSettings.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
@@ -24,3 +25,8 @@ target_link_libraries(
     PRIVATE core Catch2::Catch2WithMain ${EXTRA_LIBS})
 
 add_test(NAME core_tests COMMAND core_tests)
+
+add_executable(settings_store_init_tests TestSettingsStoreInit.cpp)
+target_link_libraries(settings_store_init_tests PRIVATE core Catch2::Catch2WithMain ${EXTRA_LIBS})
+add_test(NAME settings_store_explicit_directory_tests COMMAND settings_store_init_tests "[settings-store-explicit]")
+add_test(NAME settings_store_legacy_copy_tests COMMAND settings_store_init_tests "[settings-store-legacy]")

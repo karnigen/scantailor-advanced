@@ -20,18 +20,6 @@
         "catch2"
       ]
     },
-    "vcpkg-qt-tests": {
-      "description": "Use Qt Test from vcpkg for GUI tests",
-      "dependencies": [
-        {
-          "name": "qtbase",
-          "default-features": false,
-          "features": [
-            "testlib"
-          ]
-        }
-      ]
-    },
     "vcpkg-qt": {
       "description": "Build and use Qt from vcpkg",
       "dependencies": [
@@ -44,6 +32,7 @@
             "harfbuzz",
             "network",
             "opengl",
+            "testlib",
             "widgets"
           ]
         },

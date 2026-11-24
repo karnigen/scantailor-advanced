@@ -6,9 +6,9 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QSettings>
 #include <utility>
 
+#include <core/SettingsStore.h>
 #include "ProjectWriter.h"
 #include "RecentProjects.h"
 
@@ -57,10 +57,10 @@ void OutOfMemoryDialog::saveProjectAs() {
   if (!m_projectFile.isEmpty()) {
     projectDir = QFileInfo(m_projectFile).absolutePath();
   } else {
-    QSettings settings;
+    SettingsStore settings;
     projectDir = m_initialDirectory;
     if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
-      projectDir = settings.value("project/lastDir").toString();
+      projectDir = settings.stringValue("project/lastDir");
     }
   }
 
@@ -79,7 +79,7 @@ void OutOfMemoryDialog::saveProjectAs() {
     m_projectFile = projectFile;
     showSaveSuccessScreen();
 
-    QSettings settings;
+    SettingsStore settings;
     settings.setValue("project/lastDir", QFileInfo(m_projectFile).absolutePath());
 
     RecentProjects rp;
