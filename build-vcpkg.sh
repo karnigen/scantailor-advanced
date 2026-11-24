@@ -6,11 +6,21 @@ usage() {
   cat <<'EOF'
 Usage: ./build-vcpkg.sh [options]
 
-Build ScanTailor Advanced with project-local vcpkg dependencies.
+Build ScanTailor Advanced with vcpkg dependencies using Release libraries.
+Without --clean or --sync, compare the saved configuration signature and
+only reconfigure CMake / synchronize vcpkg dependencies when inputs changed.
+Otherwise, perform an incremental application build.
 
 Options:
-  --clean             Recreate the build directory before building.
-  --sync              Synchronize CMake and vcpkg even if inputs are unchanged.
+  --clean
+      Delete the selected CMake build directory (for example, build-vcpkg/)
+      before configuring and rebuilding from scratch. This does not delete
+      installed vcpkg packages under VCPKG_ROOT or vcpkg's binary cache.
+      Implies --sync; do not combine the two.
+  --sync
+      Force CMake reconfiguration and vcpkg manifest dependency synchronization
+      even if inputs are unchanged. Does not update the vcpkg Git checkout,
+      delete build outputs, or clear caches. Not needed with --clean.
   --qt-root PATH      Use a local Qt kit ending in <version>/gcc_64;
                       other dependencies still come from vcpkg.
   --tests             Build and run the unit tests.
@@ -245,11 +255,20 @@ else
   QT_SOURCE="vcpkg"
 fi
 
+VCPKG_TARGET_TRIPLET="x64-linux-release"
+VCPKG_HOST_TRIPLET="$VCPKG_TARGET_TRIPLET"
+VCPKG_OVERLAY_TRIPLETS="${SCRIPT_DIR}/cmake/vcpkg-triplets"
+VCPKG_TRIPLET_FILE="${VCPKG_OVERLAY_TRIPLETS}/${VCPKG_TARGET_TRIPLET}.cmake"
+VCPKG_INSTALLED_DIR="${VCPKG_ROOT}/installed/scantailor-advanced/${SCRIPT_DIR##*/}/${BUILD_DIR##*/}"
 VCPKG_SIGNATURE_FILE="${BUILD_DIR}/.vcpkg-config-signature"
 
 if [[ ! -f "$VCPKG_TOOLCHAIN" ]]; then
   echo "Error: vcpkg toolchain not found at $VCPKG_TOOLCHAIN" >&2
   echo "Set VCPKG_ROOT to the vcpkg checkout directory." >&2
+  exit 1
+fi
+if [[ ! -f "$VCPKG_TRIPLET_FILE" ]]; then
+  echo "Error: vcpkg triplet not found at $VCPKG_TRIPLET_FILE" >&2
   exit 1
 fi
 
@@ -262,6 +281,11 @@ CONFIG_SIGNATURE="$(
 build_type=$BUILD_TYPE
 build_tests=$BUILD_TESTS
 vcpkg_root=$VCPKG_ROOT
+vcpkg_installed_dir=$VCPKG_INSTALLED_DIR
+vcpkg_target_triplet=$VCPKG_TARGET_TRIPLET
+vcpkg_host_triplet=$VCPKG_HOST_TRIPLET
+vcpkg_overlay_triplets=$VCPKG_OVERLAY_TRIPLETS
+vcpkg_triplet=$(hash_file "$VCPKG_TRIPLET_FILE")
 qt_root=$QT_ROOT
 qt_signature=$QT_SIGNATURE
 vcpkg_json=$(hash_file "$SCRIPT_DIR/vcpkg.json")
@@ -283,7 +307,9 @@ ScanTailor Advanced vcpkg build plan:
   Source directory:      $(display_path "$SCRIPT_DIR")
   Build directory:       $(display_path "$BUILD_DIR")
   vcpkg root:            $(display_path "$VCPKG_ROOT")
-  vcpkg install:         $(display_path "$BUILD_DIR/vcpkg_installed")
+  vcpkg install:         $(display_path "$VCPKG_INSTALLED_DIR")
+  vcpkg triplet:         $VCPKG_TARGET_TRIPLET (Release only)
+  vcpkg host triplet:    $VCPKG_HOST_TRIPLET (Release only)
   Qt source:             $(display_path "$QT_SOURCE")
   Binary:                $(display_path "$BUILD_DIR/scantailor-advanced")
   Build type:            $BUILD_TYPE
@@ -382,7 +408,10 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
     -DBUILD_TESTS="$BUILD_TESTS" \
     -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" \
-    -DVCPKG_INSTALLED_DIR="$BUILD_DIR/vcpkg_installed" \
+    -DVCPKG_TARGET_TRIPLET="$VCPKG_TARGET_TRIPLET" \
+    -DVCPKG_HOST_TRIPLET="$VCPKG_HOST_TRIPLET" \
+    -DVCPKG_OVERLAY_TRIPLETS="$VCPKG_OVERLAY_TRIPLETS" \
+    -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED_DIR" \
     "${CMAKE_PREFIX_OPTIONS[@]}" \
     "${VCPKG_MANIFEST_OPTIONS[@]}" \
     "${VCPKG_FEATURES[@]}"
