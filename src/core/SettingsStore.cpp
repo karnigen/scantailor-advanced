@@ -22,6 +22,7 @@
 #include <toml++/toml.h>
 
 #include <atomic>
+#include <cmath>
 #include <limits>
 #include <map>
 #include <memory>
@@ -426,14 +427,20 @@ class TomlBackend final : public SettingsStore::Backend {
     if (!node) {
       return defaultValue;
     }
+    double value = 0.0;
     if (node->type() == toml::node_type::floating_point) {
-      return *node->value<double>();
+      value = *node->value<double>();
+    } else if (node->type() == toml::node_type::integer) {
+      value = static_cast<double>(*node->value<std::int64_t>());
+    } else {
+      recordTypeError(key, QStringLiteral("a finite number"));
+      return defaultValue;
     }
-    if (node->type() == toml::node_type::integer) {
-      return static_cast<double>(*node->value<std::int64_t>());
+    if (!std::isfinite(value)) {
+      recordTypeError(key, QStringLiteral("a finite number"));
+      return defaultValue;
     }
-    recordTypeError(key, QStringLiteral("a number"));
-    return defaultValue;
+    return value;
   }
 
   QString stringValue(const QString& key, const QString& defaultValue) const override {
@@ -487,9 +494,10 @@ class TomlBackend final : public SettingsStore::Backend {
         = widthNode && widthNode->type() == toml::node_type::integer ? widthNode->value<std::int64_t>() : std::nullopt;
     const auto height = heightNode && heightNode->type() == toml::node_type::integer ? heightNode->value<std::int64_t>()
                                                                                      : std::nullopt;
-    if (!width || !height || *width < std::numeric_limits<int>::min() || *width > std::numeric_limits<int>::max()
-        || *height < std::numeric_limits<int>::min() || *height > std::numeric_limits<int>::max()) {
-      recordTypeError(key, QStringLiteral("a two-integer array"));
+    if (!width || !height || *width <= 0 || *height <= 0 || *width < std::numeric_limits<int>::min()
+        || *width > std::numeric_limits<int>::max() || *height < std::numeric_limits<int>::min()
+        || *height > std::numeric_limits<int>::max()) {
+      recordTypeError(key, QStringLiteral("a two-positive-integer array"));
       return defaultValue;
     }
     return QSize(static_cast<int>(*width), static_cast<int>(*height));
@@ -508,8 +516,8 @@ class TomlBackend final : public SettingsStore::Backend {
     }
     const auto width = numericValue(values->get(0));
     const auto height = numericValue(values->get(1));
-    if (!width || !height) {
-      recordTypeError(key, QStringLiteral("a two-number array"));
+    if (!width || !height || *width <= 0.0 || *height <= 0.0) {
+      recordTypeError(key, QStringLiteral("a two-positive-finite-number array"));
       return defaultValue;
     }
     return QSizeF(*width, *height);
@@ -686,7 +694,8 @@ class TomlBackend final : public SettingsStore::Backend {
       return std::nullopt;
     }
     if (node->type() == toml::node_type::floating_point) {
-      return *node->value<double>();
+      const double value = *node->value<double>();
+      return std::isfinite(value) ? std::optional<double>(value) : std::nullopt;
     }
     if (node->type() == toml::node_type::integer) {
       return static_cast<double>(*node->value<std::int64_t>());
@@ -787,6 +796,47 @@ bool isSizeFKey(const QString& key) {
   return key == QStringLiteral("settings/max_logical_thumb_size");
 }
 
+bool isIntegerVariant(const QVariant& value) {
+  switch (value.metaType().id()) {
+    case QMetaType::Int:
+    case QMetaType::UInt:
+    case QMetaType::LongLong:
+    case QMetaType::ULongLong:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool integerValue(const QVariant& value, int* converted) {
+  bool conversionSucceeded = false;
+  qlonglong integer = 0;
+  if (value.metaType().id() == QMetaType::QString) {
+    integer = value.toString().trimmed().toLongLong(&conversionSucceeded, 10);
+  } else if (isIntegerVariant(value)) {
+    integer = value.toLongLong(&conversionSucceeded);
+  }
+  if (!conversionSucceeded || integer < std::numeric_limits<int>::min() || integer > std::numeric_limits<int>::max()) {
+    return false;
+  }
+  *converted = static_cast<int>(integer);
+  return true;
+}
+
+bool finiteNumberValue(const QVariant& value, double* converted) {
+  const int type = value.metaType().id();
+  if (type != QMetaType::QString && type != QMetaType::Double && type != QMetaType::Float && !isIntegerVariant(value)) {
+    return false;
+  }
+  bool conversionSucceeded = false;
+  const double number = value.toDouble(&conversionSucceeded);
+  if (!conversionSucceeded || !std::isfinite(number)) {
+    return false;
+  }
+  *converted = number;
+  return true;
+}
+
 bool convertIniValue(TomlBackend& destination, const QString& key, const QVariant& value, QString* error) {
   bool conversionSucceeded = false;
   if (isBooleanKey(key)) {
@@ -808,23 +858,42 @@ bool convertIniValue(TomlBackend& destination, const QString& key, const QVarian
     }
     destination.setValue(key, converted);
   } else if (isIntegerKey(key)) {
-    const int converted = value.toInt(&conversionSucceeded);
-    if (!conversionSucceeded) {
+    int converted = 0;
+    if (!integerValue(value, &converted)) {
       *error = QObject::tr("Invalid integer value for legacy INI key '%1'.").arg(key);
       return false;
     }
     destination.setValue(key, converted);
   } else if (isDoubleKey(key)) {
-    const double converted = value.toDouble(&conversionSucceeded);
-    if (!conversionSucceeded) {
-      *error = QObject::tr("Invalid number value for legacy INI key '%1'.").arg(key);
+    double converted = 0.0;
+    if (!finiteNumberValue(value, &converted)) {
+      *error = QObject::tr("Invalid finite number value for legacy INI key '%1'.").arg(key);
       return false;
     }
     destination.setValue(key, converted);
   } else if (isSizeKey(key)) {
-    destination.setValue(key, value.toSize());
+    if (value.metaType().id() != QMetaType::QSize) {
+      *error = QObject::tr("Invalid size value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    const QSize converted = value.toSize();
+    if (converted.width() <= 0 || converted.height() <= 0) {
+      *error = QObject::tr("Invalid size value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    destination.setValue(key, converted);
   } else if (isSizeFKey(key)) {
-    destination.setValue(key, value.toSizeF());
+    if (value.metaType().id() != QMetaType::QSizeF) {
+      *error = QObject::tr("Invalid size value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    const QSizeF converted = value.toSizeF();
+    if (!std::isfinite(converted.width()) || !std::isfinite(converted.height()) || converted.width() <= 0.0
+        || converted.height() <= 0.0) {
+      *error = QObject::tr("Invalid size value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    destination.setValue(key, converted);
   } else {
     switch (value.metaType().id()) {
       case QMetaType::Bool:

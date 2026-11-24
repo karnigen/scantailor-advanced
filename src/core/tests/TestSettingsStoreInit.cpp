@@ -20,6 +20,7 @@
 #include <QThread>
 #include <catch2/catch_test_macros.hpp>
 
+#include <limits>
 #include <string_view>
 
 TEST_CASE("SettingsStoreTestSuite / test_explicit_relative_config_directory_and_profiles",
@@ -227,6 +228,156 @@ TEST_CASE("SettingsStoreTestSuite / test_invalid_migration_candidate_keeps_ini",
   QFile unchangedIni(iniPath);
   REQUIRE(unchangedIni.open(QIODevice::ReadOnly));
   CHECK(unchangedIni.readAll() == originalIni);
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_rejects_fractional_integer", "[settings-store-fractional-integer]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/bw_compression"), 1.5);
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/bw_compression")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_rejects_nonnumeric_value", "[settings-store-nonnumeric-value]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/deskew_deviation_coef"), QStringLiteral("not a number"));
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/deskew_deviation_coef")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_rejects_nonfinite_number", "[settings-store-nonfinite-number]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/deskew_deviation_coef"), std::numeric_limits<double>::infinity());
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/deskew_deviation_coef")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_rejects_invalid_size_type", "[settings-store-invalid-size-type]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/thumbnail_quality"), QStringLiteral("not a size"));
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/thumbnail_quality")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_rejects_nonpositive_sizef", "[settings-store-nonpositive-sizef]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/max_logical_thumb_size"), QSizeF(-1.0, 20.0));
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/max_logical_thumb_size")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_migration_rejects_nonfinite_sizef",
+          "[settings-store-nonfinite-sizef-migration]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString iniPath = tempDir.filePath(QStringLiteral("config.ini"));
+  QSettings legacy(iniPath, QSettings::IniFormat);
+  legacy.setValue(QStringLiteral("settings/max_logical_thumb_size"),
+                  QSizeF(std::numeric_limits<double>::infinity(), 20.0));
+  legacy.sync();
+  REQUIRE(legacy.status() == QSettings::NoError);
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/max_logical_thumb_size")));
+  CHECK(QFileInfo::exists(iniPath));
+  CHECK_FALSE(QFileInfo::exists(tempDir.filePath(QStringLiteral("config.toml"))));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_toml_rejects_nonfinite_numeric_setting", "[settings-store-nonfinite-double]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[settings]\ndeskew_deviation_coef = nan\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/deskew_deviation_coef")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_toml_rejects_nonfinite_sizef_component", "[settings-store-nonfinite-sizef]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[settings]\nmax_logical_thumb_size = [inf, 20.0]\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/max_logical_thumb_size")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_toml_rejects_nonpositive_size", "[settings-store-nonpositive-size]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[settings]\nthumbnail_quality = [0, 80]\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/thumbnail_quality")));
+}
+
+TEST_CASE("SettingsStoreTestSuite / test_toml_rejects_nonpositive_sizef", "[settings-store-nonpositive-sizef-toml]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  QFile toml(tempDir.filePath(QStringLiteral("config.toml")));
+  REQUIRE(toml.open(QIODevice::WriteOnly));
+  REQUIRE(toml.write("schema_version = 1\n\n[settings]\nmax_logical_thumb_size = [0.0, 20.0]\n") > 0);
+  toml.close();
+
+  QString error;
+  CHECK_FALSE(SettingsStore::initialize(tempDir.path(), true, &error));
+  CHECK(error.contains(QStringLiteral("settings/max_logical_thumb_size")));
 }
 
 TEST_CASE("SettingsStoreTestSuite / test_migration_does_not_overwrite_existing_ini_backup",
