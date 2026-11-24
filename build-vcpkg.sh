@@ -40,6 +40,7 @@ ASSUME_YES="OFF"
 FORCE_CONFIGURE="OFF"
 QT_ROOT="${QT_ROOT:-}"
 INITIAL_QT_ROOT="$QT_ROOT"
+CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 INITIAL_ARG_COUNT=$#
 
 while (($#)); do
@@ -282,6 +283,11 @@ if [[ ! -f "$VCPKG_TRIPLET_FILE" ]]; then
   echo "Error: vcpkg triplet not found at $VCPKG_TRIPLET_FILE" >&2
   exit 1
 fi
+if [[ "$CMAKE_GENERATOR" == "Ninja" ]] && ! command -v ninja >/dev/null 2>&1; then
+  echo "Error: Ninja is the default CMake generator but was not found on PATH." >&2
+  echo "Install Ninja or set CMAKE_GENERATOR to another installed generator." >&2
+  exit 1
+fi
 
 hash_file() {
   sha256sum "$1" | cut -d' ' -f1
@@ -291,6 +297,7 @@ CONFIG_SIGNATURE="$(
   cat <<EOF
 build_type=$BUILD_TYPE
 build_tests=$BUILD_TESTS
+cmake_generator=$CMAKE_GENERATOR
 vcpkg_root=$VCPKG_ROOT
 vcpkg_installed_dir=$VCPKG_INSTALLED_DIR
 vcpkg_target_triplet=$VCPKG_TARGET_TRIPLET
@@ -394,10 +401,15 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   NEW_VCPKG_HOST_TRIPLET="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_host_triplet=//p')"
   OLD_VCPKG_INSTALLED_DIR="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^vcpkg_installed_dir=//p')"
   NEW_VCPKG_INSTALLED_DIR="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_installed_dir=//p')"
+  CACHED_CMAKE_GENERATOR=""
+  if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    CACHED_CMAKE_GENERATOR="$(sed -n 's/^CMAKE_GENERATOR:INTERNAL=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
+  fi
   if [[ -n "$OLD_QT_SIGNATURE" && "$OLD_QT_SIGNATURE" != "$NEW_QT_SIGNATURE" ]] ||
      [[ -n "$OLD_VCPKG_TARGET_TRIPLET" && "$OLD_VCPKG_TARGET_TRIPLET" != "$NEW_VCPKG_TARGET_TRIPLET" ]] ||
      [[ -n "$OLD_VCPKG_HOST_TRIPLET" && "$OLD_VCPKG_HOST_TRIPLET" != "$NEW_VCPKG_HOST_TRIPLET" ]] ||
-     [[ -n "$OLD_VCPKG_INSTALLED_DIR" && "$OLD_VCPKG_INSTALLED_DIR" != "$NEW_VCPKG_INSTALLED_DIR" ]]; then
+     [[ -n "$OLD_VCPKG_INSTALLED_DIR" && "$OLD_VCPKG_INSTALLED_DIR" != "$NEW_VCPKG_INSTALLED_DIR" ]] ||
+     [[ -n "$CACHED_CMAKE_GENERATOR" && "$CACHED_CMAKE_GENERATOR" != "$CMAKE_GENERATOR" ]]; then
     rm -f "$BUILD_DIR/CMakeCache.txt"
     if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
       cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
@@ -413,6 +425,7 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   fi
 
   cmake \
+    -G "$CMAKE_GENERATOR" \
     -S "$SCRIPT_DIR" \
     -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \

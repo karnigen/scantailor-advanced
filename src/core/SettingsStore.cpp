@@ -9,16 +9,31 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMetaType>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QSaveFile>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryFile>
+#include <QVariant>
+
+#include <toml++/toml.h>
 
 #include <atomic>
+#include <limits>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace {
+
+constexpr int kTomlSchemaVersion = 1;
 
 QString g_configDirectory;
 QString g_configFilePath;
@@ -67,6 +82,109 @@ bool probeDirectory(const QString& path, QString* errorMessage) {
     return false;
   }
   return true;
+}
+
+QStringList keyParts(const QString& key) {
+  return key.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+}
+
+const toml::node* findNode(const toml::table& document, const QString& key) {
+  const QStringList parts = keyParts(key);
+  if (parts.isEmpty()) {
+    return nullptr;
+  }
+  const toml::table* table = &document;
+  for (qsizetype i = 0; i < parts.size(); ++i) {
+    const toml::node* node = table->get(parts.at(i).toStdString());
+    if (!node) {
+      return nullptr;
+    }
+    if (i == parts.size() - 1) {
+      return node;
+    }
+    table = node->as_table();
+    if (!table) {
+      return nullptr;
+    }
+  }
+  return nullptr;
+}
+
+struct TomlState {
+  explicit TomlState(QString path) : filePath(std::move(path)) {
+    if (!QFileInfo::exists(filePath)) {
+      document.insert_or_assign("schema_version", kTomlSchemaVersion);
+      return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+      error = QObject::tr("Unable to read the TOML settings file: %1").arg(file.errorString());
+      return;
+    }
+    const QByteArray contents = file.readAll();
+    try {
+      document = toml::parse(std::string_view(contents.constData(), static_cast<std::size_t>(contents.size())));
+    } catch (const toml::parse_error& parseError) {
+      error = QObject::tr("Invalid TOML in %1: %2").arg(filePath, QString::fromUtf8(parseError.what()));
+      return;
+    }
+
+    const auto schemaVersion = document.get("schema_version");
+    const auto version = schemaVersion ? schemaVersion->value<std::int64_t>() : std::nullopt;
+    if (!version || *version != kTomlSchemaVersion) {
+      error = QObject::tr("Unsupported or missing configuration schema_version in %1 (expected %2).")
+                  .arg(filePath)
+                  .arg(kTomlSchemaVersion);
+      return;
+    }
+
+    static constexpr std::string_view expectedTables[]{"settings", "mainWindow", "main_window",
+                                                       "project",  "window",     "margins"};
+    for (const std::string_view name : expectedTables) {
+      const toml::node* node = document.get(name);
+      if (node && !node->is_table()) {
+        error = QObject::tr("Expected TOML table '%1' in %2.")
+                    .arg(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())), filePath);
+        return;
+      }
+    }
+  }
+
+  QString filePath;
+  mutable std::mutex mutex;
+  toml::table document;
+  QString error;
+};
+
+std::shared_ptr<TomlState> stateForPath(const QString& filePath) {
+  static std::mutex statesMutex;
+  static std::map<QString, std::weak_ptr<TomlState>> states;
+  std::lock_guard<std::mutex> lock(statesMutex);
+  auto& weakState = states[filePath];
+  if (auto state = weakState.lock()) {
+    return state;
+  }
+  auto state = std::make_shared<TomlState>(filePath);
+  weakState = state;
+  return state;
+}
+
+void reportWriteError(const QString& path, const QString& error) {
+  if (g_writeErrorReported.exchange(true)) {
+    return;
+  }
+
+  SettingsStore::WriteErrorHandler handler;
+  {
+    QMutexLocker lock(&g_stateMutex);
+    handler = g_writeErrorHandler;
+  }
+  if (handler) {
+    handler(QObject::tr("Unable to save application settings to %1: %2").arg(path, error));
+  } else {
+    qWarning().noquote() << QObject::tr("Unable to save application settings to %1: %2").arg(path, error);
+  }
 }
 
 }  // namespace
@@ -189,25 +307,544 @@ class IniBackend final : public SettingsStore::Backend {
     return QObject::tr("the settings file could not be saved");
   }
 
+  QSettings& settings() { return m_settings; }
+
  private:
   mutable QSettings m_settings;
 };
 
-void reportWriteError(const QString& path, const QString& error) {
-  if (g_writeErrorReported.exchange(true)) {
-    return;
+class TomlBackend final : public SettingsStore::Backend {
+ public:
+  explicit TomlBackend(const QString& filePath) : m_state(stateForPath(filePath)) {}
+
+  bool boolValue(const QString& key, bool defaultValue) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return defaultValue;
+    }
+    const auto value = node->value<bool>();
+    if (!value) {
+      recordTypeError(key, QStringLiteral("a boolean"));
+      return defaultValue;
+    }
+    return *value;
   }
 
-  SettingsStore::WriteErrorHandler handler;
-  {
-    QMutexLocker lock(&g_stateMutex);
-    handler = g_writeErrorHandler;
+  int intValue(const QString& key, int defaultValue, bool* ok) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      if (ok) {
+        *ok = true;
+      }
+      return defaultValue;
+    }
+    const auto value = node->value<std::int64_t>();
+    if (!value || *value < std::numeric_limits<int>::min() || *value > std::numeric_limits<int>::max()) {
+      if (ok) {
+        *ok = false;
+      }
+      recordTypeError(key, QStringLiteral("a 32-bit integer"));
+      return defaultValue;
+    }
+    if (ok) {
+      *ok = true;
+    }
+    return static_cast<int>(*value);
   }
-  if (handler) {
-    handler(QObject::tr("Unable to save application settings to %1: %2").arg(path, error));
+
+  double doubleValue(const QString& key, double defaultValue) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return defaultValue;
+    }
+    if (const auto value = node->value<double>()) {
+      return *value;
+    }
+    if (const auto value = node->value<std::int64_t>()) {
+      return static_cast<double>(*value);
+    }
+    recordTypeError(key, QStringLiteral("a number"));
+    return defaultValue;
+  }
+
+  QString stringValue(const QString& key, const QString& defaultValue) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return defaultValue;
+    }
+    const auto value = node->value<std::string>();
+    if (!value) {
+      recordTypeError(key, QStringLiteral("a string"));
+      return defaultValue;
+    }
+    return QString::fromUtf8(value->data(), static_cast<qsizetype>(value->size()));
+  }
+
+  QByteArray byteArrayValue(const QString& key, const QByteArray& defaultValue) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return defaultValue;
+    }
+    const auto value = node->value<std::string>();
+    if (!value) {
+      recordTypeError(key, QStringLiteral("a hexadecimal string"));
+      return defaultValue;
+    }
+    const QByteArray hex = QByteArray::fromStdString(*value);
+    const QByteArray bytes = QByteArray::fromHex(hex);
+    if (bytes.toHex() != hex.toLower()) {
+      recordTypeError(key, QStringLiteral("a valid hexadecimal string"));
+      return defaultValue;
+    }
+    return bytes;
+  }
+
+  QSize sizeValue(const QString& key, const QSize& defaultValue) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return defaultValue;
+    }
+    const toml::array* values = node->as_array();
+    if (!values || values->size() != 2) {
+      recordTypeError(key, QStringLiteral("a two-integer array"));
+      return defaultValue;
+    }
+    const auto width = values->get(0)->value<std::int64_t>();
+    const auto height = values->get(1)->value<std::int64_t>();
+    if (!width || !height || *width < std::numeric_limits<int>::min() || *width > std::numeric_limits<int>::max()
+        || *height < std::numeric_limits<int>::min() || *height > std::numeric_limits<int>::max()) {
+      recordTypeError(key, QStringLiteral("a two-integer array"));
+      return defaultValue;
+    }
+    return QSize(static_cast<int>(*width), static_cast<int>(*height));
+  }
+
+  QSizeF sizeFValue(const QString& key, const QSizeF& defaultValue) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return defaultValue;
+    }
+    const toml::array* values = node->as_array();
+    if (!values || values->size() != 2) {
+      recordTypeError(key, QStringLiteral("a two-number array"));
+      return defaultValue;
+    }
+    const auto width = numericValue(values->get(0));
+    const auto height = numericValue(values->get(1));
+    if (!width || !height) {
+      recordTypeError(key, QStringLiteral("a two-number array"));
+      return defaultValue;
+    }
+    return QSizeF(*width, *height);
+  }
+
+  bool contains(const QString& key) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    return findNode(m_state->document, key) != nullptr;
+  }
+
+  bool hasError() const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    return !m_state->error.isEmpty();
+  }
+
+  QString errorString() const {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    return m_state->error;
+  }
+
+  QStringList stringList(const QString& key) const override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    const toml::node* node = findNode(m_state->document, key);
+    if (!node) {
+      return {};
+    }
+    const toml::array* values = node->as_array();
+    if (!values) {
+      recordTypeError(key, QStringLiteral("an array of strings"));
+      return {};
+    }
+    QStringList result;
+    for (const toml::node& item : *values) {
+      const auto value = item.value<std::string>();
+      if (!value) {
+        recordTypeError(key, QStringLiteral("an array of strings"));
+        return {};
+      }
+      result.push_back(QString::fromUtf8(value->data(), static_cast<qsizetype>(value->size())));
+    }
+    return result;
+  }
+
+  void setValue(const QString& key, bool value) override { setNode(key, value); }
+
+  void setValue(const QString& key, int value) override { setNode(key, static_cast<std::int64_t>(value)); }
+
+  void setValue(const QString& key, double value) override { setNode(key, value); }
+
+  void setValue(const QString& key, const QString& value) override { setNode(key, value.toStdString()); }
+
+  void setValue(const QString& key, const QByteArray& value) override { setNode(key, value.toHex().toStdString()); }
+
+  void setValue(const QString& key, const QSize& value) override {
+    toml::array values;
+    values.push_back(value.width());
+    values.push_back(value.height());
+    setNode(key, std::move(values));
+  }
+
+  void setValue(const QString& key, const QSizeF& value) override {
+    toml::array values;
+    values.push_back(value.width());
+    values.push_back(value.height());
+    setNode(key, std::move(values));
+  }
+
+  void setStringList(const QString& key, const QStringList& values) override {
+    toml::array items;
+    for (const QString& value : values) {
+      items.push_back(value.toStdString());
+    }
+    setNode(key, std::move(items));
+  }
+
+  void remove(const QString& key) override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    if (!m_state->error.isEmpty()) {
+      return;
+    }
+    const QStringList parts = keyParts(key);
+    if (parts.isEmpty()) {
+      return;
+    }
+    toml::table* table = &m_state->document;
+    for (qsizetype i = 0; i < parts.size() - 1; ++i) {
+      toml::node* node = table->get(parts.at(i).toStdString());
+      if (!node) {
+        return;
+      }
+      table = node->as_table();
+      if (!table) {
+        recordTypeError(parts.at(i), QStringLiteral("a table"));
+        return;
+      }
+    }
+    table->erase(parts.back().toStdString());
+  }
+
+  QString sync() override {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    if (!m_state->error.isEmpty()) {
+      return m_state->error;
+    }
+
+    std::ostringstream output;
+    output << m_state->document;
+    const std::string serialized = output.str();
+    QSaveFile file(m_state->filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+      return QObject::tr("unable to open the TOML file for writing: %1").arg(file.errorString());
+    }
+    if (file.write(serialized.data(), static_cast<qint64>(serialized.size()))
+        != static_cast<qint64>(serialized.size())) {
+      const QString error = file.errorString();
+      file.cancelWriting();
+      return QObject::tr("unable to write the TOML file: %1").arg(error);
+    }
+    if (!file.commit()) {
+      return QObject::tr("unable to atomically replace the TOML file: %1").arg(file.errorString());
+    }
+    return {};
+  }
+
+ private:
+  static std::optional<double> numericValue(const toml::node* node) {
+    if (!node) {
+      return std::nullopt;
+    }
+    if (const auto value = node->value<double>()) {
+      return *value;
+    }
+    if (const auto value = node->value<std::int64_t>()) {
+      return static_cast<double>(*value);
+    }
+    return std::nullopt;
+  }
+
+  void recordTypeError(const QString& key, const QString& expected) const {
+    if (m_state->error.isEmpty()) {
+      m_state->error = QObject::tr("Invalid type for configuration key '%1' in %2; expected %3.")
+                           .arg(key, m_state->filePath, expected);
+      qWarning().noquote() << m_state->error;
+    }
+  }
+
+  template <typename T>
+  void setNode(const QString& key, T&& value) {
+    std::lock_guard<std::mutex> lock(m_state->mutex);
+    if (!m_state->error.isEmpty()) {
+      return;
+    }
+    const QStringList parts = keyParts(key);
+    if (parts.isEmpty()) {
+      return;
+    }
+    toml::table* table = &m_state->document;
+    for (qsizetype i = 0; i < parts.size() - 1; ++i) {
+      const std::string part = parts.at(i).toStdString();
+      toml::node* node = table->get(part);
+      if (!node) {
+        table->insert_or_assign(part, toml::table{});
+        node = table->get(part);
+      }
+      table = node->as_table();
+      if (!table) {
+        recordTypeError(parts.at(i), QStringLiteral("a table"));
+        return;
+      }
+    }
+    table->insert_or_assign(parts.back().toStdString(), std::forward<T>(value));
+  }
+
+  std::shared_ptr<TomlState> m_state;
+};
+
+bool isBooleanKey(const QString& key) {
+  static const QStringList keys{
+      QStringLiteral("settings/enable_opengl"),
+      QStringLiteral("settings/auto_save_project"),
+      QStringLiteral("settings/black_on_white_detection"),
+      QStringLiteral("settings/black_on_white_detection_at_output"),
+      QStringLiteral("settings/highlight_deviation"),
+      QStringLiteral("settings/single_column_thumbnail_display"),
+      QStringLiteral("settings/selection_canceling_question"),
+      QStringLiteral("settings/output_show_guides"),
+      QStringLiteral("mainWindow/maximized"),
+      QStringLiteral("mainWindow/keepCurrentPageInView"),
+      QStringLiteral("margins/topBottomLinked"),
+      QStringLiteral("margins/leftRightLinked"),
+  };
+  return keys.contains(key) || key.endsWith(QStringLiteral("/checked")) || key.endsWith(QStringLiteral("/collapsed"));
+}
+
+bool isIntegerKey(const QString& key) {
+  static const QStringList keys{
+      QStringLiteral("settings/bw_compression"),
+      QStringLiteral("settings/color_compression"),
+      QStringLiteral("settings/default_zone_creation_mode"),
+      QStringLiteral("settings/image_allocation_limit_mb"),
+      QStringLiteral("settings/batch_processing_threads"),
+  };
+  return keys.contains(key);
+}
+
+bool isDoubleKey(const QString& key) {
+  static const QStringList keys{
+      QStringLiteral("settings/deskew_deviation_coef"),
+      QStringLiteral("settings/deskew_deviation_threshold"),
+      QStringLiteral("settings/select_content_deviation_coef"),
+      QStringLiteral("settings/select_content_deviation_threshold"),
+      QStringLiteral("settings/margins_deviation_coef"),
+      QStringLiteral("settings/margins_deviation_threshold"),
+  };
+  return keys.contains(key);
+}
+
+bool isSizeKey(const QString& key) {
+  return key == QStringLiteral("settings/thumbnail_quality");
+}
+
+bool isSizeFKey(const QString& key) {
+  return key == QStringLiteral("settings/max_logical_thumb_size");
+}
+
+bool convertIniValue(TomlBackend& destination, const QString& key, const QVariant& value, QString* error) {
+  bool conversionSucceeded = false;
+  if (isBooleanKey(key)) {
+    const bool converted = value.toBool();
+    if (value.metaType().id() == QMetaType::QString) {
+      const QString text = value.toString().trimmed().toLower();
+      if (text != QStringLiteral("true") && text != QStringLiteral("false") && text != QStringLiteral("1")
+          && text != QStringLiteral("0")) {
+        conversionSucceeded = false;
+      } else {
+        conversionSucceeded = true;
+      }
+    } else {
+      conversionSucceeded = value.canConvert<bool>();
+    }
+    if (!conversionSucceeded) {
+      *error = QObject::tr("Invalid boolean value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    destination.setValue(key, converted);
+  } else if (isIntegerKey(key)) {
+    const int converted = value.toInt(&conversionSucceeded);
+    if (!conversionSucceeded) {
+      *error = QObject::tr("Invalid integer value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    destination.setValue(key, converted);
+  } else if (isDoubleKey(key)) {
+    const double converted = value.toDouble(&conversionSucceeded);
+    if (!conversionSucceeded) {
+      *error = QObject::tr("Invalid number value for legacy INI key '%1'.").arg(key);
+      return false;
+    }
+    destination.setValue(key, converted);
+  } else if (isSizeKey(key)) {
+    destination.setValue(key, value.toSize());
+  } else if (isSizeFKey(key)) {
+    destination.setValue(key, value.toSizeF());
   } else {
-    qWarning().noquote() << QObject::tr("Unable to save application settings to %1: %2").arg(path, error);
+    switch (value.metaType().id()) {
+      case QMetaType::Bool:
+        destination.setValue(key, value.toBool());
+        break;
+      case QMetaType::Int:
+      case QMetaType::UInt:
+      case QMetaType::LongLong:
+      case QMetaType::ULongLong: {
+        const qlonglong converted = value.toLongLong(&conversionSucceeded);
+        if (!conversionSucceeded || converted < std::numeric_limits<int>::min()
+            || converted > std::numeric_limits<int>::max()) {
+          *error = QObject::tr("Unsupported integer value for legacy INI key '%1'.").arg(key);
+          return false;
+        }
+        destination.setValue(key, static_cast<int>(converted));
+        break;
+      }
+      case QMetaType::Double:
+        destination.setValue(key, value.toDouble());
+        break;
+      case QMetaType::QString:
+        destination.setValue(key, value.toString());
+        break;
+      case QMetaType::QByteArray:
+        destination.setValue(key, value.toByteArray());
+        break;
+      case QMetaType::QSize:
+        destination.setValue(key, value.toSize());
+        break;
+      case QMetaType::QSizeF:
+        destination.setValue(key, value.toSizeF());
+        break;
+      default:
+        *error = QObject::tr("Cannot safely migrate the legacy INI value for key '%1' (type %2).")
+                     .arg(key, QString::fromLatin1(value.metaType().name()));
+        return false;
+    }
   }
+  return true;
+}
+
+bool validateTomlValues(TomlBackend& settings) {
+  static const QStringList booleanKeys{
+      QStringLiteral("settings/enable_opengl"),
+      QStringLiteral("settings/auto_save_project"),
+      QStringLiteral("settings/black_on_white_detection"),
+      QStringLiteral("settings/black_on_white_detection_at_output"),
+      QStringLiteral("settings/highlight_deviation"),
+      QStringLiteral("settings/single_column_thumbnail_display"),
+      QStringLiteral("settings/selection_canceling_question"),
+      QStringLiteral("settings/output_show_guides"),
+      QStringLiteral("mainWindow/maximized"),
+      QStringLiteral("mainWindow/keepCurrentPageInView"),
+      QStringLiteral("margins/topBottomLinked"),
+      QStringLiteral("margins/leftRightLinked"),
+  };
+  static const QStringList integerKeys{
+      QStringLiteral("settings/bw_compression"),
+      QStringLiteral("settings/color_compression"),
+      QStringLiteral("settings/default_zone_creation_mode"),
+      QStringLiteral("settings/image_allocation_limit_mb"),
+      QStringLiteral("settings/batch_processing_threads"),
+  };
+  static const QStringList doubleKeys{
+      QStringLiteral("settings/deskew_deviation_coef"),
+      QStringLiteral("settings/deskew_deviation_threshold"),
+      QStringLiteral("settings/select_content_deviation_coef"),
+      QStringLiteral("settings/select_content_deviation_threshold"),
+      QStringLiteral("settings/margins_deviation_coef"),
+      QStringLiteral("settings/margins_deviation_threshold"),
+  };
+  static const QStringList stringKeys{
+      QStringLiteral("settings/color_scheme"),
+      QStringLiteral("settings/language"),
+      QStringLiteral("settings/units"),
+      QStringLiteral("settings/current_profile"),
+      QStringLiteral("main_window/external_alarm_cmd"),
+      QStringLiteral("project/lastDir"),
+      QStringLiteral("lastInputDir"),
+  };
+
+  for (const QString& key : booleanKeys) {
+    settings.boolValue(key, false);
+  }
+  for (const QString& key : integerKeys) {
+    settings.intValue(key, 0, nullptr);
+  }
+  for (const QString& key : doubleKeys) {
+    settings.doubleValue(key, 0.0);
+  }
+  for (const QString& key : stringKeys) {
+    settings.stringValue(key, QString());
+  }
+  settings.sizeValue(QStringLiteral("settings/thumbnail_quality"), QSize());
+  settings.sizeFValue(QStringLiteral("settings/max_logical_thumb_size"), QSizeF());
+  settings.byteArrayValue(QStringLiteral("window/nonMaximizedGeometry"), QByteArray());
+  settings.stringList(QStringLiteral("project/recent"));
+  return !settings.hasError();
+}
+
+bool migrateIniToToml(const QString& iniPath, const QString& tomlPath, QString* errorMessage) {
+  IniBackend source(iniPath);
+  QSettings& ini = source.settings();
+  ini.sync();
+  if (source.hasError()) {
+    *errorMessage = QObject::tr("Unable to read the legacy INI settings file: %1").arg(iniPath);
+    return false;
+  }
+
+  TomlBackend destination(tomlPath);
+  if (destination.hasError()) {
+    *errorMessage = QObject::tr("Unable to initialize the TOML settings file: %1").arg(tomlPath);
+    return false;
+  }
+
+  for (const QString& key : ini.allKeys()) {
+    if (key.startsWith(QStringLiteral("project/recent/"))) {
+      continue;
+    }
+    if (!convertIniValue(destination, key, ini.value(key), errorMessage)) {
+      *errorMessage += QObject::tr(" The original INI file was left unchanged.");
+      return false;
+    }
+  }
+
+  if (ini.contains(QStringLiteral("project/recent/size"))) {
+    destination.setStringList(QStringLiteral("project/recent"), source.stringList(QStringLiteral("project/recent")));
+  }
+  if (destination.hasError()) {
+    *errorMessage
+        = QObject::tr("Unable to convert values from %1. The original INI file was left unchanged.").arg(iniPath);
+    return false;
+  }
+
+  const QString writeError = destination.sync();
+  if (!writeError.isEmpty()) {
+    *errorMessage = QObject::tr("Unable to migrate %1 to %2: %3. The original INI file was left unchanged.")
+                        .arg(iniPath, tomlPath, writeError);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace
@@ -241,22 +878,41 @@ bool SettingsStore::initialize(const QString& configDirectory,
     return false;
   }
 
-  g_configDirectory = directory;
-  g_configFilePath = QDir(directory).filePath(QStringLiteral("config.ini"));
-  g_configDirectoryExplicit = explicitDirectory;
-  g_configDirectoryWritable = writable;
-  g_initialized = true;
+  const QString tomlPath = QDir(directory).filePath(QStringLiteral("config.toml"));
+  const QString iniPath = QDir(directory).filePath(QStringLiteral("config.ini"));
   QString initializationWarning = writable ? QString() : probeError;
 
-  if (writable && preserveExistingSettings && !explicitDirectory && !QFileInfo::exists(g_configFilePath)) {
+  if (writable && preserveExistingSettings && !QFileInfo::exists(tomlPath) && !QFileInfo::exists(iniPath)) {
     const QString legacyFilePath = IniBackend::legacyFilePath();
-    if (QFileInfo::exists(legacyFilePath) && legacyFilePath != g_configFilePath
-        && !QFile::copy(legacyFilePath, g_configFilePath)) {
-      initializationWarning = QObject::tr("Unable to copy the existing settings file from %1 to %2.")
-                                  .arg(legacyFilePath, g_configFilePath);
+    if (QFileInfo::exists(legacyFilePath) && legacyFilePath != iniPath && !QFile::copy(legacyFilePath, iniPath)) {
+      initializationWarning
+          = QObject::tr("Unable to copy the existing settings file from %1 to %2.").arg(legacyFilePath, iniPath);
     }
   }
 
+  if (QFileInfo::exists(tomlPath)) {
+    TomlBackend toml(tomlPath);
+    if (toml.hasError() || !validateTomlValues(toml)) {
+      if (errorMessage) {
+        *errorMessage = toml.errorString();
+      }
+      return false;
+    }
+  } else if (QFileInfo::exists(iniPath)) {
+    QString migrationError;
+    if (!migrateIniToToml(iniPath, tomlPath, &migrationError)) {
+      if (errorMessage) {
+        *errorMessage = migrationError;
+      }
+      return false;
+    }
+  }
+
+  g_configDirectory = directory;
+  g_configFilePath = tomlPath;
+  g_configDirectoryExplicit = explicitDirectory;
+  g_configDirectoryWritable = writable;
+  g_initialized = true;
   if (errorMessage) {
     *errorMessage = initializationWarning;
   }
@@ -313,11 +969,11 @@ SettingsStore::SettingsStore() {
     initialize(QString(), false);
   }
   m_filePath = configFilePath();
-  m_backend = std::make_unique<IniBackend>(m_filePath);
+  m_backend = std::make_unique<TomlBackend>(m_filePath);
 }
 
 SettingsStore::SettingsStore(const QString& filePath)
-    : m_filePath(filePath), m_backend(std::make_unique<IniBackend>(filePath)) {}
+    : m_filePath(filePath), m_backend(std::make_unique<TomlBackend>(filePath)) {}
 
 SettingsStore::~SettingsStore() = default;
 SettingsStore::SettingsStore(SettingsStore&&) noexcept = default;

@@ -1,7 +1,6 @@
 // Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
-#include <QSettings>
 #include <QTemporaryDir>
 #include <catch2/catch_test_macros.hpp>
 
@@ -10,7 +9,7 @@
 TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
-  const QString filePath = tempDir.filePath("config.ini");
+  const QString filePath = tempDir.filePath("config.toml");
 
   {
     SettingsStore settings(filePath);
@@ -36,28 +35,19 @@ TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
   bool conversionSucceeded = true;
   CHECK(settings.intValue("settings/invalidLimit", 0, &conversionSucceeded) == 0);
   CHECK_FALSE(conversionSucceeded);
+  CHECK(settings.hasError());
 }
 
-TEST_CASE("SettingsStoreTestSuite / test_string_lists_keep_ini_array_layout") {
+TEST_CASE("SettingsStoreTestSuite / test_string_lists_round_trip_as_toml_arrays") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
-  const QString filePath = tempDir.filePath("config.ini");
+  const QString filePath = tempDir.filePath("config.toml");
 
   {
-    QSettings legacySettings(filePath, QSettings::IniFormat);
-    legacySettings.beginWriteArray("project/recent");
-    legacySettings.setArrayIndex(0);
-    legacySettings.setValue("path", "/scans/first.ScanTailor");
-    legacySettings.setArrayIndex(1);
-    legacySettings.setValue("path", "/scans/second.ScanTailor");
-    legacySettings.endArray();
-    legacySettings.sync();
+    SettingsStore settings(filePath);
+    settings.setStringList("project/recent", {"/scans/first.ScanTailor", "/scans/second.ScanTailor"});
+    settings.setStringList("project/recent", {"/scans/third.ScanTailor"});
   }
 
-  SettingsStore settings(filePath);
-  CHECK((settings.stringList("project/recent") == QStringList{"/scans/first.ScanTailor", "/scans/second.ScanTailor"}));
-
-  const QStringList replacement{"/scans/third.ScanTailor"};
-  settings.setStringList("project/recent", replacement);
-  CHECK(settings.stringList("project/recent") == replacement);
+  CHECK(SettingsStore(filePath).stringList("project/recent") == QStringList{"/scans/third.ScanTailor"});
 }

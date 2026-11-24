@@ -236,8 +236,11 @@ has't been moved due to dirty realization. Their functionality is fully covered 
 
 * #### ScanTailor Advanced fixes & improvements
   * Configuration files are stored in the standard user configuration directory for the platform.
-    Use `--config <directory>` (or `-c <directory>`) to store `config.ini` directly in a chosen directory.
-    Existing settings from the previous standard configuration file are copied on first launch; the original is kept.
+    Use `--config <directory>` (or `-c <directory>`) to store `config.toml` directly in a chosen directory.
+    An existing `config.ini` is migrated once on first launch and kept unchanged as a backup.
+    Settings are stored as nested TOML tables; window geometry uses a hexadecimal string, sizes use two-number arrays,
+    and recent projects use an array of strings. Unknown TOML keys are preserved. Legacy values that cannot be
+    represented safely stop migration with an error; the source INI remains untouched.
     User profiles are stored in the configuration directory's `profiles` subdirectory.
   
   * Page splitting settings now influence on the output by filling offcut.
@@ -525,6 +528,7 @@ For isolated dependencies, build through vcpkg:
 ```
 
 This keeps the CMake build in `build-vcpkg/` and installs non-Qt vcpkg dependencies under `$VCPKG_ROOT/installed/` (default: `~/vcpkg`), isolated by worktree. Qt must be preinstalled and is selected per user with `--qt-root` or the `QT_ROOT` environment variable; the selected path is saved in the ignored `.build-vcpkg-config`. If no kit is configured, the script fails instead of building Qt through vcpkg.
+The CMake generator defaults to Ninja; set `CMAKE_GENERATOR` to another installed generator when needed.
 
 To configure a preinstalled Qt 6 kit, pass its kit prefix (the `bin` directory is also accepted):
 
