@@ -12,8 +12,14 @@ std::shared_ptr<const PageOrderProvider> PageOrderProvider::reversed() const {
       return m_parent->precedes(rhsPage, rhsIncomplete, lhsPage, lhsIncomplete);
     }
 
+    std::shared_ptr<const PageOrderProvider> snapshot() const override { return m_parent->snapshot()->reversed(); }
+
    private:
     const std::shared_ptr<const PageOrderProvider> m_parent;
   };
   return std::make_shared<ReversedPageOrderProvider>(this);
+}
+
+std::shared_ptr<const PageOrderProvider> PageOrderProvider::snapshot() const {
+  return shared_from_this();
 }

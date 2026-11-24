@@ -37,8 +37,8 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
     return;
   }
 
-  Params newParams(
-      m_settings->updateContentSizeAndGetParams(pageInfo.id(), pageRect, contentRect, params->contentSizeMM()));
+  Params newParams(m_settings->updateContentSizeAndGetParamsIfUnchanged(pageInfo.id(), pageRect, contentRect,
+                                                                        params->contentSizeMM(), *params));
 
   const QRectF adaptedContentRect(Utils::adaptContentRect(xform, contentRect));
   const QPolygonF contentRectPhys(xform.transformBack().map(adaptedContentRect));

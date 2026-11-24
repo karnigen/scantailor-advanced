@@ -79,6 +79,12 @@ class Settings {
                                        QSizeF* aggHardSizeBefore = nullptr,
                                        QSizeF* aggHardSizeAfter = nullptr);
 
+  Params updateContentSizeAndGetParamsIfUnchanged(const PageId& pageId,
+                                                  const QRectF& pageRect,
+                                                  const QRectF& contentRect,
+                                                  const QSizeF& contentSizeMm,
+                                                  const Params& expectedParams);
+
   /**
    * \brief Returns the hard margins for the specified page.
    *

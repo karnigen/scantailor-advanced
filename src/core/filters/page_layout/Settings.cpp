@@ -127,7 +127,8 @@ class Settings::Impl {
                                        const QRectF& contentRect,
                                        const QSizeF& contentSizeMm,
                                        QSizeF* aggHardSizeBefore,
-                                       QSizeF* aggHardSizeAfter);
+                                       QSizeF* aggHardSizeAfter,
+                                       const Params* expectedParams);
 
   Margins getHardMarginsMM(const PageId& pageId) const;
 
@@ -414,7 +415,16 @@ Params Settings::updateContentSizeAndGetParams(const PageId& pageId,
                                                QSizeF* aggHardSizeBefore,
                                                QSizeF* aggHardSizeAfter) {
   return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, aggHardSizeBefore,
-                                               aggHardSizeAfter);
+                                               aggHardSizeAfter, nullptr);
+}
+
+Params Settings::updateContentSizeAndGetParamsIfUnchanged(const PageId& pageId,
+                                                          const QRectF& pageRect,
+                                                          const QRectF& contentRect,
+                                                          const QSizeF& contentSizeMm,
+                                                          const Params& expectedParams) {
+  return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, nullptr, nullptr,
+                                               &expectedParams);
 }
 
 Margins Settings::getHardMarginsMM(const PageId& pageId) const {
@@ -640,14 +650,26 @@ Params Settings::Impl::updateContentSizeAndGetParams(const PageId& pageId,
                                                      const QRectF& contentRect,
                                                      const QSizeF& contentSizeMm,
                                                      QSizeF* aggHardSizeBefore,
-                                                     QSizeF* aggHardSizeAfter) {
+                                                     QSizeF* aggHardSizeAfter,
+                                                     const Params* expectedParams) {
   const QMutexLocker locker(&m_mutex);
+
+  const Container::iterator it(m_items.find(pageId));
+  if (expectedParams) {
+    if (it == m_items.end()) {
+      return *expectedParams;
+    }
+    if ((it->pageRect != expectedParams->pageRect()) || (it->contentRect != expectedParams->contentRect())
+        || (it->contentSizeMM != expectedParams->contentSizeMM())) {
+      return Params(it->hardMarginsMM, it->pageRect, it->contentRect, it->contentSizeMM, it->alignment,
+                    it->autoMargins);
+    }
+  }
 
   if (aggHardSizeBefore) {
     *aggHardSizeBefore = getAggregateHardSizeMMLocked();
   }
 
-  const Container::iterator it(m_items.find(pageId));
   Container::iterator itemIt(it);
   if (it == m_items.end()) {
     const Item item(pageId, m_defaultHardMarginsMM, pageRect, contentRect, contentSizeMm, m_defaultAlignment,

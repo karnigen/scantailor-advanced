@@ -23,6 +23,8 @@ class DeviationProvider {
 
   double getDeviationValue(const K& key) const;
 
+  std::unordered_map<K, double, Hash> getDeviationValuesSnapshot() const;
+
   void addOrUpdate(const K& key);
 
   void addOrUpdate(const K& key, double value);
@@ -96,6 +98,21 @@ double DeviationProvider<K, Hash>::getDeviationValue(const K& key) const {
 
   update();
   return std::abs(value - m_meanValue);
+}
+
+template <typename K, typename Hash>
+std::unordered_map<K, double, Hash> DeviationProvider<K, Hash>::getDeviationValuesSnapshot() const {
+  const std::lock_guard<std::mutex> lock(m_mutex);
+  update();
+
+  std::unordered_map<K, double, Hash> snapshot;
+  snapshot.reserve(m_keyValueMap.size());
+  for (const auto& [key, value] : m_keyValueMap) {
+    const double deviation
+        = m_keyValueMap.size() < 2 ? 0.0 : (std::isnan(value) ? -1.0 : std::abs(value - m_meanValue));
+    snapshot.emplace(key, deviation);
+  }
+  return snapshot;
 }
 
 template <typename K, typename Hash>

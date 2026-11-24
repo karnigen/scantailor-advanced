@@ -10,6 +10,7 @@ set(sources
     TestInteractionHandler.cpp
     TestInteractionState.cpp
     TestMargins.cpp
+    TestOrderByDeviationProvider.cpp
     TestPageId.cpp
     TestPageRange.cpp
     TestPageSequence.cpp

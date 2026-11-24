@@ -22,6 +22,8 @@ class PageOrderProvider : public std::enable_shared_from_this<PageOrderProvider>
    */
   virtual bool precedes(const PageId& lhsPage, bool lhsIncomplete, const PageId& rhsPage, bool rhsIncomplete) const = 0;
 
+  virtual std::shared_ptr<const PageOrderProvider> snapshot() const;
+
   virtual std::shared_ptr<const PageOrderProvider> reversed() const;
 };
 
