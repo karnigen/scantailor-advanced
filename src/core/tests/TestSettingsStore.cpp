@@ -1,7 +1,8 @@
 // Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
-#include <QSettings>
+#include <QDir>
+#include <QFile>
 #include <QTemporaryDir>
 #include <catch2/catch_test_macros.hpp>
 
@@ -10,7 +11,7 @@
 TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
-  const QString filePath = tempDir.filePath("config.ini");
+  const QString filePath = tempDir.filePath("config.toml");
 
   {
     SettingsStore settings(filePath);
@@ -36,28 +37,45 @@ TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
   bool conversionSucceeded = true;
   CHECK(settings.intValue("settings/invalidLimit", 0, &conversionSucceeded) == 0);
   CHECK_FALSE(conversionSucceeded);
+  CHECK(settings.hasError());
 }
 
-TEST_CASE("SettingsStoreTestSuite / test_string_lists_keep_ini_array_layout") {
+TEST_CASE("SettingsStoreTestSuite / test_string_lists_round_trip_as_toml_arrays") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
-  const QString filePath = tempDir.filePath("config.ini");
+  const QString filePath = tempDir.filePath("config.toml");
 
   {
-    QSettings legacySettings(filePath, QSettings::IniFormat);
-    legacySettings.beginWriteArray("project/recent");
-    legacySettings.setArrayIndex(0);
-    legacySettings.setValue("path", "/scans/first.ScanTailor");
-    legacySettings.setArrayIndex(1);
-    legacySettings.setValue("path", "/scans/second.ScanTailor");
-    legacySettings.endArray();
-    legacySettings.sync();
+    SettingsStore settings(filePath);
+    settings.setStringList("project/recent", {"/scans/first.ScanTailor", "/scans/second.ScanTailor"});
+    settings.setStringList("project/recent", {"/scans/third.ScanTailor"});
   }
 
-  SettingsStore settings(filePath);
-  CHECK((settings.stringList("project/recent") == QStringList{"/scans/first.ScanTailor", "/scans/second.ScanTailor"}));
+  CHECK(SettingsStore(filePath).stringList("project/recent") == QStringList{"/scans/third.ScanTailor"});
+}
 
-  const QStringList replacement{"/scans/third.ScanTailor"};
-  settings.setStringList("project/recent", replacement);
-  CHECK(settings.stringList("project/recent") == replacement);
+TEST_CASE("SettingsStoreTestSuite / test_persistence_error_clears_after_successful_retry",
+          "[settings-store-persistence-error]") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QString blockedDirectory = tempDir.filePath(QStringLiteral("not-a-directory"));
+  QFile blocker(blockedDirectory);
+  REQUIRE(blocker.open(QIODevice::WriteOnly));
+  blocker.close();
+
+  const QString filePath = QDir(blockedDirectory).filePath(QStringLiteral("config.toml"));
+  SettingsStore settings(filePath);
+  settings.setValue(QStringLiteral("settings/first"), true);
+  CHECK(settings.hasError());
+
+  REQUIRE(QFile::remove(blockedDirectory));
+  REQUIRE(QDir().mkpath(blockedDirectory));
+  settings.setValue(QStringLiteral("settings/second"), true);
+  CHECK_FALSE(settings.hasError());
+
+  QFile savedFile(filePath);
+  REQUIRE(savedFile.open(QIODevice::ReadOnly));
+  const QByteArray contents = savedFile.readAll();
+  CHECK(contents.contains("first = true"));
+  CHECK(contents.contains("second = true"));
 }

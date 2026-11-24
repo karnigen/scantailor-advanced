@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
           .arg(SettingsStore::defaultConfigDirectory()));
   parser.addHelpOption();
   const QCommandLineOption configOption({"c", "config"},
-                                        QObject::tr("Store settings in this directory (config.ini is created "
+                                        QObject::tr("Store settings in this directory (config.toml is created "
                                                     "directly inside it)."),
                                         QObject::tr("directory"));
   parser.addOption(configOption);

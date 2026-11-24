@@ -40,6 +40,7 @@ ASSUME_YES="OFF"
 FORCE_CONFIGURE="OFF"
 QT_ROOT="${QT_ROOT:-}"
 INITIAL_QT_ROOT="$QT_ROOT"
+CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 INITIAL_ARG_COUNT=$#
 
 while (($#)); do
@@ -265,6 +266,12 @@ if [[ -n "$QT_ROOT" ]]; then
 fi
 BUILD_DIR="${SCRIPT_DIR}/build-vcpkg"
 QT_SOURCE="$QT_ROOT"
+SELECTED_CMAKE_GENERATOR="$CMAKE_GENERATOR"
+SELECTED_CMAKE_EXTRA_GENERATOR=""
+if [[ "$CMAKE_GENERATOR" == *" - "* ]]; then
+  SELECTED_CMAKE_EXTRA_GENERATOR="${CMAKE_GENERATOR%% - *}"
+  SELECTED_CMAKE_GENERATOR="${CMAKE_GENERATOR#* - }"
+fi
 
 VCPKG_TARGET_TRIPLET="x64-linux-release"
 VCPKG_HOST_TRIPLET="$VCPKG_TARGET_TRIPLET"
@@ -282,6 +289,37 @@ if [[ ! -f "$VCPKG_TRIPLET_FILE" ]]; then
   echo "Error: vcpkg triplet not found at $VCPKG_TRIPLET_FILE" >&2
   exit 1
 fi
+if [[ "$SELECTED_CMAKE_GENERATOR" == "Ninja" || "$SELECTED_CMAKE_GENERATOR" == "Ninja Multi-Config" ]] &&
+   ! command -v ninja >/dev/null 2>&1; then
+  echo "Error: Ninja is the default CMake generator but was not found on PATH." >&2
+  echo "Install Ninja or set CMAKE_GENERATOR to another installed generator." >&2
+  exit 1
+fi
+
+binary_output_path() {
+  local is_multi_config="OFF"
+  local cached_generator=""
+  local cached_extra_generator=""
+  if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    cached_generator="$(sed -n 's/^CMAKE_GENERATOR:INTERNAL=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
+    cached_extra_generator="$(sed -n 's/^CMAKE_EXTRA_GENERATOR:INTERNAL=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
+    if [[ "$cached_generator" == "$SELECTED_CMAKE_GENERATOR"
+          && "$cached_extra_generator" == "$SELECTED_CMAKE_EXTRA_GENERATOR" ]] &&
+       grep -q '^CMAKE_CONFIGURATION_TYPES:STRING=' "$BUILD_DIR/CMakeCache.txt"; then
+      is_multi_config="ON"
+    fi
+  fi
+  if [[ "$is_multi_config" == "OFF" ]]; then
+    case "$SELECTED_CMAKE_GENERATOR" in
+      "Ninja Multi-Config"|"Xcode"|"Visual Studio"*) is_multi_config="ON" ;;
+    esac
+  fi
+  if [[ "$is_multi_config" == "ON" ]]; then
+    printf '%s' "$BUILD_DIR/$BUILD_TYPE/scantailor-advanced"
+  else
+    printf '%s' "$BUILD_DIR/scantailor-advanced"
+  fi
+}
 
 hash_file() {
   sha256sum "$1" | cut -d' ' -f1
@@ -291,6 +329,7 @@ CONFIG_SIGNATURE="$(
   cat <<EOF
 build_type=$BUILD_TYPE
 build_tests=$BUILD_TESTS
+cmake_generator=$CMAKE_GENERATOR
 vcpkg_root=$VCPKG_ROOT
 vcpkg_installed_dir=$VCPKG_INSTALLED_DIR
 vcpkg_target_triplet=$VCPKG_TARGET_TRIPLET
@@ -322,7 +361,7 @@ ScanTailor Advanced vcpkg build plan:
   vcpkg triplet:         $VCPKG_TARGET_TRIPLET (Release only)
   vcpkg host triplet:    $VCPKG_HOST_TRIPLET (Release only)
   Qt source:             $(display_path "$QT_SOURCE")
-  Binary:                $(display_path "$BUILD_DIR/scantailor-advanced")
+  Binary:                $(display_path "$(binary_output_path)")
   Build type:            $BUILD_TYPE
   Build tests:           $BUILD_TESTS
   Run tests after build: $BUILD_TESTS
@@ -394,10 +433,19 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   NEW_VCPKG_HOST_TRIPLET="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_host_triplet=//p')"
   OLD_VCPKG_INSTALLED_DIR="$(printf '%s\n' "$OLD_CONFIG_SIGNATURE" | sed -n 's/^vcpkg_installed_dir=//p')"
   NEW_VCPKG_INSTALLED_DIR="$(printf '%s\n' "$CONFIG_SIGNATURE" | sed -n 's/^vcpkg_installed_dir=//p')"
+  CACHED_CMAKE_GENERATOR=""
+  CACHED_CMAKE_EXTRA_GENERATOR=""
+  if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+    CACHED_CMAKE_GENERATOR="$(sed -n 's/^CMAKE_GENERATOR:INTERNAL=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
+    CACHED_CMAKE_EXTRA_GENERATOR="$(sed -n 's/^CMAKE_EXTRA_GENERATOR:INTERNAL=//p' "$BUILD_DIR/CMakeCache.txt" | head -1)"
+  fi
   if [[ -n "$OLD_QT_SIGNATURE" && "$OLD_QT_SIGNATURE" != "$NEW_QT_SIGNATURE" ]] ||
      [[ -n "$OLD_VCPKG_TARGET_TRIPLET" && "$OLD_VCPKG_TARGET_TRIPLET" != "$NEW_VCPKG_TARGET_TRIPLET" ]] ||
      [[ -n "$OLD_VCPKG_HOST_TRIPLET" && "$OLD_VCPKG_HOST_TRIPLET" != "$NEW_VCPKG_HOST_TRIPLET" ]] ||
-     [[ -n "$OLD_VCPKG_INSTALLED_DIR" && "$OLD_VCPKG_INSTALLED_DIR" != "$NEW_VCPKG_INSTALLED_DIR" ]]; then
+     [[ -n "$OLD_VCPKG_INSTALLED_DIR" && "$OLD_VCPKG_INSTALLED_DIR" != "$NEW_VCPKG_INSTALLED_DIR" ]] ||
+     [[ -f "$BUILD_DIR/CMakeCache.txt" &&
+        ( "$CACHED_CMAKE_GENERATOR" != "$SELECTED_CMAKE_GENERATOR" ||
+          "$CACHED_CMAKE_EXTRA_GENERATOR" != "$SELECTED_CMAKE_EXTRA_GENERATOR" ) ]]; then
     rm -f "$BUILD_DIR/CMakeCache.txt"
     if [[ -d "$BUILD_DIR/CMakeFiles" ]]; then
       cmake -E remove_directory "$BUILD_DIR/CMakeFiles"
@@ -413,6 +461,7 @@ if [[ "$NEEDS_CONFIGURE" == "ON" ]]; then
   fi
 
   cmake \
+    -G "$CMAKE_GENERATOR" \
     -S "$SCRIPT_DIR" \
     -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
@@ -437,4 +486,4 @@ if [[ "$BUILD_TESTS" == "ON" ]]; then
   ctest --test-dir "$BUILD_DIR" --build-config "$BUILD_TYPE" --output-on-failure
 fi
 
-echo "Build complete: $(display_path "$BUILD_DIR/scantailor-advanced")"
+echo "Build complete: $(display_path "$(binary_output_path)")"

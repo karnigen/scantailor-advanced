@@ -168,6 +168,8 @@ if (WIN32)
       INTERFACE_COMPILE_DEFINITIONS USE_LIBTIFF_DLL)
 endif()
 
+find_package(tomlplusplus CONFIG REQUIRED)
+
 if (BUILD_TESTS)
   find_package(Catch2 3 CONFIG REQUIRED)
 endif()

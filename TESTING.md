@@ -41,8 +41,9 @@ unit-test suites.
 
 ### settings_store_explicit_directory_tests and settings_store_legacy_copy_tests
 - Explicit relative configuration directory validation and creation.
-- `config.ini` and `profiles/` placement.
-- Copying existing standard INI settings without removing the original.
+- `config.toml` and `profiles/` placement.
+- Copying existing standard INI settings, migrating them to TOML, and retaining the original as `config.ini.bak`.
+- INI-to-TOML migration, inline-table formatting for collapsible-group states, TOML precedence, and malformed TOML handling.
 
 ### foundation_tests
 - **Constants**: mathematical constants (PI, DPI/DPM and degree/radian conversions).

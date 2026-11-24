@@ -1915,8 +1915,10 @@ void MainWindow::showCommandLineArguments() {
   html += "<dt><code>-h, --help</code></dt><dd>" + tr("Display help for command line arguments.").toHtmlEscaped()
           + "</dd>";
   html += "<dt><code>-c, --config &lt;directory&gt;</code></dt><dd>"
-          + tr("Store settings in this directory. The application creates config.ini directly inside it. "
-               "Future configuration formats, such as TOML, will also be stored in this directory.")
+          + tr("Store settings in this directory. The application creates config.toml directly inside it. "
+               "This directory must be writable. An existing config.toml takes precedence and leaves config.ini "
+               "unchanged. Otherwise, the application migrates config.ini and attempts to rename it to config.ini.bak "
+               "after TOML is saved; if the backup already exists or renaming fails, config.ini remains in place.")
                 .toHtmlEscaped()
           + "</dd>";
   html += "</dl><h3>" + tr("Path").toHtmlEscaped() + "</h3><dl>";
