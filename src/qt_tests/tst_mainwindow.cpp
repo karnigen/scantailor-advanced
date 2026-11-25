@@ -13,6 +13,7 @@
 #include <ProjectPages.h>
 #include <StageSequence.h>
 #include <WorkerThreadPool.h>
+#include <core/SettingsStore.h>
 #include <filters/page_layout/Params.h>
 #include <filters/select_content/CacheDrivenTask.h>
 #include <filters/select_content/Dependencies.h>
@@ -92,6 +93,29 @@ class AutoSaveSetting {
 
  private:
   bool m_original;
+};
+
+class ByteArraySettingRestore {
+ public:
+  ByteArraySettingRestore(SettingsStore& settings, QString key)
+      : m_settings(settings),
+        m_key(std::move(key)),
+        m_hadValue(settings.contains(m_key)),
+        m_originalValue(settings.byteArrayValue(m_key)) {}
+
+  ~ByteArraySettingRestore() {
+    if (m_hadValue) {
+      m_settings.setValue(m_key, m_originalValue);
+    } else {
+      m_settings.remove(m_key);
+    }
+  }
+
+ private:
+  SettingsStore& m_settings;
+  QString m_key;
+  bool m_hadValue;
+  QByteArray m_originalValue;
 };
 }  // namespace
 
@@ -366,6 +390,37 @@ void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
   QVERIFY(help.contains("CCITT G4"));
   QVERIFY(help.contains("JPEG"));
   dialog->close();
+}
+
+void TestMainWindowAsync::filterDockWidthRestoresFromConfiguration() {
+  SettingsStore settings;
+  const QString key = QStringLiteral("mainWindow/dockState");
+  ByteArraySettingRestore settingRestore(settings, key);
+  settings.remove(key);
+
+  int expectedWidth = 0;
+  {
+    MainWindow window;
+    window.resize(1100, 700);
+    window.setDockWidgetsVisible(true);
+    window.show();
+    QTRY_VERIFY(window.filterDockWidget->isVisible());
+
+    window.resizeDocks({window.filterDockWidget}, {350}, Qt::Horizontal);
+    QTRY_VERIFY_WITH_TIMEOUT(window.filterDockWidget->width() >= 340, 5000);
+    expectedWidth = window.filterDockWidget->width();
+
+    window.setDockWidgetsVisible(false);
+    settings.setValue(key, window.saveState(1));
+  }
+
+  {
+    MainWindow window;
+    window.resize(1100, 700);
+    window.setDockWidgetsVisible(true);
+    window.show();
+    QTRY_COMPARE_WITH_TIMEOUT(window.filterDockWidget->width(), expectedWidth, 5000);
+  }
 }
 
 void TestMainWindowAsync::sourceDpiChangesPersistInMargins() {

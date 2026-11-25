@@ -388,6 +388,10 @@ MainWindow::MainWindow(const QString& initialDirectory)
   updateMainArea();
 
   SettingsStore qSettings;
+  const QByteArray dockState = qSettings.byteArrayValue("mainWindow/dockState");
+  if (!dockState.isEmpty()) {
+    restoreState(dockState, 1);
+  }
   if (!qSettings.boolValue("mainWindow/maximized", true)) {
     if (!restoreGeometry(qSettings.byteArrayValue("mainWindow/nonMaximizedGeometry"))) {
       resize(1014, 689);  // A sensible value.
@@ -608,6 +612,7 @@ void MainWindow::timerEvent(QTimerEvent* const event) {
     m_closing = true;
     SettingsStore settings;
     settings.setValue("mainWindow/maximized", isMaximized());
+    settings.setValue("mainWindow/dockState", saveState(1));
     if (!isMaximized()) {
       settings.setValue("mainWindow/nonMaximizedGeometry", saveGeometry());
     }

@@ -14,6 +14,7 @@ class TestMainWindowAsync : public QObject {
   void deferredSavesPreserveOrder();
   void keyboardShortcutsShowConciseStageNames();
   void supportedImageFormatsHelpShowsOutputAndCompression();
+  void filterDockWidthRestoresFromConfiguration();
   void sourceDpiChangesPersistInMargins();
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();
