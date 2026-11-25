@@ -41,9 +41,20 @@ ContentBoxPropagator::ContentBoxPropagator(std::shared_ptr<page_layout::Filter> 
 ContentBoxPropagator::~ContentBoxPropagator() = default;
 
 void ContentBoxPropagator::propagate(const ProjectPages& pages) {
+  propagate(pages, nullptr);
+}
+
+void ContentBoxPropagator::propagateImages(const ProjectPages& pages, const std::set<ImageId>& images) {
+  propagate(pages, &images);
+}
+
+void ContentBoxPropagator::propagate(const ProjectPages& pages, const std::set<ImageId>* images) {
   const PageSequence sequence(pages.toPageSequence(PAGE_VIEW));
 
   for (const PageInfo& pageInfo : sequence) {
+    if (images && images->find(pageInfo.imageId()) == images->end()) {
+      continue;
+    }
     Collector collector;
     m_task->process(pageInfo, &collector);
     if (collector.collected()) {

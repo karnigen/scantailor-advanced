@@ -97,3 +97,12 @@ if (WIN32)
 endif()
 
 translation_sources(${target_name} ${gui_only_sources} ${gui_only_ui_files})
+
+if (BUILD_TESTS)
+  set(main_window_test_sources ${gui_only_sources})
+  list(REMOVE_ITEM main_window_test_sources main.cpp)
+  list_items_prepend(main_window_test_sources "${CMAKE_CURRENT_SOURCE_DIR}/")
+  set(main_window_test_ui ${gui_only_ui_files})
+  list_items_prepend(main_window_test_ui "${CMAKE_CURRENT_SOURCE_DIR}/")
+  set(SCANTAILOR_QT_TEST_APP_SOURCES ${main_window_test_sources} ${main_window_test_ui} ${resource_files} PARENT_SCOPE)
+endif()

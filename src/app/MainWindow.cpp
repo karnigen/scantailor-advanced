@@ -324,6 +324,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(filterList, SIGNAL(launchBatchProcessing()), this, SLOT(startBatchProcessing()));
 
   connect(m_workerThreadPool.get(), &WorkerThreadPool::taskResult, this, &MainWindow::filterResult);
+  connect(m_workerThreadPool.get(), &WorkerThreadPool::idle, this, &MainWindow::finishWaitingForCancelledTasks);
 
   connect(m_thumbSequence.get(),
           SIGNAL(newSelectionLeader(const PageInfo&, const QRectF&, ThumbnailSequence::SelectionFlags)), this,
@@ -1064,6 +1065,13 @@ void MainWindow::autoSaveProject() {
     return;
   }
 
+  if (m_waitingForCancelledTasks) {
+    if (m_pendingSave == PendingSave::None) {
+      m_pendingSave = PendingSave::AutoSave;
+    }
+    return;
+  }
+
   saveProjectWithFeedback(m_projectFile);
 }
 
@@ -1172,35 +1180,37 @@ void MainWindow::filterSelectionChanged(const QItemSelection& selected) {
     return;
   }
 
-  m_interactiveQueue->cancelAndClear();
-  if (m_batchQueue) {
-    // Should not happen, but just in case.
-    m_batchQueue->cancelAndClear();
+  const int filterIdx = selected.front().top();
+  if (m_waitingForCancelledTasks) {
+    m_pendingFilter = filterIdx;
+    return;
   }
 
+  if (m_batchQueue) {
+    stopBatchProcessing();
+    if (m_waitingForCancelledTasks) {
+      m_pendingFilter = filterIdx;
+      return;
+    }
+  }
+
+  m_interactiveQueue->cancelAndClear();
+  m_reconcileContent = m_reconcileContent || m_curFilter >= m_stages->selectContentFilterIdx();
+  m_pendingFilter = filterIdx;
+  waitForCancelledTasks();
+}  // MainWindow::filterSelectionChanged
+
+void MainWindow::applyFilterSelection(const int filterIdx, const bool reconcileContent) {
   const bool wasBelowFixOrientation = isBelowFixOrientation(m_curFilter);
   const bool wasBelowSelectContent = isBelowSelectContent(m_curFilter);
-  m_curFilter = selected.front().top();
+  m_curFilter = filterIdx;
   const bool nowBelowFixOrientation = isBelowFixOrientation(m_curFilter);
   const bool nowBelowSelectContent = isBelowSelectContent(m_curFilter);
-
-  if ((!wasBelowSelectContent && nowBelowSelectContent) || (!wasBelowFixOrientation && nowBelowFixOrientation)) {
-    // Cancelled tasks may still be updating settings when propagation starts.
-    m_workerThreadPool->shutdown();
-  }
 
   m_stages->filterAt(m_curFilter)->selected();
 
   updateSortOptions();
 
-  // Propagate context boxes down the stage list, if necessary.
-  if (!wasBelowSelectContent && nowBelowSelectContent) {
-    // IMPORTANT: this needs to go before resetting thumbnails,
-    // because it may affect them.
-    if (m_contentBoxPropagator) {
-      m_contentBoxPropagator->propagate(*m_pages);
-    }  // Otherwise probably no project is loaded.
-  }
   // Propagate page orientations (that might have changed) to the "Split Pages" stage.
   if (!wasBelowFixOrientation && nowBelowFixOrientation) {
     // IMPORTANT: this needs to go before resetting thumbnails,
@@ -1209,6 +1219,15 @@ void MainWindow::filterSelectionChanged(const QItemSelection& selected) {
       m_pageOrientationPropagator->propagate(*m_pages);
     }  // Otherwise probably no project is loaded.
   }
+  // Propagate context boxes after orientations have established the page sequence.
+  if (reconcileContent || (!wasBelowSelectContent && nowBelowSelectContent)) {
+    if (m_contentBoxPropagator) {
+      m_contentBoxPropagator->propagate(*m_pages);
+    }
+  } else if (m_contentBoxPropagator && !m_dirtyContentImages.empty()) {
+    m_contentBoxPropagator->propagateImages(*m_pages, m_dirtyContentImages);
+  }
+  m_dirtyContentImages.clear();
 
   const int horScrollBarPos = thumbView->horizontalScrollBar()->value();
   const int verScrollBarPos = thumbView->verticalScrollBar()->value();
@@ -1221,7 +1240,62 @@ void MainWindow::filterSelectionChanged(const QItemSelection& selected) {
   }
 
   updateMainArea();
-}  // MainWindow::filterSelectionChanged
+}
+
+void MainWindow::waitForCancelledTasks() {
+  if (!m_waitingForCancelledTasks) {
+    m_waitingForCancelledTasks = true;
+    thumbView->setEnabled(false);
+    m_imageFrameLayout->parentWidget()->setEnabled(false);
+    removeFilterOptionsWidget();
+    actionFixDpi->setEnabled(false);
+    actionRelinking->setEnabled(false);
+    actionReverseTwoPageOrder->setEnabled(false);
+    if (m_fixDpiDialog) {
+      m_fixDpiDialog->setEnabled(false);
+    }
+    QMainWindow::statusBar()->showMessage(tr("Waiting for cancelled tasks to finish..."));
+  }
+  QTimer::singleShot(0, this, &MainWindow::finishWaitingForCancelledTasks);
+}
+
+void MainWindow::finishWaitingForCancelledTasks() {
+  if (!m_waitingForCancelledTasks || m_finishingCancelledTasks || !m_workerThreadPool->isIdle()) {
+    return;
+  }
+
+  m_finishingCancelledTasks = true;
+  const int filterIdx = m_pendingFilter < 0 ? m_curFilter : m_pendingFilter;
+  m_pendingFilter = -1;
+  const bool reconcileContent = m_reconcileContent;
+  m_reconcileContent = false;
+  applyFilterSelection(filterIdx, reconcileContent);
+
+  while (m_pendingSave != PendingSave::None) {
+    const PendingSave pendingSave = m_pendingSave;
+    m_pendingSave = PendingSave::None;
+    if (pendingSave == PendingSave::Save) {
+      saveProjectInteractive();
+    } else if (pendingSave == PendingSave::SaveAs) {
+      saveProjectAsNow();
+    } else if (pendingSave == PendingSave::AutoSave) {
+      if (!m_projectFile.isEmpty() && ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
+        saveProjectWithFeedback(m_projectFile);
+      }
+    }
+  }
+
+  m_waitingForCancelledTasks = false;
+  m_finishingCancelledTasks = false;
+  thumbView->setEnabled(true);
+  m_imageFrameLayout->parentWidget()->setEnabled(true);
+  if (m_fixDpiDialog) {
+    m_fixDpiDialog->setEnabled(true);
+  }
+  updateProjectActions();
+  QMainWindow::statusBar()->clearMessage();
+  updateMainArea();
+}
 
 void MainWindow::switchFilter1() {
   filterList->selectRow(0);
@@ -1271,7 +1345,7 @@ void MainWindow::reloadRequested() {
 }
 
 void MainWindow::startBatchProcessing() {
-  if (isBatchProcessingInProgress() || !isProjectLoaded()) {
+  if (m_waitingForCancelledTasks || isBatchProcessingInProgress() || !isProjectLoaded()) {
     return;
   }
 
@@ -1322,6 +1396,7 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
     return;
   }
 
+  const bool interrupted = !m_batchQueue->allProcessed();
   const QStringList batchFailures(std::move(m_batchFailures));
   const QStringList batchSkippedPages(std::move(m_batchSkippedPages));
   m_batchFailures.clear();
@@ -1338,6 +1413,13 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
   filterList->setBatchProcessingInProgress(false);
   filterList->setEnabled(true);
 
+  if (mainArea != CLEAR_MAIN_AREA && (interrupted || m_curFilter >= m_stages->selectContentFilterIdx())) {
+    m_interactiveQueue->cancelAndClear();
+    m_pendingFilter = m_curFilter;
+    m_reconcileContent = m_reconcileContent || m_curFilter >= m_stages->selectContentFilterIdx();
+    waitForCancelledTasks();
+  }
+
   switch (mainArea) {
     case UPDATE_MAIN_AREA:
       updateMainArea();
@@ -1347,7 +1429,9 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
       break;
   }
 
-  resetThumbSequence(currentPageOrderProvider());
+  if (!m_waitingForCancelledTasks) {
+    resetThumbSequence(currentPageOrderProvider());
+  }
 
   if ((!batchFailures.isEmpty() || !batchSkippedPages.isEmpty()) && mainArea != CLEAR_MAIN_AREA) {
     QTimer::singleShot(0, this, [this, batchFailures, batchSkippedPages]() {
@@ -1578,12 +1662,17 @@ void MainWindow::fixedDpiSubmitted() {
 }
 
 void MainWindow::saveProjectTriggered() {
+  if (m_waitingForCancelledTasks) {
+    m_pendingSave = PendingSave::Save;
+    QMainWindow::statusBar()->showMessage(tr("The project will be saved when cancelled tasks finish."));
+    return;
+  }
   saveProjectInteractive();
 }
 
 bool MainWindow::saveProjectInteractive() {
   if (m_projectFile.isEmpty()) {
-    saveProjectAsTriggered();
+    saveProjectAsNow();
     return !m_projectFile.isEmpty();
   }
 
@@ -1595,6 +1684,15 @@ bool MainWindow::saveProjectInteractive() {
 }
 
 void MainWindow::saveProjectAsTriggered() {
+  if (m_waitingForCancelledTasks) {
+    m_pendingSave = PendingSave::SaveAs;
+    QMainWindow::statusBar()->showMessage(tr("The project will be saved when cancelled tasks finish."));
+    return;
+  }
+  saveProjectAsNow();
+}
+
+void MainWindow::saveProjectAsNow() {
   // XXX: this function is duplicated in OutOfMemoryDialog.
 
   QString projectDir;
@@ -2091,6 +2189,11 @@ PageView MainWindow::getCurrentView() const {
 }
 
 void MainWindow::updateMainArea() {
+  if (m_waitingForCancelledTasks) {
+    filterList->setBatchProcessingPossible(false);
+    return;
+  }
+
   if (m_pages->numImages() == 0) {
     filterList->setBatchProcessingPossible(false);
     setDockWidgetsVisible(false);
@@ -2125,7 +2228,19 @@ bool MainWindow::checkReadyForOutput(const PageId* ignore) const {
 void MainWindow::loadPageInteractive(const PageInfo& page) {
   assert(!isBatchProcessingInProgress());
 
+  const PageInfo previousPage = m_interactiveQueue->pageInfoForTask(m_interactiveTask.lock());
   m_interactiveQueue->cancelAndClear();
+
+  if (m_curFilter >= m_stages->selectContentFilterIdx() && !m_workerThreadPool->isIdle()) {
+    m_pendingFilter = m_curFilter;
+    if (previousPage.isNull()) {
+      m_reconcileContent = true;
+    } else {
+      m_dirtyContentImages.insert(previousPage.imageId());
+    }
+    waitForCancelledTasks();
+    return;
+  }
 
   if (isOutputFilter() && !checkReadyForOutput(&page.id())) {
     filterList->setBatchProcessingPossible(false);
@@ -2157,7 +2272,9 @@ void MainWindow::loadPageInteractive(const PageInfo& page) {
   assert(m_thumbnailCache);
 
   m_interactiveQueue->cancelAndClear();
-  m_interactiveQueue->addProcessingTask(page, createCompositeTask(page, m_curFilter, false, m_debug));
+  const BackgroundTaskPtr task = createCompositeTask(page, m_curFilter, false, m_debug);
+  m_interactiveTask = task;
+  m_interactiveQueue->addProcessingTask(page, task);
   m_workerThreadPool->submitTask(m_interactiveQueue->takeForProcessing());
 }  // MainWindow::loadPageInteractive
 
@@ -2179,6 +2296,10 @@ void MainWindow::updateWindowTitle() {
  * \return true if the project was closed, false if the user cancelled the process.
  */
 bool MainWindow::closeProjectInteractive() {
+  if (m_waitingForCancelledTasks) {
+    QMessageBox::information(this, tr("Please wait"), tr("Cancelled tasks are still finishing. Please try again."));
+    return false;
+  }
   if (!isProjectLoaded()) {
     return true;
   }

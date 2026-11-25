@@ -15,6 +15,7 @@
 #include <QDomDocument>
 #include <QFile>
 #include <QFileInfo>
+#include <QSemaphore>
 #include <QSignalSpy>
 #include <QString>
 #include <QTemporaryDir>
@@ -152,7 +153,130 @@ class UnexpectedlyCancelledBackgroundTask : public BackgroundTask {
   FilterResultPtr exceptionResult(const QString&) override { return nullptr; }
 };
 
+class EmptyResultBackgroundTask : public BackgroundTask {
+ public:
+  EmptyResultBackgroundTask() : BackgroundTask(BATCH) {}
+
+  FilterResultPtr operator()() override { return nullptr; }
+
+  FilterResultPtr exceptionResult(const QString&) override { return nullptr; }
+};
+
+class InterruptedContentTask : public BackgroundTask {
+ public:
+  InterruptedContentTask(std::shared_ptr<select_content::Settings> settings,
+                         PageId pageId,
+                         select_content::Params params,
+                         QSemaphore& started,
+                         QSemaphore& release)
+      : BackgroundTask(BATCH),
+        m_settings(std::move(settings)),
+        m_pageId(std::move(pageId)),
+        m_params(std::move(params)),
+        m_started(started),
+        m_release(release) {}
+
+  FilterResultPtr operator()() override {
+    m_settings->setPageParams(m_pageId, m_params);
+    m_started.release();
+    if (!m_release.tryAcquire(1, 10000)) {
+      throw std::runtime_error("test worker timed out");
+    }
+    throwIfCancelled();
+    return nullptr;
+  }
+
+  FilterResultPtr exceptionResult(const QString&) override { return nullptr; }
+
+ private:
+  std::shared_ptr<select_content::Settings> m_settings;
+  PageId m_pageId;
+  select_content::Params m_params;
+  QSemaphore& m_started;
+  QSemaphore& m_release;
+};
+
 }  // namespace
+
+void TestCoreQt::testCancelledTasksFinishAsynchronously() {
+  const auto settings = std::make_shared<select_content::Settings>();
+  const PageId pageId(ImageId("/page.tif", 0), PageId::SINGLE_PAGE);
+  const ImageTransformation xform(QRectF(0, 0, 200, 300), Dpi(300, 300));
+  const select_content::Dependencies deps(xform.resultingPreCropArea(), MODE_MANUAL, MODE_MANUAL, false);
+  const select_content::Params params(QRectF(10, 10, 100, 100), QSizeF(10, 10), QRectF(0, 0, 200, 300), deps,
+                                      MODE_MANUAL, MODE_MANUAL, false);
+  QSemaphore started;
+  QSemaphore release;
+  const auto task = std::make_shared<InterruptedContentTask>(settings, pageId, params, started, release);
+  WorkerThreadPool workerPool;
+  QSignalSpy idleSpy(&workerPool, &WorkerThreadPool::idle);
+  workerPool.submitTask(task);
+  QTRY_VERIFY(started.available() == 1);
+  task->cancel();
+
+  AsyncTaskState state;
+  const auto alreadyCancelled = std::make_shared<FailingBackgroundTask>(state);
+  alreadyCancelled->cancel();
+  workerPool.submitTask(alreadyCancelled);
+  bool eventLoopResponsive = false;
+  QTimer::singleShot(0, [&eventLoopResponsive]() { eventLoopResponsive = true; });
+  QTRY_VERIFY(eventLoopResponsive);
+  QVERIFY(!workerPool.isIdle());
+  QCOMPARE(idleSpy.count(), 0);
+
+  release.release();
+  QTRY_VERIFY(workerPool.isIdle());
+  QCOMPARE(idleSpy.count(), 1);
+  QVERIFY(!state.failed);
+}
+
+void TestCoreQt::testCancelledContentUpdateIsPropagatedBeforeSave() {
+  const ImageMetadata metadata(QSize(200, 300), Dpi(300, 300));
+  const ImageId imageId("/page.tif", 0);
+  const PageId pageId(imageId, PageId::SINGLE_PAGE);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, metadata, 1, false, false)}, Qt::LeftToRight);
+  const auto contentSettings = std::make_shared<select_content::Settings>();
+  const ImageTransformation xform(QRectF(0, 0, 200, 300), Dpi(300, 300));
+  const select_content::Dependencies deps(xform.resultingPreCropArea(), MODE_MANUAL, MODE_MANUAL, false);
+  const QRectF pageRect(5, 6, 180, 280);
+  const QRectF oldContent(15, 20, 140, 230);
+  const QRectF newContent(25, 30, 130, 210);
+  const auto filter = std::make_shared<page_layout::Filter>(pages, PageSelectionAccessor(nullptr));
+  filter->setContentBox(pageId, xform, pageRect, oldContent);
+  const auto cache = std::make_shared<SelectContentCache>(contentSettings, xform);
+  ContentBoxPropagator propagator(filter, cache);
+  QSemaphore started;
+  QSemaphore release;
+  const auto task = std::make_shared<InterruptedContentTask>(
+      contentSettings, pageId,
+      select_content::Params(newContent, QSizeF(10, 10), pageRect, deps, MODE_MANUAL, MODE_MANUAL, false), started,
+      release);
+  WorkerThreadPool workerPool;
+  connect(&workerPool, &WorkerThreadPool::idle, this, [&]() { propagator.propagate(*pages); });
+  workerPool.submitTask(task);
+  QTRY_VERIFY(started.available() == 1);
+  task->cancel();
+  release.release();
+  QTRY_VERIFY(workerPool.isIdle());
+
+  const QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(), directory.path(), Qt::LeftToRight);
+  const ProjectWriter writer(pages, SelectedPage(), output);
+  const QString projectPath = directory.filePath("project.scan");
+  QString error;
+  QVERIFY2(writer.write(projectPath, {filter}, &error), qPrintable(error));
+  QFile file(projectPath);
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  QDomDocument document;
+  QVERIFY(document.setContent(&file));
+  const QDomElement page = document.elementsByTagName("page-layout").at(0).toElement().firstChildElement("page");
+  QVERIFY(!page.isNull());
+  const page_layout::Params saved(page.firstChildElement("params"));
+  QCOMPARE(saved.pageRect(), pageRect);
+  QCOMPARE(saved.contentRect(), newContent);
+}
 
 void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
   const ImageMetadata metadata(QSize(200, 300), Dpi(300, 300));
@@ -199,6 +323,18 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
     QVERIFY(!params.contentSizeMM().isEmpty());
   }
 
+  const QRectF changedContent(35, 40, 100, 180);
+  for (const PageId& pageId : pageIds) {
+    contentSettings->setPageParams(pageId, select_content::Params(changedContent, QSizeF(10, 10), pageRect, deps,
+                                                                  MODE_MANUAL, MODE_MANUAL, false));
+  }
+  ContentBoxPropagator(filter, cache).propagateImages(*pages, {firstId});
+  QDomDocument partialDocument;
+  const QDomNodeList partiallyUpdated = filter->saveSettings(writer, partialDocument).elementsByTagName("page");
+  QCOMPARE(partiallyUpdated.size(), 2);
+  QCOMPARE(page_layout::Params(partiallyUpdated.at(0).firstChildElement("params")).contentRect(), changedContent);
+  QCOMPARE(page_layout::Params(partiallyUpdated.at(1).firstChildElement("params")).contentRect(), contentRects[1]);
+
   contentSettings->clearPageParams(pageIds[1]);
   ContentBoxPropagator(filter, cache).propagate(*pages);
   QDomDocument updatedDocument;
@@ -207,7 +343,7 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
   QCOMPARE(updatedPages.size(), 2);
   const page_layout::Params unchanged(updatedPages.at(0).firstChildElement("params"));
   const page_layout::Params unavailable(updatedPages.at(1).firstChildElement("params"));
-  QCOMPARE(unchanged.contentRect(), contentRects[0]);
+  QCOMPARE(unchanged.contentRect(), changedContent);
   QVERIFY(unavailable.contentRect().isEmpty());
   QVERIFY(unavailable.contentSizeMM().isEmpty());
 }
@@ -360,4 +496,17 @@ void TestCoreQt::testWorkerThreadPoolCompletesUnexpectedCancellation() {
   workerPool.submitTask(std::make_shared<UnexpectedlyCancelledBackgroundTask>());
   QTRY_VERIFY(resultEventReceived);
   QCOMPARE(errorMessage, QStringLiteral("Background task was cancelled unexpectedly."));
+}
+
+void TestCoreQt::testWorkerThreadPoolReportsEmptyResult() {
+  WorkerThreadPool workerPool;
+  bool resultEventReceived = false;
+  connect(&workerPool, &WorkerThreadPool::taskResult, this,
+          [&resultEventReceived](const BackgroundTaskPtr&, const FilterResultPtr& result, const QString&) {
+            QVERIFY(!result);
+            resultEventReceived = true;
+          });
+  workerPool.submitTask(std::make_shared<EmptyResultBackgroundTask>());
+  QTRY_VERIFY(resultEventReceived);
+  QVERIFY(workerPool.isIdle());
 }

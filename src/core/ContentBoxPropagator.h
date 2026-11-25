@@ -6,6 +6,9 @@
 
 #include <QSizeF>
 #include <memory>
+#include <set>
+
+#include "ImageId.h"
 
 class CompositeCacheDrivenTask;
 class ProjectPages;
@@ -32,8 +35,12 @@ class ContentBoxPropagator {
 
   void propagate(const ProjectPages& pages);
 
+  void propagateImages(const ProjectPages& pages, const std::set<ImageId>& images);
+
  private:
   class Collector;
+
+  void propagate(const ProjectPages& pages, const std::set<ImageId>* images);
 
   std::shared_ptr<page_layout::Filter> m_pageLayoutFilter;
   std::shared_ptr<CompositeCacheDrivenTask> m_task;
