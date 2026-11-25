@@ -35,6 +35,13 @@ class Settings {
 
   std::unique_ptr<Params> getPageParams(const PageId& pageId) const;
 
+  /**
+   * The content size used for ordering pages by width or height.
+   */
+  QSizeF getContentSizeMM(const PageId& pageId) const;
+
+  std::unordered_map<PageId, QSizeF> getContentSizesSnapshot() const;
+
   bool isParamsNull(const PageId& pageId) const;
 
   QSizeF pageDetectionBox() const;

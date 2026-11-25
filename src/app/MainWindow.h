@@ -11,6 +11,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <set>
@@ -63,6 +64,8 @@ class QLayout;
 
 class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::MainWindow {
   DECLARE_NON_COPYABLE(MainWindow)
+
+  friend class TestMainWindowAsync;
 
   Q_OBJECT
  public:
@@ -201,6 +204,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   class PageSelectionProviderImpl;
 
   enum SavePromptResult { SAVE, DONT_SAVE, CANCEL };
+  enum class PendingSave { Save, SaveAs, AutoSave };
 
   using FilterPtr = std::shared_ptr<AbstractFilter>;
 
@@ -244,6 +248,16 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   bool saveProjectInteractive();
 
+  void saveProjectAsNow();
+
+  void queueSave(PendingSave save);
+
+  void waitForCancelledTasks();
+
+  void finishWaitingForCancelledTasks();
+
+  void applyFilterSelection(int filterIdx, bool reconcileContent);
+
   static bool compareFiles(const QString& fpath1, const QString& fpath2);
 
   std::shared_ptr<const PageOrderProvider> currentPageOrderProvider() const;
@@ -260,6 +274,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void updateProjectActions();
 
   bool isBatchProcessingInProgress() const;
+
+  void feedWorkerPool();
 
   bool isProjectLoaded() const;
 
@@ -337,6 +353,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QStringList m_batchFailures;
   QStringList m_batchSkippedPages;
   std::unique_ptr<ProcessingTaskQueue> m_interactiveQueue;
+  std::weak_ptr<BackgroundTask> m_interactiveTask;
   QStackedLayout* m_imageFrameLayout;
   QStackedLayout* m_optionsFrameLayout;
   QPointer<FilterOptionsWidget> m_optionsWidget;
@@ -353,6 +370,12 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   std::unique_ptr<OutOfMemoryDialog> m_outOfMemoryDialog;
   QString m_initialDirectory;
   int m_curFilter;
+  int m_pendingFilter = -1;
+  bool m_waitingForCancelledTasks = false;
+  bool m_finishingCancelledTasks = false;
+  bool m_reconcileContent = false;
+  std::set<ImageId> m_dirtyContentImages;
+  std::deque<PendingSave> m_pendingSaves;
   SavedMainAreaViewState m_savedMainAreaViewState;
   int m_ignoreSelectionChanges;
   int m_ignorePageOrderingChanges;

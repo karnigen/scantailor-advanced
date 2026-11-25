@@ -121,6 +121,22 @@ class Settings {
   LayoutType defaultLayoutType() const;
 
   /**
+   * The layout type used for ordering pages. AUTO_LAYOUT_TYPE is mapped to a value that sorts
+   * after every known layout type.
+   */
+  int orderLayoutType(const ImageId& imageId) const;
+
+  struct OrderLayoutTypesSnapshot {
+    std::unordered_map<ImageId, int> byImageId;
+    int defaultType = 0;
+  };
+
+  /**
+   * Freezes the layout types of all pages for a single ordering pass.
+   */
+  OrderLayoutTypesSnapshot getOrderLayoutTypesSnapshot() const;
+
+  /**
    * Sets layout type for all pages, removing other page
    * parameters where they conflict with the new layout type.
    */

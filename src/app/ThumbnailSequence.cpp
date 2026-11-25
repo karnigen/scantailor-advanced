@@ -626,8 +626,9 @@ int ThumbnailSequence::Impl::getGraphicsViewWidth() const {
 void ThumbnailSequence::Impl::orderItems() {
   // Sort pages in m_itemsInOrder using m_orderProvider.
   if (m_orderProvider) {
-    m_itemsInOrder.sort([this](const Item& lhs, const Item& rhs) {
-      return m_orderProvider->precedes(lhs.pageId(), lhs.incompleteThumbnail, rhs.pageId(), rhs.incompleteThumbnail);
+    const std::shared_ptr<const PageOrderProvider> orderProvider(m_orderProvider->snapshot());
+    m_itemsInOrder.sort([&orderProvider](const Item& lhs, const Item& rhs) {
+      return orderProvider->precedes(lhs.pageId(), lhs.incompleteThumbnail, rhs.pageId(), rhs.incompleteThumbnail);
     });
   }
 }

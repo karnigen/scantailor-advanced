@@ -1,6 +1,7 @@
 set(sources
     TestContentSpanFinder.cpp
     TestDeskewParams.cpp
+    TestDeviationProvider.cpp
     TestEditableZoneSet.cpp
     TestFileNameDisambiguator.cpp
     TestImageAllocationLimit.cpp
@@ -9,12 +10,15 @@ set(sources
     TestInteractionHandler.cpp
     TestInteractionState.cpp
     TestMargins.cpp
+    TestOrderByDeviationProvider.cpp
+    TestOrderProviderSnapshots.cpp
     TestPageId.cpp
     TestPageRange.cpp
     TestPageSequence.cpp
     TestProjectMigration.cpp
     TestSettingsStore.cpp
     TestPageLayoutSettings.cpp
+    TestPageLayoutCacheDrivenTask.cpp
     TestSelectContentApply.cpp
     TestSmartFilenameOrdering.cpp
     TestUnits.cpp)

@@ -63,7 +63,10 @@ class Filter : public AbstractFilter {
 
   void loadDefaultSettings(const PageInfo& pageInfo) override;
 
-  void setContentBox(const PageId& pageId, const ImageTransformation& xform, const QRectF& contentRect);
+  void setContentBox(const PageId& pageId,
+                     const ImageTransformation& xform,
+                     const QRectF& pageRect,
+                     const QRectF& contentRect);
 
   void invalidateContentBox(const PageId& pageId);
 

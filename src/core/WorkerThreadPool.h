@@ -30,11 +30,15 @@ class WorkerThreadPool : public QObject {
 
   bool hasSpareCapacity() const;
 
+  bool isIdle() const;
+
   void submitTask(const BackgroundTaskPtr& task);
 
  signals:
 
   void taskResult(const BackgroundTaskPtr& task, const FilterResultPtr& result, const QString& errorMessage);
+
+  void idle();
 
  private:
   class TaskResultEvent;
@@ -44,6 +48,7 @@ class WorkerThreadPool : public QObject {
   void updateNumberOfThreads();
 
   QThreadPool* m_pool;
+  int m_pendingTasks = 0;
   SettingsStore m_settings;
 };
 

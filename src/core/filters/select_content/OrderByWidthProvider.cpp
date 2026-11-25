@@ -3,6 +3,8 @@
 
 #include "OrderByWidthProvider.h"
 
+#include <PageSizeOrderSnapshot.h>
+
 #include <utility>
 
 namespace select_content {
@@ -12,25 +14,13 @@ bool OrderByWidthProvider::precedes(const PageId& lhsPage,
                                     const bool lhsIncomplete,
                                     const PageId& rhsPage,
                                     const bool rhsIncomplete) const {
-  const std::unique_ptr<Params> lhsParams(m_settings->getPageParams(lhsPage));
-  const std::unique_ptr<Params> rhsParams(m_settings->getPageParams(rhsPage));
+  return PageSizeOrderSnapshot::comparesBefore(m_settings->getContentSizeMM(lhsPage), lhsIncomplete,
+                                               m_settings->getContentSizeMM(rhsPage), rhsIncomplete,
+                                               PageSizeOrderSnapshot::Axis::WIDTH);
+}
 
-  QSizeF lhsSize;
-  if (lhsParams) {
-    lhsSize = lhsParams->contentSizeMM();
-  }
-  QSizeF rhsSize;
-  if (rhsParams) {
-    rhsSize = rhsParams->contentSizeMM();
-  }
-
-  const bool lhsValid = !lhsIncomplete && lhsSize.isValid();
-  const bool rhsValid = !rhsIncomplete && rhsSize.isValid();
-
-  if (lhsValid != rhsValid) {
-    // Invalid (unknown) sizes go to the back.
-    return lhsValid;
-  }
-  return lhsSize.width() < rhsSize.width();
+std::shared_ptr<const PageOrderProvider> OrderByWidthProvider::snapshot() const {
+  return std::make_shared<PageSizeOrderSnapshot>(m_settings->getContentSizesSnapshot(),
+                                                 PageSizeOrderSnapshot::Axis::WIDTH);
 }
 }  // namespace select_content

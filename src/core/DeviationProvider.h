@@ -8,6 +8,8 @@
 
 #include <cmath>
 #include <functional>
+#include <limits>
+#include <mutex>
 #include <unordered_map>
 
 template <typename K, typename Hash = std::hash<K>>
@@ -22,6 +24,8 @@ class DeviationProvider {
 
   double getDeviationValue(const K& key) const;
 
+  std::unordered_map<K, double, Hash> getDeviationValuesSnapshot() const;
+
   void addOrUpdate(const K& key);
 
   void addOrUpdate(const K& key, double value);
@@ -32,14 +36,15 @@ class DeviationProvider {
 
   void setComputeValueByKey(const std::function<double(const K&)>& computeValueByKey);
 
- protected:
-  void update() const;
-
  private:
+  // Both functions require m_mutex.
+  void update() const;
+  void store(const K& key, double value);
+
+  mutable std::mutex m_mutex;
   std::function<double(const K&)> m_computeValueByKey;
   std::unordered_map<K, double, Hash> m_keyValueMap;
 
-  // Cached values.
   mutable bool m_needUpdate = false;
   mutable double m_meanValue = 0.0;
   mutable double m_standardDeviation = 0.0;
@@ -52,106 +57,138 @@ DeviationProvider<K, Hash>::DeviationProvider(const std::function<double(const K
 
 template <typename K, typename Hash>
 bool DeviationProvider<K, Hash>::isDeviant(const K& key, double coefficient, double threshold, bool defaultVal) const {
-  if (m_keyValueMap.find(key) == m_keyValueMap.end()) {
+  const std::lock_guard<std::mutex> lock(m_mutex);
+
+  const auto it = m_keyValueMap.find(key);
+  if (it == m_keyValueMap.end()) {
     return false;
   }
   if (m_keyValueMap.size() < 3) {
     return false;
   }
 
-  double value = m_keyValueMap.at(key);
+  const double value = it->second;
   if (std::isnan(value)) {
     return defaultVal;
   }
 
   update();
-  return (std::abs(value - m_meanValue)
-          > std::max((coefficient * m_standardDeviation), (threshold / 100) * m_meanValue));
+  return std::abs(value - m_meanValue) > std::max((coefficient * m_standardDeviation), (threshold / 100) * m_meanValue);
 }
 
 template <typename K, typename Hash>
 double DeviationProvider<K, Hash>::getDeviationValue(const K& key) const {
-  if (m_keyValueMap.find(key) == m_keyValueMap.end()) {
+  const std::lock_guard<std::mutex> lock(m_mutex);
+
+  const auto it = m_keyValueMap.find(key);
+  if (it == m_keyValueMap.end()) {
     return -1.0;
   }
   if (m_keyValueMap.size() < 2) {
     return .0;
   }
 
-  double value = m_keyValueMap.at(key);
+  const double value = it->second;
   if (std::isnan(value)) {
     return -1.0;
   }
 
   update();
-  return std::abs(m_keyValueMap.at(key) - m_meanValue);
+  return std::abs(value - m_meanValue);
+}
+
+template <typename K, typename Hash>
+std::unordered_map<K, double, Hash> DeviationProvider<K, Hash>::getDeviationValuesSnapshot() const {
+  const std::lock_guard<std::mutex> lock(m_mutex);
+
+  update();
+
+  std::unordered_map<K, double, Hash> snapshot;
+  snapshot.reserve(m_keyValueMap.size());
+  for (const auto& [key, value] : m_keyValueMap) {
+    const double deviation
+        = m_keyValueMap.size() < 2 ? 0.0 : (std::isnan(value) ? -1.0 : std::abs(value - m_meanValue));
+    snapshot.emplace(key, deviation);
+  }
+  return snapshot;
 }
 
 template <typename K, typename Hash>
 void DeviationProvider<K, Hash>::addOrUpdate(const K& key) {
-  m_needUpdate = true;
+  std::function<double(const K&)> computeValueByKey;
+  {
+    const std::lock_guard<std::mutex> lock(m_mutex);
+    computeValueByKey = m_computeValueByKey;
+  }
+  // The callback may take a filter lock, so never invoke it while holding m_mutex.
+  const double value = computeValueByKey(key);
 
-  m_keyValueMap[key] = m_computeValueByKey(key);
+  const std::lock_guard<std::mutex> lock(m_mutex);
+  store(key, value);
 }
 
 template <typename K, typename Hash>
 void DeviationProvider<K, Hash>::addOrUpdate(const K& key, const double value) {
-  m_needUpdate = true;
-
-  m_keyValueMap[key] = value;
+  const std::lock_guard<std::mutex> lock(m_mutex);
+  store(key, value);
 }
 
 template <typename K, typename Hash>
-void DeviationProvider<K, Hash>::remove(const K& key) {
-  m_needUpdate = true;
-
-  if (m_keyValueMap.find(key) == m_keyValueMap.end()) {
+void DeviationProvider<K, Hash>::store(const K& key, const double value) {
+  const auto it = m_keyValueMap.find(key);
+  if (it == m_keyValueMap.end()) {
+    m_keyValueMap.emplace(key, value);
+  } else if ((it->second == value) || (std::isnan(it->second) && std::isnan(value))) {
     return;
+  } else {
+    it->second = value;
   }
-  m_keyValueMap.erase(key);
+  m_needUpdate = true;
 }
 
 template <typename K, typename Hash>
 void DeviationProvider<K, Hash>::update() const {
-  if (!m_needUpdate) {
+  if (!m_needUpdate || m_keyValueMap.size() < 2) {
     return;
   }
-  if (m_keyValueMap.size() < 2) {
-    return;
-  }
-
   int count = 0;
-  {
-    double sum = .0;
-    for (const auto& [key, value] : m_keyValueMap) {
-      if (!std::isnan(value)) {
-        sum += value;
-        count++;
-      }
+  double sum = 0.0;
+  for (const auto& [key, value] : m_keyValueMap) {
+    if (!std::isnan(value)) {
+      sum += value;
+      ++count;
     }
-    m_meanValue = sum / count;
   }
+  m_meanValue = count == 0 ? std::numeric_limits<double>::quiet_NaN() : sum / count;
 
-  {
-    double differencesSum = .0;
-    for (const auto& [key, value] : m_keyValueMap) {
-      if (!std::isnan(value)) {
-        differencesSum += std::pow(value - m_meanValue, 2);
-      }
+  double differencesSum = 0.0;
+  for (const auto& [key, value] : m_keyValueMap) {
+    if (!std::isnan(value)) {
+      const double difference = value - m_meanValue;
+      differencesSum += difference * difference;
     }
-    m_standardDeviation = std::sqrt(differencesSum / (count - 1));
   }
-
+  m_standardDeviation = count < 2 ? std::numeric_limits<double>::quiet_NaN() : std::sqrt(differencesSum / (count - 1));
   m_needUpdate = false;
 }
 
 template <typename K, typename Hash>
+void DeviationProvider<K, Hash>::remove(const K& key) {
+  const std::lock_guard<std::mutex> lock(m_mutex);
+  if (m_keyValueMap.erase(key) != 0) {
+    m_needUpdate = true;
+  }
+}
+
+template <typename K, typename Hash>
 void DeviationProvider<K, Hash>::setComputeValueByKey(const std::function<double(const K&)>& computeValueByKey) {
-  this->m_computeValueByKey = std::move(computeValueByKey);
+  const std::lock_guard<std::mutex> lock(m_mutex);
+  m_computeValueByKey = computeValueByKey;
 }
 
 template <typename K, typename Hash>
 void DeviationProvider<K, Hash>::clear() {
+  const std::lock_guard<std::mutex> lock(m_mutex);
   m_keyValueMap.clear();
 
   m_needUpdate = false;

@@ -75,8 +75,14 @@ unit-test suites.
     and profile paths, read-only contents, Copy path, and Reload behavior.
   - **testSingleColumnSettingUpdatesButtonState**: the single-column setting
     updates the toggle button state in both directions.
+- **Main-window tests (TestMainWindowAsync)**: a simulated cancelled batch verifies
+  that the event loop remains responsive, the latest selected stage is used,
+  and saving is deferred until the worker finishes and content geometry is reconciled.
+  Deferred Save and Save As requests retain their order, including when Save As
+  is cancelled or an autosave is requested.
 
-The UX tests use `QApplication` and can simulate interaction (clicks and keyboard input) without opening windows. They provide a foundation for adding tests for more widgets and dialogs.
+The Qt tests use the offscreen platform and can simulate interaction without opening windows.
+They compile application GUI sources for the tests but do not build Qt itself.
 
 ## Grayscale scaling: behavior and test coverage
 

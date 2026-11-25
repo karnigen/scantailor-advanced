@@ -41,7 +41,7 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
   }
 
   if (auto* col = dynamic_cast<ContentBoxCollector*>(collector)) {
-    col->process(xform, params->contentRect());
+    col->process(xform, params->pageRect(), params->contentRect());
   }
 
   if (m_nextTask) {

@@ -4,6 +4,7 @@
 #include "Settings.h"
 
 #include <DeviationProvider.h>
+#include <PageSizeOrderSnapshot.h>
 
 #include <QMutex>
 #include <cassert>
@@ -117,6 +118,10 @@ class Settings::Impl {
   bool checkEverythingDefined(const PageSequence& pages, const PageId* ignore) const;
 
   std::unique_ptr<Params> getPageParams(const PageId& pageId) const;
+
+  QSizeF getOrderSizeMM(const PageId& pageId) const;
+
+  std::unordered_map<PageId, QSizeF> getOrderSizesSnapshot() const;
 
   bool isParamsNull(const PageId& pageId) const;
 
@@ -403,6 +408,14 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
   return m_impl->getPageParams(pageId);
 }
 
+std::unordered_map<PageId, QSizeF> Settings::getOrderSizesSnapshot() const {
+  return m_impl->getOrderSizesSnapshot();
+}
+
+QSizeF Settings::getOrderSizeMM(const PageId& pageId) const {
+  return m_impl->getOrderSizeMM(pageId);
+}
+
 void Settings::setPageParams(const PageId& pageId, const Params& params) {
   return m_impl->setPageParams(pageId, params);
 }
@@ -619,6 +632,26 @@ std::unique_ptr<Params> Settings::Impl::getPageParams(const PageId& pageId) cons
                                   it->autoMargins);
 }
 
+std::unordered_map<PageId, QSizeF> Settings::Impl::getOrderSizesSnapshot() const {
+  const QMutexLocker locker(&m_mutex);
+
+  std::unordered_map<PageId, QSizeF> snapshot;
+  for (const Item& item : m_items) {
+    snapshot.emplace(item.pageId, PageSizeOrderSnapshot::sizeMM(item.contentSizeMM, item.hardMarginsMM));
+  }
+  return snapshot;
+}
+
+QSizeF Settings::Impl::getOrderSizeMM(const PageId& pageId) const {
+  const QMutexLocker locker(&m_mutex);
+
+  const Container::iterator it(m_items.find(pageId));
+  if (it == m_items.end()) {
+    return QSizeF();
+  }
+  return PageSizeOrderSnapshot::sizeMM(it->contentSizeMM, it->hardMarginsMM);
+}
+
 void Settings::Impl::setPageParams(const PageId& pageId, const Params& params) {
   const QMutexLocker locker(&m_mutex);
 
@@ -643,11 +676,11 @@ Params Settings::Impl::updateContentSizeAndGetParams(const PageId& pageId,
                                                      QSizeF* aggHardSizeAfter) {
   const QMutexLocker locker(&m_mutex);
 
+  const Container::iterator it(m_items.find(pageId));
   if (aggHardSizeBefore) {
     *aggHardSizeBefore = getAggregateHardSizeMMLocked();
   }
 
-  const Container::iterator it(m_items.find(pageId));
   Container::iterator itemIt(it);
   if (it == m_items.end()) {
     const Item item(pageId, m_defaultHardMarginsMM, pageRect, contentRect, contentSizeMm, m_defaultAlignment,

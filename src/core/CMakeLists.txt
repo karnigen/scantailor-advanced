@@ -85,6 +85,7 @@ set(common_sources
     CompositeCacheDrivenTask.h
     ChangedStateItemDelegate.h
     PageOrderProvider.h PageOrderProvider.cpp
+    PageSizeOrderSnapshot.h
     PageOrderOption.h
     PayloadEvent.h
     AbstractFilterDataCollector.h

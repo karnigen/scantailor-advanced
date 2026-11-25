@@ -58,6 +58,7 @@ static ProjectPages::LayoutType toPageLayoutType(const PageLayout& layout) {
 void CacheDrivenTask::process(const PageInfo& pageInfo,
                               AbstractFilterDataCollector* collector,
                               const ImageTransformation& xform) {
+  const auto layoutRevision = m_projectPages->layoutRevision(pageInfo);
   const Settings::Record record(m_settings->getPageRecord(pageInfo.imageId()));
 
   const OrthogonalRotation preRotation(xform.preRotation());
@@ -79,7 +80,9 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
   // usually this is set in Task, but if user changed layout with Apply To..
   // and just jumped to next stage - the Task::process isn't invoked for all pages
   // so we must additionally ensure here that we display right number of pages.
-  m_projectPages->setLayoutTypeFor(pageInfo.id().imageId(), toPageLayoutType(layout));
+  if (layoutRevision) {
+    m_projectPages->setLayoutTypeForIfUnchanged(pageInfo.imageId(), toPageLayoutType(layout), *layoutRevision);
+  }
 
   if (m_nextTask) {
     ImageTransformation newXform(xform);

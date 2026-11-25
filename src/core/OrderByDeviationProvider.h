@@ -14,6 +14,8 @@ class OrderByDeviationProvider : public PageOrderProvider {
 
   bool precedes(const PageId& lhsPage, bool lhsIncomplete, const PageId& rhsPage, bool rhsIncomplete) const override;
 
+  std::shared_ptr<const PageOrderProvider> snapshot() const override;
+
  private:
   const DeviationProvider<PageId>* m_deviationProvider;
 };

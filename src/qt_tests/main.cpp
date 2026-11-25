@@ -2,16 +2,17 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include "tst_core_qt.h"
+#include "tst_mainwindow.h"
 #include "tst_ux_qt.h"
 
+#include <core/Application.h>
 #include <core/SettingsStore.h>
 
-#include <QApplication>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
 int main(int argc, char* argv[]) {
-  QApplication app(argc, argv);
+  Application app(argc, argv);
   QTemporaryDir configDirectory;
   if (!configDirectory.isValid()) {
     qCritical("Unable to create the Qt test configuration directory.");
@@ -30,6 +31,9 @@ int main(int argc, char* argv[]) {
 
   TestUxQt tc2;
   status |= QTest::qExec(&tc2, argc, argv);
+
+  TestMainWindowAsync tc3;
+  status |= QTest::qExec(&tc3, argc, argv);
 
   return status;
 }
