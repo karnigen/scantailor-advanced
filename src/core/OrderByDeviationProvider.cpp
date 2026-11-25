@@ -18,6 +18,8 @@ class DeviationOrderSnapshot : public PageOrderProvider {
     return deviationValue(lhsPage) > deviationValue(rhsPage);
   }
 
+  std::shared_ptr<const PageOrderProvider> snapshot() const override { return shared_from_this(); }
+
  private:
   double deviationValue(const PageId& page) const {
     const auto it = m_deviations.find(page);

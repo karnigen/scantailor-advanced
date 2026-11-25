@@ -11,6 +11,7 @@ set(sources
     TestInteractionState.cpp
     TestMargins.cpp
     TestOrderByDeviationProvider.cpp
+    TestOrderProviderSnapshots.cpp
     TestPageId.cpp
     TestPageRange.cpp
     TestPageSequence.cpp

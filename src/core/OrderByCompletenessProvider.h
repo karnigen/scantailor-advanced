@@ -11,6 +11,9 @@ class OrderByCompletenessProvider : public PageOrderProvider {
   OrderByCompletenessProvider() = default;
 
   bool precedes(const PageId&, bool lhsIncomplete, const PageId&, bool rhsIncomplete) const override;
+
+  // Ordering depends only on the comparison arguments, so there is nothing to freeze.
+  std::shared_ptr<const PageOrderProvider> snapshot() const override { return shared_from_this(); }
 };
 
 

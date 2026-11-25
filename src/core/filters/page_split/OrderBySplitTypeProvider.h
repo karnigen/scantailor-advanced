@@ -16,6 +16,8 @@ class OrderBySplitTypeProvider : public PageOrderProvider {
 
   bool precedes(const PageId& lhsPage, bool lhsIncomplete, const PageId& rhsPage, bool rhsIncomplete) const override;
 
+  std::shared_ptr<const PageOrderProvider> snapshot() const override;
+
  private:
   std::shared_ptr<Settings> m_settings;
 };

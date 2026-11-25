@@ -9,6 +9,19 @@
 #include "RelinkablePath.h"
 
 namespace page_split {
+namespace {
+int orderLayoutTypeOfRecord(const Settings::Record& record) {
+  int layoutType = record.combinedLayoutType();
+  if (const Params* const params = record.params()) {
+    layoutType = params->pageLayout().toLayoutType();
+  }
+  if (layoutType == AUTO_LAYOUT_TYPE) {
+    layoutType = 100;  // To force it below pages with known layout.
+  }
+  return layoutType;
+}
+}  // namespace
+
 Settings::Settings() : m_defaultLayoutType(AUTO_LAYOUT_TYPE) {}
 
 Settings::~Settings() = default;
@@ -39,6 +52,23 @@ LayoutType Settings::defaultLayoutType() const {
   return m_defaultLayoutType;
 }
 
+int Settings::orderLayoutType(const ImageId& imageId) const {
+  QMutexLocker locker(&m_mutex);
+  return orderLayoutTypeOfRecord(getPageRecordLocked(imageId));
+}
+
+Settings::OrderLayoutTypesSnapshot Settings::getOrderLayoutTypesSnapshot() const {
+  QMutexLocker locker(&m_mutex);
+
+  OrderLayoutTypesSnapshot snapshot;
+  snapshot.defaultType = orderLayoutTypeOfRecord(Record(m_defaultLayoutType));
+  snapshot.byImageId.reserve(m_perPageRecords.size());
+  for (const PerPageRecords::value_type& kv : m_perPageRecords) {
+    snapshot.byImageId.emplace(kv.first, orderLayoutTypeOfRecord(Record(kv.second, m_defaultLayoutType)));
+  }
+  return snapshot;
+}
+
 void Settings::setLayoutTypeForAllPages(const LayoutType layoutType) {
   QMutexLocker locker(&m_mutex);
 
@@ -60,6 +90,7 @@ void Settings::setLayoutTypeFor(const LayoutType layoutType, const std::set<Page
   QMutexLocker locker(&m_mutex);
 
   UpdateAction action;
+  action.setLayoutType(layoutType);
 
   for (const PageId& pageId : pages) {
     updatePageLocked(pageId.imageId(), action);

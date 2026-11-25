@@ -75,6 +75,24 @@ std::unique_ptr<Params> Settings::getPageParams(const PageId& pageId) const {
   }
 }
 
+QSizeF Settings::getContentSizeMM(const PageId& pageId) const {
+  QMutexLocker locker(&m_mutex);
+
+  const auto it(m_pageParams.find(pageId));
+  return it == m_pageParams.end() ? QSizeF() : it->second.contentSizeMM();
+}
+
+std::unordered_map<PageId, QSizeF> Settings::getContentSizesSnapshot() const {
+  QMutexLocker locker(&m_mutex);
+
+  std::unordered_map<PageId, QSizeF> snapshot;
+  snapshot.reserve(m_pageParams.size());
+  for (const auto& [pageId, params] : m_pageParams) {
+    snapshot.emplace(pageId, params.contentSizeMM());
+  }
+  return snapshot;
+}
+
 bool Settings::isParamsNull(const PageId& pageId) const {
   QMutexLocker locker(&m_mutex);
   return (m_pageParams.find(pageId) == m_pageParams.end());

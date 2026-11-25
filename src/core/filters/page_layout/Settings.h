@@ -63,7 +63,12 @@ class Settings {
    */
   std::unique_ptr<Params> getPageParams(const PageId& pageId) const;
 
-  std::unordered_map<PageId, QSizeF> getPageSizesSnapshot() const;
+  /**
+   * The size used for ordering pages by width or height: content size plus hard margins.
+   */
+  QSizeF getOrderSizeMM(const PageId& pageId) const;
+
+  std::unordered_map<PageId, QSizeF> getOrderSizesSnapshot() const;
 
   bool isParamsNull(const PageId& pageId) const;
 

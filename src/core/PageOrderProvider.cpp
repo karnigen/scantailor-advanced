@@ -19,7 +19,3 @@ std::shared_ptr<const PageOrderProvider> PageOrderProvider::reversed() const {
   };
   return std::make_shared<ReversedPageOrderProvider>(this);
 }
-
-std::shared_ptr<const PageOrderProvider> PageOrderProvider::snapshot() const {
-  return shared_from_this();
-}

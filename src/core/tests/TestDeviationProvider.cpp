@@ -78,6 +78,33 @@ TEST_CASE("DeviationProviderTestSuite / computes values through its callback") {
   CHECK_FALSE(provider.isDeviant(1));
 }
 
+TEST_CASE("DeviationProviderTestSuite / incremental statistics follow updates and removals") {
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  DeviationProvider<int> provider;
+  for (int i = 0; i < 5; ++i) {
+    provider.addOrUpdate(i, 10.0 * static_cast<double>(i + 1));
+  }
+  CHECK(provider.getDeviationValue(0) == Catch::Approx(20.0));
+  CHECK(provider.getDeviationValue(4) == Catch::Approx(20.0));
+
+  provider.remove(0);
+  CHECK(provider.getDeviationValue(1) == Catch::Approx(15.0));
+  CHECK(provider.getDeviationValue(4) == Catch::Approx(15.0));
+
+  provider.addOrUpdate(1, 60.0);
+  CHECK(provider.getDeviationValue(1) == Catch::Approx(15.0));
+  CHECK(provider.getDeviationValue(4) == Catch::Approx(5.0));
+
+  provider.addOrUpdate(5, nan);
+  CHECK(provider.getDeviationValue(5) == -1.0);
+  CHECK(provider.getDeviationValue(2) == Catch::Approx(15.0));
+
+  provider.addOrUpdate(3, nan);
+  CHECK(provider.getDeviationValue(3) == -1.0);
+  CHECK(provider.getDeviationValue(2) == Catch::Approx(140.0 / 3.0 - 30.0));
+  CHECK(provider.getDeviationValue(4) == Catch::Approx(10.0 / 3.0));
+}
+
 TEST_CASE("DeviationProviderTestSuite / concurrent updates and queries stay coherent") {
   DeviationProvider<int> provider;
   std::atomic<int> ready{0};

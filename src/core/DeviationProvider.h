@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <mutex>
 #include <unordered_map>
 
@@ -36,20 +37,22 @@ class DeviationProvider {
   void setComputeValueByKey(const std::function<double(const K&)>& computeValueByKey);
 
  private:
-  // Recomputes the cached statistics if stale. Requires m_mutex.
-  void update() const;
-
-  // Stores a value, marking the statistics stale only if it changed. Requires m_mutex.
+  // Keeps the statistics in sync with the stored value. Requires m_mutex.
   void store(const K& key, double value);
+
+  // Running statistics over non-NaN values. Requiring m_mutex keeps readers O(1).
+  void addToStatistics(double value);
+  void removeFromStatistics(double value);
+  double meanValueLocked() const;
+  double standardDeviationLocked() const;
 
   mutable std::mutex m_mutex;
   std::function<double(const K&)> m_computeValueByKey;
   std::unordered_map<K, double, Hash> m_keyValueMap;
 
-  // Cached values.
-  mutable bool m_needUpdate = false;
-  mutable double m_meanValue = 0.0;
-  mutable double m_standardDeviation = 0.0;
+  int m_valueCount = 0;
+  double m_valueSum = 0.0;
+  double m_valueSquareSum = 0.0;
 };
 
 
@@ -74,9 +77,8 @@ bool DeviationProvider<K, Hash>::isDeviant(const K& key, double coefficient, dou
     return defaultVal;
   }
 
-  update();
-  return (std::abs(value - m_meanValue)
-          > std::max((coefficient * m_standardDeviation), (threshold / 100) * m_meanValue));
+  const double deviation = std::abs(value - meanValueLocked());
+  return deviation > std::max((coefficient * standardDeviationLocked()), (threshold / 100) * meanValueLocked());
 }
 
 template <typename K, typename Hash>
@@ -96,20 +98,20 @@ double DeviationProvider<K, Hash>::getDeviationValue(const K& key) const {
     return -1.0;
   }
 
-  update();
-  return std::abs(value - m_meanValue);
+  return std::abs(value - meanValueLocked());
 }
 
 template <typename K, typename Hash>
 std::unordered_map<K, double, Hash> DeviationProvider<K, Hash>::getDeviationValuesSnapshot() const {
   const std::lock_guard<std::mutex> lock(m_mutex);
-  update();
+
+  const bool tooFewValues = m_keyValueMap.size() < 2;
+  const double mean = meanValueLocked();
 
   std::unordered_map<K, double, Hash> snapshot;
   snapshot.reserve(m_keyValueMap.size());
   for (const auto& [key, value] : m_keyValueMap) {
-    const double deviation
-        = m_keyValueMap.size() < 2 ? 0.0 : (std::isnan(value) ? -1.0 : std::abs(value - m_meanValue));
+    const double deviation = tooFewValues ? 0.0 : (std::isnan(value) ? -1.0 : std::abs(value - mean));
     snapshot.emplace(key, deviation);
   }
   return snapshot;
@@ -140,54 +142,73 @@ void DeviationProvider<K, Hash>::store(const K& key, const double value) {
   const auto it = m_keyValueMap.find(key);
   if (it == m_keyValueMap.end()) {
     m_keyValueMap.emplace(key, value);
-  } else if ((it->second == value) || (std::isnan(it->second) && std::isnan(value))) {
+    addToStatistics(value);
     return;
-  } else {
-    it->second = value;
   }
-  m_needUpdate = true;
+  if ((it->second == value) || (std::isnan(it->second) && std::isnan(value))) {
+    return;
+  }
+  removeFromStatistics(it->second);
+  addToStatistics(value);
+  it->second = value;
+}
+
+template <typename K, typename Hash>
+void DeviationProvider<K, Hash>::addToStatistics(const double value) {
+  if (std::isnan(value)) {
+    return;
+  }
+  ++m_valueCount;
+  m_valueSum += value;
+  m_valueSquareSum += value * value;
+}
+
+template <typename K, typename Hash>
+void DeviationProvider<K, Hash>::removeFromStatistics(const double value) {
+  if (std::isnan(value)) {
+    return;
+  }
+  --m_valueCount;
+  if (m_valueCount <= 0) {
+    m_valueCount = 0;
+    m_valueSum = 0.0;
+    m_valueSquareSum = 0.0;
+    return;
+  }
+  m_valueSum -= value;
+  m_valueSquareSum -= value * value;
+  if (m_valueSquareSum < 0.0) {
+    m_valueSquareSum = 0.0;
+  }
+}
+
+template <typename K, typename Hash>
+double DeviationProvider<K, Hash>::meanValueLocked() const {
+  if (m_valueCount == 0) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  return m_valueSum / m_valueCount;
+}
+
+template <typename K, typename Hash>
+double DeviationProvider<K, Hash>::standardDeviationLocked() const {
+  if (m_valueCount < 2) {
+    // Matches the historical behaviour of a sample deviation over a single value.
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  const double variance = (m_valueSquareSum - m_valueSum * (m_valueSum / m_valueCount)) / (m_valueCount - 1);
+  return variance > 0.0 ? std::sqrt(variance) : 0.0;
 }
 
 template <typename K, typename Hash>
 void DeviationProvider<K, Hash>::remove(const K& key) {
   const std::lock_guard<std::mutex> lock(m_mutex);
-  if (m_keyValueMap.erase(key) != 0) {
-    m_needUpdate = true;
-  }
-}
-
-template <typename K, typename Hash>
-void DeviationProvider<K, Hash>::update() const {
-  if (!m_needUpdate) {
+  const auto it = m_keyValueMap.find(key);
+  if (it == m_keyValueMap.end()) {
     return;
   }
-  if (m_keyValueMap.size() < 2) {
-    return;
-  }
-
-  int count = 0;
-  {
-    double sum = .0;
-    for (const auto& [key, value] : m_keyValueMap) {
-      if (!std::isnan(value)) {
-        sum += value;
-        count++;
-      }
-    }
-    m_meanValue = sum / count;
-  }
-
-  {
-    double differencesSum = .0;
-    for (const auto& [key, value] : m_keyValueMap) {
-      if (!std::isnan(value)) {
-        differencesSum += std::pow(value - m_meanValue, 2);
-      }
-    }
-    m_standardDeviation = std::sqrt(differencesSum / (count - 1));
-  }
-
-  m_needUpdate = false;
+  removeFromStatistics(it->second);
+  m_keyValueMap.erase(it);
 }
 
 template <typename K, typename Hash>
@@ -201,9 +222,9 @@ void DeviationProvider<K, Hash>::clear() {
   const std::lock_guard<std::mutex> lock(m_mutex);
   m_keyValueMap.clear();
 
-  m_needUpdate = false;
-  m_meanValue = 0.0;
-  m_standardDeviation = 0.0;
+  m_valueCount = 0;
+  m_valueSum = 0.0;
+  m_valueSquareSum = 0.0;
 }
 
 

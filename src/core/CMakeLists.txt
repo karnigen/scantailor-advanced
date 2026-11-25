@@ -86,7 +86,6 @@ set(common_sources
     ChangedStateItemDelegate.h
     PageOrderProvider.h PageOrderProvider.cpp
     PageSizeOrderSnapshot.h
-    PageSizeOrderSnapshot.h
     PageOrderOption.h
     PayloadEvent.h
     AbstractFilterDataCollector.h
