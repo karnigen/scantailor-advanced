@@ -194,6 +194,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void showSupportedImageFormats();
 
+  void exportProcessedImages();
+
+  void exportPagesToPdf();
+
   void showCommandLineArguments();
 
   void showConfigurationDialog();

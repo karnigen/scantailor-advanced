@@ -389,7 +389,9 @@ void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
 
   const QString help = browser->toPlainText();
   QVERIFY(help.contains("TIFF (.tif, .tiff)"));
-  QVERIFY(help.contains("TIFF (.tif)"));
+  QVERIFY(help.contains("kept as TIFF"));
+  QVERIFY(help.contains("WebP"));
+  QVERIFY(help.contains("multi-page PDF"));
   QVERIFY(help.contains("B&W Compression"));
   QVERIFY(help.contains("Color Compression"));
   QVERIFY(help.contains("CCITT G4"));

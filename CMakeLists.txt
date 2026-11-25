@@ -169,6 +169,7 @@ if (WIN32)
 endif()
 
 find_package(tomlplusplus CONFIG REQUIRED)
+find_package(WebP CONFIG REQUIRED)
 
 if (BUILD_TESTS)
   find_package(Catch2 3 CONFIG REQUIRED)

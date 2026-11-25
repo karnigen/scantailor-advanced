@@ -13,6 +13,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEventLoop>
 #include <QFileDialog>
 #include <QFileSystemModel>
 #include <QFrame>
@@ -22,6 +23,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPalette>
+#include <QProgressDialog>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
@@ -29,10 +31,12 @@
 #include <QStackedLayout>
 #include <QStringList>
 #include <QTextBrowser>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QtWidgets/QInputDialog>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <exception>
 #include <memory>
@@ -61,6 +65,7 @@
 #include "PageOrientationPropagator.h"
 #include "PageSelectionAccessor.h"
 #include "PageSequence.h"
+#include "ProcessedPagesExporter.h"
 #include "ProcessingIndicationWidget.h"
 #include "ProcessingTaskQueue.h"
 #include "ProjectCreationContext.h"
@@ -126,6 +131,48 @@ QString menuTitleWithoutMnemonic(const QString& title, QChar* mnemonic = nullptr
     visibleTitle += title.at(++i);
   }
   return visibleTitle;
+}
+
+bool runExporterWithProgress(
+    QProgressDialog& progress,
+    const std::function<bool(const ProcessedPagesExporter::ProgressCallback&, QString*)>& exportOperation,
+    QString* errorMessage) {
+  std::atomic_bool cancelRequested = false;
+  QObject::connect(&progress, &QProgressDialog::canceled, &progress,
+                   [&cancelRequested]() { cancelRequested.store(true); });
+
+  bool success = false;
+  QString workerError;
+  QEventLoop eventLoop;
+  QThread* worker = QThread::create([&]() {
+    const ProcessedPagesExporter::ProgressCallback progressCallback
+        = [&progress, &cancelRequested](const int completed, const int total) {
+            return QMetaObject::invokeMethod(
+                       &progress,
+                       [&progress, completed, total]() {
+                         progress.setMaximum(total);
+                         progress.setValue(completed);
+                       },
+                       Qt::BlockingQueuedConnection)
+                   && !cancelRequested.load();
+          };
+    success = exportOperation(progressCallback, &workerError);
+  });
+  QObject::connect(worker, &QThread::finished, &eventLoop, &QEventLoop::quit);
+
+  progress.setAutoClose(false);
+  progress.setAutoReset(false);
+  progress.show();
+  worker->start();
+  eventLoop.exec();
+  worker->wait();
+  delete worker;
+  progress.close();
+
+  if (errorMessage) {
+    *errorMessage = workerError;
+  }
+  return success;
 }
 
 }  // namespace
@@ -290,6 +337,8 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
   connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
   connect(actionSupportedImageFormats, &QAction::triggered, this, &MainWindow::showSupportedImageFormats);
+  connect(actionExportProcessedImages, &QAction::triggered, this, &MainWindow::exportProcessedImages);
+  connect(actionExportPagesToPdf, &QAction::triggered, this, &MainWindow::exportPagesToPdf);
   connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
   connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
@@ -1392,6 +1441,7 @@ void MainWindow::startBatchProcessing() {
   m_interactiveQueue->cancelAndClear();
 
   m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  updateProjectActions();
   // Use full page sequence in current display order so all pages are processed
   // (fixes batch missing pages when e.g. order is "decreasing deviation" and
   // selection was not at the first page).
@@ -1447,6 +1497,7 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
 
   m_batchQueue->cancelAndClear();
   m_batchQueue.reset();
+  updateProjectActions();
 
   filterList->setBatchProcessingInProgress(false);
   filterList->setEnabled(true);
@@ -2052,6 +2103,87 @@ void MainWindow::showKeyboardShortcuts() {
   dialog.exec();
 }
 
+void MainWindow::exportProcessedImages() {
+  if (!isProjectLoaded() || isBatchProcessingInProgress()) {
+    return;
+  }
+
+  const QStringList formats = ProcessedPagesExporter::supportedImageFormats();
+  bool formatAccepted = false;
+  const int webpIndex = formats.indexOf(QStringLiteral("webp"));
+  const QString format = QInputDialog::getItem(this, tr("Export Processed Pages"), tr("Image format:"), formats,
+                                               qMax(0, webpIndex), false, &formatAccepted);
+  if (!formatAccepted || format.isEmpty()) {
+    return;
+  }
+
+  const QString outputDirectory = QFileDialog::getExistingDirectory(
+      this, tr("Select Export Directory"), m_outFileNameGen.outDir(), QFileDialog::ShowDirsOnly);
+  if (outputDirectory.isEmpty()) {
+    return;
+  }
+
+  const PageSequence pages = m_thumbSequence->toPageSequence();
+  QProgressDialog progress(tr("Exporting processed pages..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()),
+                           this);
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+
+  const OutputFileNameGenerator fileNameGenerator = m_outFileNameGen;
+  QString errorMessage;
+  const bool success = runExporterWithProgress(
+      progress,
+      [&pages, &fileNameGenerator, &outputDirectory, &format](
+          const ProcessedPagesExporter::ProgressCallback& progressCallback, QString* error) {
+        return ProcessedPagesExporter::exportImages(pages, fileNameGenerator, outputDirectory, format, progressCallback,
+                                                    error);
+      },
+      &errorMessage);
+  if (!success) {
+    QMessageBox::warning(this, tr("Image Export Failed"), errorMessage);
+    return;
+  }
+  QMessageBox::information(this, tr("Image Export Complete"),
+                           tr("Processed pages were exported to %1.").arg(outputDirectory));
+}
+
+void MainWindow::exportPagesToPdf() {
+  if (!isProjectLoaded() || isBatchProcessingInProgress()) {
+    return;
+  }
+
+  QString outputFilePath = QFileDialog::getSaveFileName(
+      this, tr("Export Processed Pages as PDF"), QDir(m_outFileNameGen.outDir()).filePath(QStringLiteral("output.pdf")),
+      tr("PDF files (*.pdf)"));
+  if (outputFilePath.isEmpty()) {
+    return;
+  }
+  if (!outputFilePath.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive)) {
+    outputFilePath += QStringLiteral(".pdf");
+  }
+
+  const PageSequence pages = m_thumbSequence->toPageSequence();
+  QProgressDialog progress(tr("Creating multi-page PDF..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()), this);
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+
+  const OutputFileNameGenerator fileNameGenerator = m_outFileNameGen;
+  QString errorMessage;
+  const bool success = runExporterWithProgress(
+      progress,
+      [&pages, &fileNameGenerator, &outputFilePath](const ProcessedPagesExporter::ProgressCallback& progressCallback,
+                                                    QString* error) {
+        return ProcessedPagesExporter::exportPdf(pages, fileNameGenerator, outputFilePath, progressCallback, error);
+      },
+      &errorMessage);
+  if (!success) {
+    QMessageBox::warning(this, tr("PDF Export Failed"), errorMessage);
+    return;
+  }
+  QMessageBox::information(this, tr("PDF Export Complete"),
+                           tr("The multi-page PDF was saved to %1.").arg(outputFilePath));
+}
+
 void MainWindow::showSupportedImageFormats() {
   if (auto* dialog = findChild<QDialog*>(QStringLiteral("supportedImageFormatsDialog"))) {
     dialog->raise();
@@ -2091,7 +2223,12 @@ void MainWindow::showSupportedImageFormats() {
   }
   html += "<p>" + tr("Only the first page is read from non-TIFF formats.").toHtmlEscaped() + "</p>";
   html += "<h3>" + tr("Output format").toHtmlEscaped() + "</h3>";
-  html += "<p>" + tr("Processed images are written as TIFF (.tif).").toHtmlEscaped() + "</p>";
+  html += "<p>"
+          + tr("Processed pages are kept as TIFF for project editing. Use File > Export Processed Pages as "
+               "Images to create image files in supported formats, including WebP, or File > Export Processed "
+               "Pages as PDF to create a multi-page PDF.")
+                .toHtmlEscaped()
+          + "</p>";
   html += "<h3>" + tr("TIFF compression").toHtmlEscaped() + "</h3>";
   html += "<table width='100%' cellspacing='0' cellpadding='7'>";
   html += "<tr><th align='left'>" + tr("Output image type").toHtmlEscaped() + "</th><th align='left'>"
@@ -2277,8 +2414,11 @@ void MainWindow::disconnectFilterOptionsWidget() {
 
 void MainWindow::updateProjectActions() {
   const bool loaded = isProjectLoaded();
+  const bool canExport = loaded && !isBatchProcessingInProgress();
   actionSaveProject->setEnabled(loaded);
   actionSaveProjectAs->setEnabled(loaded);
+  actionExportProcessedImages->setEnabled(canExport);
+  actionExportPagesToPdf->setEnabled(canExport);
   actionFixDpi->setEnabled(loaded);
   actionRelinking->setEnabled(loaded);
   actionReverseTwoPageOrder->setEnabled(loaded);

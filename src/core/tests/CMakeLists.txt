@@ -16,6 +16,7 @@ set(sources
     TestPageId.cpp
     TestPageRange.cpp
     TestPageSequence.cpp
+    TestProcessedPagesExporter.cpp
     TestProjectMigration.cpp
     TestSettingsStore.cpp
     TestPageLayoutSettings.cpp

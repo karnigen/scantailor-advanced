@@ -94,6 +94,9 @@
     <addaction name="actionSaveProject"/>
     <addaction name="actionSaveProjectAs"/>
     <addaction name="separator"/>
+    <addaction name="actionExportProcessedImages"/>
+    <addaction name="actionExportPagesToPdf"/>
+    <addaction name="separator"/>
     <addaction name="actionCloseProject"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
@@ -1132,6 +1135,22 @@ QToolButton:pressed {
    </property>
    <property name="toolTip">
     <string>Save the current project to a different file.</string>
+   </property>
+  </action>
+  <action name="actionExportProcessedImages">
+   <property name="text">
+    <string>Export Processed Pages as Images ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Export processed pages in an available image format, including WebP.</string>
+   </property>
+  </action>
+  <action name="actionExportPagesToPdf">
+   <property name="text">
+    <string>Export Processed Pages as PDF ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Export all processed pages as one multi-page PDF.</string>
    </property>
   </action>
   <action name="actionNextPage">
