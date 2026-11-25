@@ -76,6 +76,14 @@ void TestUxQt::testCollapsibleGroupBoxStateAndSignal() {
   QVERIFY(!group.isCollapsed());
   QCOMPARE(spy.count(), 2);
   QCOMPARE(spy.at(1).at(0).toBool(), false);
+
+  group.setCollapsed(true);
+  auto* collapseButton = group.findChild<QToolButton*>(QStringLiteral("collapseButton"));
+  QVERIFY(collapseButton);
+  group.show();
+  QTRY_VERIFY(collapseButton->isVisible());
+  QTest::mouseClick(collapseButton, Qt::LeftButton);
+  QVERIFY(!group.isCollapsed());
 }
 
 void TestUxQt::testErrorWidgetCreation() {

@@ -124,7 +124,7 @@ void CollapsibleGroupBox::changeEvent(QEvent* event) {
 void CollapsibleGroupBox::childEvent(QChildEvent* event) {
   auto* childWidget = dynamic_cast<QWidget*>(event->child());
   if (childWidget && (event->type() == QEvent::ChildAdded)) {
-    if (m_collapsed) {
+    if (m_collapsed && (childWidget != m_collapseButton)) {
       if (childWidget->isVisible()) {
         m_collapsedWidgets.insert(childWidget);
         childWidget->hide();
@@ -138,7 +138,7 @@ void CollapsibleGroupBox::childEvent(QChildEvent* event) {
 }
 
 bool CollapsibleGroupBox::eventFilter(QObject* watched, QEvent* event) {
-  if (m_collapsed && !m_ignoreVisibilityEvents) {
+  if (m_collapsed && !m_ignoreVisibilityEvents && (watched != m_collapseButton)) {
     auto* childWidget = dynamic_cast<QWidget*>(watched);
     if (childWidget) {
       if (event->type() == QEvent::ShowToParent) {
