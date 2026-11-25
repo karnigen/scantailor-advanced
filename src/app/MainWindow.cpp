@@ -1066,9 +1066,7 @@ void MainWindow::autoSaveProject() {
   }
 
   if (m_waitingForCancelledTasks) {
-    if (m_pendingSave == PendingSave::None) {
-      m_pendingSave = PendingSave::AutoSave;
-    }
+    queueSave(PendingSave::AutoSave);
     return;
   }
 
@@ -1271,9 +1269,9 @@ void MainWindow::finishWaitingForCancelledTasks() {
   m_reconcileContent = false;
   applyFilterSelection(filterIdx, reconcileContent);
 
-  while (m_pendingSave != PendingSave::None) {
-    const PendingSave pendingSave = m_pendingSave;
-    m_pendingSave = PendingSave::None;
+  while (!m_pendingSaves.empty()) {
+    const PendingSave pendingSave = m_pendingSaves.front();
+    m_pendingSaves.pop_front();
     if (pendingSave == PendingSave::Save) {
       saveProjectInteractive();
     } else if (pendingSave == PendingSave::SaveAs) {
@@ -1663,7 +1661,7 @@ void MainWindow::fixedDpiSubmitted() {
 
 void MainWindow::saveProjectTriggered() {
   if (m_waitingForCancelledTasks) {
-    m_pendingSave = PendingSave::Save;
+    queueSave(PendingSave::Save);
     QMainWindow::statusBar()->showMessage(tr("The project will be saved when cancelled tasks finish."));
     return;
   }
@@ -1685,11 +1683,24 @@ bool MainWindow::saveProjectInteractive() {
 
 void MainWindow::saveProjectAsTriggered() {
   if (m_waitingForCancelledTasks) {
-    m_pendingSave = PendingSave::SaveAs;
+    queueSave(PendingSave::SaveAs);
     QMainWindow::statusBar()->showMessage(tr("The project will be saved when cancelled tasks finish."));
     return;
   }
   saveProjectAsNow();
+}
+
+void MainWindow::queueSave(PendingSave save) {
+  if (save == PendingSave::AutoSave) {
+    if (m_pendingSaves.empty()) {
+      m_pendingSaves.push_back(save);
+    }
+    return;
+  }
+  if (m_pendingSaves.size() == 1 && m_pendingSaves.front() == PendingSave::AutoSave) {
+    m_pendingSaves.clear();
+  }
+  m_pendingSaves.push_back(save);
 }
 
 void MainWindow::saveProjectAsNow() {

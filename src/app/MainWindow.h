@@ -11,6 +11,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <set>
@@ -203,7 +204,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   class PageSelectionProviderImpl;
 
   enum SavePromptResult { SAVE, DONT_SAVE, CANCEL };
-  enum class PendingSave { None, Save, SaveAs, AutoSave };
+  enum class PendingSave { Save, SaveAs, AutoSave };
 
   using FilterPtr = std::shared_ptr<AbstractFilter>;
 
@@ -248,6 +249,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   bool saveProjectInteractive();
 
   void saveProjectAsNow();
+
+  void queueSave(PendingSave save);
 
   void waitForCancelledTasks();
 
@@ -372,7 +375,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   bool m_finishingCancelledTasks = false;
   bool m_reconcileContent = false;
   std::set<ImageId> m_dirtyContentImages;
-  PendingSave m_pendingSave = PendingSave::None;
+  std::deque<PendingSave> m_pendingSaves;
   SavedMainAreaViewState m_savedMainAreaViewState;
   int m_ignoreSelectionChanges;
   int m_ignorePageOrderingChanges;

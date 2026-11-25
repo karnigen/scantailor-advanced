@@ -4,6 +4,7 @@
 #include "tst_mainwindow.h"
 #include "MainWindow.h"
 
+#include <ApplicationSettings.h>
 #include <ImageInfo.h>
 #include <ImageTransformation.h>
 #include <PageSequence.h>
@@ -16,8 +17,10 @@
 #include <filters/select_content/Dependencies.h>
 #include <filters/select_content/Settings.h>
 
+#include <QApplication>
 #include <QDomDocument>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
 #include <QSemaphore>
@@ -66,6 +69,18 @@ class BlockingTask : public BackgroundTask {
   QSemaphore& m_started;
   QSemaphore& m_release;
   std::function<void()> m_update;
+};
+
+class AutoSaveSetting {
+ public:
+  AutoSaveSetting() : m_original(ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
+    ApplicationSettings::getInstance().setAutoSaveProjectEnabled(true);
+  }
+
+  ~AutoSaveSetting() { ApplicationSettings::getInstance().setAutoSaveProjectEnabled(m_original); }
+
+ private:
+  bool m_original;
 };
 }  // namespace
 
@@ -138,4 +153,99 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QVERIFY(!savedPage.isNull());
   const page_layout::Params saved(savedPage.firstChildElement("params"));
   QCOMPARE(saved.contentRect(), newContent);
+}
+
+void TestMainWindowAsync::deferredSavesPreserveOrder_data() {
+  QTest::addColumn<bool>("saveFirst");
+  QTest::addColumn<bool>("cancelSaveAs");
+  QTest::addColumn<bool>("saveDuringDialog");
+  QTest::newRow("save-as-then-save") << false << false << false;
+  QTest::newRow("cancel-save-as-then-save") << false << true << false;
+  QTest::newRow("save-then-save-as") << true << false << false;
+  QTest::newRow("save-during-save-as-dialog") << false << false << true;
+}
+
+void TestMainWindowAsync::deferredSavesPreserveOrder() {
+  QFETCH(bool, saveFirst);
+  QFETCH(bool, cancelSaveAs);
+  QFETCH(bool, saveDuringDialog);
+
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString originalPath = directory.filePath("original.ScanTailor");
+  const QString copyPath = directory.filePath("copy.ScanTailor");
+  QSemaphore started;
+  QSemaphore release;
+  AutoSaveSetting autoSaveSetting;
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path(), originalPath);
+  QTRY_VERIFY(window.m_workerThreadPool->isIdle());
+  QVERIFY(window.saveProjectInteractive());
+
+  QFile original(originalPath);
+  QVERIFY(original.open(QIODevice::Append));
+  QCOMPARE(original.write("\n<!-- original marker -->\n"), qint64(26));
+  original.close();
+  QVERIFY(original.open(QIODevice::ReadOnly));
+  const QByteArray originalContents = original.readAll();
+  original.close();
+
+  const auto task = std::make_shared<BlockingTask>(started, release, []() {});
+  window.m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  window.m_batchQueue->addProcessingTask(pages->toPageSequence(PAGE_VIEW).pageAt(0), task);
+  QCOMPARE(window.m_batchQueue->takeForProcessing(), task);
+  window.m_workerThreadPool->submitTask(task);
+  QTRY_VERIFY(started.available() == 1);
+  window.stopBatchProcessing();
+  QVERIFY(window.m_waitingForCancelledTasks);
+
+  window.autoSaveProject();
+  if (saveFirst) {
+    window.saveProjectTriggered();
+  }
+  window.saveProjectAsTriggered();
+  window.autoSaveProject();
+  if (!saveFirst && !saveDuringDialog) {
+    window.saveProjectTriggered();
+  }
+
+  bool dialogSeen = false;
+  QTimer dialogTimer;
+  connect(&dialogTimer, &QTimer::timeout, &window, [&]() {
+    auto* dialog = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+    dialogTimer.stop();
+    dialogSeen = true;
+    if (saveDuringDialog) {
+      window.saveProjectTriggered();
+    }
+    if (cancelSaveAs) {
+      dialog->reject();
+    } else {
+      dialog->selectFile(copyPath);
+      QMetaObject::invokeMethod(dialog, "accept", Qt::QueuedConnection);
+    }
+  });
+  dialogTimer.start(10);
+  QTimer::singleShot(5000, &window, []() {
+    if (auto* dialog = qobject_cast<QFileDialog*>(QApplication::activeModalWidget())) {
+      dialog->reject();
+    }
+  });
+  release.release();
+  QTRY_VERIFY(!window.m_waitingForCancelledTasks);
+  QVERIFY(dialogSeen);
+  QCOMPARE(QFileInfo::exists(copyPath), !cancelSaveAs);
+  QVERIFY(original.open(QIODevice::ReadOnly));
+  QCOMPARE(original.readAll() == originalContents, !saveFirst && !cancelSaveAs);
 }

@@ -78,6 +78,8 @@ unit-test suites.
 - **Main-window tests (TestMainWindowAsync)**: a simulated cancelled batch verifies
   that the event loop remains responsive, the latest selected stage is used,
   and saving is deferred until the worker finishes and content geometry is reconciled.
+  Deferred Save and Save As requests retain their order, including when Save As
+  is cancelled or an autosave is requested.
 
 The Qt tests use the offscreen platform and can simulate interaction without opening windows.
 They compile application GUI sources for the tests but do not build Qt itself.
