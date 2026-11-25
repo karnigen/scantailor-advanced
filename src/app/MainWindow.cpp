@@ -774,7 +774,6 @@ void MainWindow::setOptionsWidget(FilterOptionsWidget* widget, const Ownership o
   connect(widget, SIGNAL(invalidateThumbnail(const PageInfo&)), this, SLOT(invalidateThumbnail(const PageInfo&)));
   connect(widget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
   connect(widget, SIGNAL(goToPage(const PageId&)), this, SLOT(goToPage(const PageId&)));
-  connect(widget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }  // MainWindow::setOptionsWidget
 
 ImageViewBase* MainWindow::findPrimaryImageView(QWidget* root) {
@@ -1262,7 +1261,8 @@ void MainWindow::waitForCancelledTasks() {
 }
 
 void MainWindow::finishWaitingForCancelledTasks() {
-  // TODO: If a cancelled worker remains blocked in I/O, it cannot report completion and this wait can persist indefinitely.
+  // TODO: If a cancelled worker remains blocked in I/O, it cannot report completion and this wait can persist
+  // indefinitely.
   if (!m_waitingForCancelledTasks || m_finishingCancelledTasks || !m_workerThreadPool->isIdle()) {
     return;
   }
@@ -2238,7 +2238,6 @@ void MainWindow::disconnectFilterOptionsWidget() {
              SLOT(invalidateThumbnail(const PageInfo&)));
   disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
   disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this, SLOT(goToPage(const PageId&)));
-  disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }
 
 void MainWindow::updateProjectActions() {

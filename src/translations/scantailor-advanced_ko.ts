@@ -3495,8 +3495,8 @@ You should remove them from the project.</source>
         <translation>해제할 때까지 현재 공통 크기를 고정합니다.</translation>
     </message>
     <message>
-        <source>Apply Margins</source>
-        <translation>테두리 적용</translation>
+        <source>Apply Settings</source>
+        <translation>설정 적용</translation>
     </message>
     <message>
         <source>Apply Alignment</source>
@@ -3890,6 +3890,21 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Apply to ...</source>
         <translation type="unfinished">적용하기</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>원본 DPI</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>이 페이지의 가로 원본 DPI를 대상 페이지에 복사합니다.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>이 페이지의 세로 원본 DPI를 대상 페이지에 복사합니다.</translation>
     </message>
 </context>
 </TS>

@@ -3196,8 +3196,8 @@ Należy je usunąć z projektu.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Zastosuj marginesy</translation>
+        <source>Apply Settings</source>
+        <translation>Zastosuj ustawienia</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3711,6 +3711,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation>Zastosuj do...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>Źródłowe DPI</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Skopiuj poziome źródłowe DPI tej strony do stron docelowych.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Skopiuj pionowe źródłowe DPI tej strony do stron docelowych.</translation>
     </message>
 </context>
 </TS>

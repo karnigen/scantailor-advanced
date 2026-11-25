@@ -2601,7 +2601,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Apply Margins</source>
+        <source>Apply Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2911,6 +2911,21 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Apply to ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

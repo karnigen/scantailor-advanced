@@ -3233,8 +3233,8 @@ Sie sollten sie aus dem Projekt entfernen.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Ränder anwenden</translation>
+        <source>Apply Settings</source>
+        <translation>Einstellungen anwenden</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3753,6 +3753,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation>Anwenden auf...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>Quell-DPI</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Horizontale Quell-DPI dieser Seite auf die Zielseiten kopieren.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Vertikale Quell-DPI dieser Seite auf die Zielseiten kopieren.</translation>
     </message>
 </context>
 </TS>

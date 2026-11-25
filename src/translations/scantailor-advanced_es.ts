@@ -3222,8 +3222,8 @@ Debería elimnarlos del proyecto.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Aplicar márgenes</translation>
+        <source>Apply Settings</source>
+        <translation>Aplicar configuración</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3738,6 +3738,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation type="unfinished">Aplicar a...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>DPI de origen</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Copiar el DPI horizontal de origen de esta página a las páginas de destino.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Copiar el DPI vertical de origen de esta página a las páginas de destino.</translation>
     </message>
 </context>
 </TS>

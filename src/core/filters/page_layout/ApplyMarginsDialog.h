@@ -19,13 +19,23 @@ namespace page_layout {
 class ApplyMarginsDialog : public QDialog, private Ui::ApplyMarginsDialog {
   Q_OBJECT
  public:
-  ApplyMarginsDialog(QWidget* parent, const PageId& curPage, const PageSelectionAccessor& pageSelectionAccessor);
+  ApplyMarginsDialog(QWidget* parent,
+                     const PageId& curPage,
+                     const PageSelectionAccessor& pageSelectionAccessor,
+                     bool canCopyDpiX,
+                     bool canCopyDpiY);
 
   ~ApplyMarginsDialog() override;
 
  signals:
 
-  void accepted(const std::set<PageId>& pages, bool applyLeft, bool applyRight, bool applyTop, bool applyBottom);
+  void accepted(const std::set<PageId>& pages,
+                bool applyLeft,
+                bool applyRight,
+                bool applyTop,
+                bool applyBottom,
+                bool applyDpiX,
+                bool applyDpiY);
 
  private slots:
 

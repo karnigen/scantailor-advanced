@@ -538,6 +538,134 @@ void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
   QVERIFY(topRightTarget->isChecked());
 }
 
+void TestMainWindowAsync::applySourceDpiCopiesSelectedAxesIndependently() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  const QString firstImagePath = directory.filePath("first.png");
+  const QString secondImagePath = directory.filePath("second.png");
+  QVERIFY(image.save(firstImagePath));
+  QVERIFY(image.save(secondImagePath));
+
+  const ImageId firstImageId(firstImagePath, 0);
+  const ImageId secondImageId(secondImagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(firstImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false),
+                             ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(600, 700)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path());
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
+  const PageId firstPage = pageSequence.pageAt(0).id();
+  const PageId secondPage = pageSequence.pageAt(1).id();
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi(), Dpi(300, 300));
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi(), Dpi(600, 700));
+
+  auto* options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  QVERIFY(!options->findChild<QPushButton*>("fixDpiBtn"));
+  auto* applyButton = options->findChild<QPushButton*>("applySettingsBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+
+  auto* dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  auto* allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  auto* applyLeft = dialog->findChild<QCheckBox*>("applyLeftCB");
+  auto* applyRight = dialog->findChild<QCheckBox*>("applyRightCB");
+  auto* applyTop = dialog->findChild<QCheckBox*>("applyTopCB");
+  auto* applyBottom = dialog->findChild<QCheckBox*>("applyBottomCB");
+  auto* applyDpiX = dialog->findChild<QCheckBox*>("applyDpiXCB");
+  auto* applyDpiY = dialog->findChild<QCheckBox*>("applyDpiYCB");
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(applyLeft);
+  QVERIFY(applyRight);
+  QVERIFY(applyTop);
+  QVERIFY(applyBottom);
+  QVERIFY(applyDpiX);
+  QVERIFY(applyDpiY);
+  QVERIFY(buttonBox);
+  QVERIFY(applyDpiX->isEnabled());
+  QVERIFY(applyDpiY->isEnabled());
+  QVERIFY(!applyDpiX->isChecked());
+  QVERIFY(!applyDpiY->isChecked());
+
+  allPages->setChecked(true);
+  applyLeft->setChecked(false);
+  applyRight->setChecked(false);
+  applyTop->setChecked(false);
+  applyBottom->setChecked(false);
+  applyDpiX->setChecked(true);
+  applyDpiY->setChecked(false);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QTRY_VERIFY_WITH_TIMEOUT(!options->findChild<QDialog*>(), 10000);
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().horizontal(), 300,
+                            10000);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().vertical(), 700);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi(), Dpi(300, 300));
+
+  auto* sourceXDpi = options->findChild<QLineEdit*>("sourceXDpi");
+  auto* sourceYDpi = options->findChild<QLineEdit*>("sourceYDpi");
+  QVERIFY(sourceXDpi);
+  QVERIFY(sourceYDpi);
+  sourceXDpi->setText(QStringLiteral("400"));
+  sourceYDpi->setText(QStringLiteral("400"));
+  QVERIFY(QMetaObject::invokeMethod(options, "sourceDpiEditingFinished", Qt::DirectConnection));
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi().horizontal(), 400,
+                            10000);
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi().vertical(), 400, 10000);
+
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  applyButton = options->findChild<QPushButton*>("applySettingsBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+  dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  applyLeft = dialog->findChild<QCheckBox*>("applyLeftCB");
+  applyRight = dialog->findChild<QCheckBox*>("applyRightCB");
+  applyTop = dialog->findChild<QCheckBox*>("applyTopCB");
+  applyBottom = dialog->findChild<QCheckBox*>("applyBottomCB");
+  applyDpiX = dialog->findChild<QCheckBox*>("applyDpiXCB");
+  applyDpiY = dialog->findChild<QCheckBox*>("applyDpiYCB");
+  buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(applyLeft);
+  QVERIFY(applyRight);
+  QVERIFY(applyTop);
+  QVERIFY(applyBottom);
+  QVERIFY(applyDpiX);
+  QVERIFY(applyDpiY);
+  QVERIFY(buttonBox);
+
+  allPages->setChecked(true);
+  applyLeft->setChecked(false);
+  applyRight->setChecked(false);
+  applyTop->setChecked(false);
+  applyBottom->setChecked(false);
+  applyDpiX->setChecked(false);
+  applyDpiY->setChecked(true);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().horizontal(), 300,
+                            10000);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().vertical(), 400);
+}
+
 void TestMainWindowAsync::filterDockWidthRestoresFromConfiguration() {
   SettingsStore settings;
   const QString key = QStringLiteral("mainWindow/dockState");

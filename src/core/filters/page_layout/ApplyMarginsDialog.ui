@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>361</width>
-    <height>350</height>
+    <height>400</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -217,6 +217,73 @@
          <string>Toggle this option: Bottom.</string>
         </property>
        </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="sourceDpiToApplyGroup">
+     <property name="title">
+      <string>Source DPI</string>
+     </property>
+     <layout class="QHBoxLayout" name="sourceDpiToApplyLayout">
+      <item>
+       <spacer name="sourceDpiLeftSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Expanding</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="applyDpiXCB">
+        <property name="text">
+         <string>X</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string>Copy this page&apos;s horizontal source DPI to the target pages.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="applyDpiYCB">
+        <property name="text">
+         <string>Y</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string>Copy this page&apos;s vertical source DPI to the target pages.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="sourceDpiRightSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Expanding</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+       </spacer>
       </item>
      </layout>
     </widget>

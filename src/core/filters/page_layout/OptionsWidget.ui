@@ -403,22 +403,12 @@ QToolButton:pressed {
          </spacer>
         </item>
         <item>
-         <widget class="QPushButton" name="applyMarginsBtn">
+         <widget class="QPushButton" name="applySettingsBtn">
           <property name="text">
            <string>Apply To ...</string>
           </property>
           <property name="toolTip">
            <string>Choose which pages receive these settings.</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="fixDpiBtn">
-          <property name="text">
-           <string>Fix all...</string>
-          </property>
-          <property name="toolTip">
-           <string>Review and correct resolution settings for project pages.</string>
           </property>
          </widget>
         </item>
