@@ -80,6 +80,8 @@ unit-test suites.
   and saving is deferred until the worker finishes and content geometry is reconciled.
   Deferred Save and Save As requests retain their order, including when Save As
   is cancelled or an autosave is requested.
+- Opening a project with a missing output directory asks whether to create it;
+  accepting creates the directory, while declining leaves the project unopened.
 
 The Qt tests use the offscreen platform and can simulate interaction without opening windows.
 They compile application GUI sources for the tests but do not build Qt itself.

@@ -17,7 +17,10 @@
 #include <filters/select_content/Dependencies.h>
 #include <filters/select_content/Settings.h>
 
+#include <QAbstractButton>
 #include <QApplication>
+#include <QDialog>
+#include <QDir>
 #include <QDomDocument>
 #include <QElapsedTimer>
 #include <QFile>
@@ -250,6 +253,75 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QCOMPARE(QFileInfo::exists(copyPath), !cancelSaveAs);
   QVERIFY(original.open(QIODevice::ReadOnly));
   QCOMPARE(original.readAll() == originalContents, !saveFirst && !cancelSaveAs);
+}
+
+void TestMainWindowAsync::missingOutputDirectoryPrompt_data() {
+  QTest::addColumn<bool>("createOutputDirectory");
+  QTest::newRow("create-directory") << true;
+  QTest::newRow("decline-directory") << false;
+}
+
+void TestMainWindowAsync::missingOutputDirectoryPrompt() {
+  QFETCH(bool, createOutputDirectory);
+
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString outputDirectory = directory.filePath("output");
+  QVERIFY(QDir().mkpath(outputDirectory));
+  const QString projectPath = directory.filePath("project.ScanTailor");
+
+  {
+    MainWindow creator;
+    creator.switchToNewProject(pages, outputDirectory, projectPath);
+    QTRY_VERIFY(creator.m_workerThreadPool->isIdle());
+    QVERIFY(creator.saveProjectInteractive());
+  }
+  QVERIFY(QDir(outputDirectory).removeRecursively());
+
+  MainWindow window;
+  bool promptSeen = false;
+  QString unexpectedDialog;
+  QTimer dialogWatcher;
+  connect(&dialogWatcher, &QTimer::timeout, &window, [&promptSeen, &unexpectedDialog, createOutputDirectory]() {
+    QWidget* activeDialog = QApplication::activeModalWidget();
+    if (!activeDialog) {
+      return;
+    }
+    if (auto* messageBox = qobject_cast<QMessageBox*>(activeDialog)) {
+      if (messageBox->windowTitle() == QObject::tr("Create Directory?")) {
+        promptSeen = true;
+        messageBox->button(createOutputDirectory ? QMessageBox::Yes : QMessageBox::No)->click();
+        return;
+      }
+      unexpectedDialog = messageBox->windowTitle() + ": " + messageBox->text();
+      messageBox->done(QMessageBox::Ok);
+    } else if (auto* dialog = qobject_cast<QDialog*>(activeDialog)) {
+      unexpectedDialog = dialog->windowTitle();
+      dialog->reject();
+    }
+  });
+  dialogWatcher.start(10);
+
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(promptSeen, 5000);
+  QCOMPARE(QDir(outputDirectory).exists(), createOutputDirectory);
+  QVERIFY2(unexpectedDialog.isEmpty(), qPrintable(unexpectedDialog));
+  if (createOutputDirectory) {
+    QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  } else {
+    QVERIFY(!window.isProjectLoaded());
+  }
+  dialogWatcher.stop();
 }
 
 void TestMainWindowAsync::batchProcessingBenchmark() {

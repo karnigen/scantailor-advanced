@@ -3,6 +3,8 @@
 
 #include "ProjectOpeningContext.h"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QStringList>
 #include <cassert>
@@ -89,6 +91,37 @@ void ProjectOpeningContext::proceed() {
       deleteLater();
       return;
     }
+  }
+
+  const QString& outputDirectory = m_reader.outputDirectory();
+  if (outputDirectory.isEmpty()) {
+    QMessageBox::warning(m_parent, tr("Error"), tr("The project has no output directory configured."));
+    deleteLater();
+    return;
+  }
+
+  QFileInfo outputDirectoryInfo(outputDirectory);
+  if (!outputDirectoryInfo.exists()) {
+    const QString message(tr("Output directory \"%1\" does not exist. Create it?").arg(outputDirectory));
+    if (QMessageBox::question(m_parent, tr("Create Directory?"), message, QMessageBox::Yes | QMessageBox::No)
+        != QMessageBox::Yes) {
+      deleteLater();
+      return;
+    }
+
+    if (!QDir().mkpath(outputDirectory)) {
+      QMessageBox::warning(m_parent, tr("Error"), tr("Unable to create output directory:\n%1").arg(outputDirectory));
+      deleteLater();
+      return;
+    }
+    outputDirectoryInfo.refresh();
+  }
+
+  if (!outputDirectoryInfo.isDir() || !outputDirectoryInfo.isWritable()) {
+    QMessageBox::warning(m_parent, tr("Error"),
+                         tr("Output path is not a writable directory:\n%1").arg(outputDirectory));
+    deleteLater();
+    return;
   }
 
   if (m_reader.pages()->validateDpis()) {

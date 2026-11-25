@@ -12,6 +12,8 @@ class TestMainWindowAsync : public QObject {
   void cancelledBatchDefersSaveAndKeepsLatestFilter();
   void deferredSavesPreserveOrder_data();
   void deferredSavesPreserveOrder();
+  void missingOutputDirectoryPrompt_data();
+  void missingOutputDirectoryPrompt();
   void batchProcessingBenchmark();
   void stageSwitchBenchmark();
 };

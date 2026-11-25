@@ -490,10 +490,6 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
   updateProjectActions();
   updateWindowTitle();
   updateMainArea();
-
-  if (!QDir(outDir).exists()) {
-    showRelinkingDialog();
-  }
 }  // MainWindow::switchToNewProject
 
 void MainWindow::showNewOpenProjectPanel() {
