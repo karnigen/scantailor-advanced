@@ -1,5 +1,6 @@
 set(sources
     TestContentSpanFinder.cpp
+    TestDefaultParamsProfileManager.cpp
     TestDeskewParams.cpp
     TestDeviationProvider.cpp
     TestEditableZoneSet.cpp

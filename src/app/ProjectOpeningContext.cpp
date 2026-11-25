@@ -43,6 +43,11 @@ void ProjectOpeningContext::proceed() {
       details << tr("%1 <color-or-grayscale> setting(s) have no fillOutsidePageBox value; the default is 0.")
                      .arg(migrationReport.colorSettingsWithDefaultFillOutsidePageBox);
     }
+    if (migrationReport.obliqueModesDisabledForMissingAttributes > 0) {
+      details << tr("%1 deskew page(s) have no oblique, oblique-mode, or autoOblique attribute; oblique correction "
+                    "will remain off at angle 0.")
+                     .arg(migrationReport.obliqueModesDisabledForMissingAttributes);
+    }
     if (migrationReport.obliqueModesFromAutoOblique > 0) {
       details
           << tr("%1 oblique-mode value(s) will be derived from autoOblique: 1 means auto (%2), 0 means manual (%3).")

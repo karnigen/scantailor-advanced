@@ -99,20 +99,25 @@ QDomDocument makeMigrationProject(const QString& projectDir) {
 
   QDomElement deskewEl(doc.createElement("deskew"));
   int deskewPageId = 1;
-  const auto appendDeskewPage = [&](const QString& attribute, const QString& value) {
+  const auto appendDeskewPage = [&](const QString& attribute, const QString& value, const bool hasOblique = false) {
     QDomElement pageEl(doc.createElement("page"));
     pageEl.setAttribute("id", deskewPageId++);
     QDomElement paramsEl(doc.createElement("params"));
     if (!attribute.isNull()) {
       paramsEl.setAttribute(attribute, value);
     }
+    if (hasOblique) {
+      paramsEl.setAttribute("oblique", "0");
+    }
     pageEl.appendChild(paramsEl);
     deskewEl.appendChild(pageEl);
   };
   appendDeskewPage("autoOblique", "0");
   appendDeskewPage("autoOblique", "1");
-  appendDeskewPage("mode", "manual");
+  appendDeskewPage("mode", "manual", true);
   appendDeskewPage(QString(), QString());
+  appendDeskewPage("mode", "manual");
+  appendDeskewPage("mode", "auto", true);
   appendDeskewPage("oblique-mode", "manual");
   filtersEl.appendChild(deskewEl);
 
@@ -206,6 +211,7 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_migration_report_covers_legacy_d
   CHECK((report.obliqueModesFromDeskewMode) == (2));
   CHECK((report.obliqueAutoModesFromDeskewMode) == (1));
   CHECK((report.obliqueManualModesFromDeskewMode) == (1));
+  CHECK((report.obliqueModesDisabledForMissingAttributes) == (2));
   CHECK((report.pathsWrittenRelative) == (2));
 }
 

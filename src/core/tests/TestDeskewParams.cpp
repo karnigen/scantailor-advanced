@@ -187,6 +187,22 @@ TEST_CASE("DeskewParamsTestSuite / params_legacy_auto_oblique_off_preserves_manu
   CHECK((restored.obliqueAngle()) == Catch::Approx(0.75).epsilon((1e-6) / 100.0));
 }
 
+TEST_CASE("DeskewParamsTestSuite / params_without_oblique_attributes_keep_oblique_disabled") {
+  QDomDocument doc;
+  QDomElement el(doc.createElement("params"));
+  el.setAttribute("mode", "auto");
+  el.setAttribute("angle", "0.1875");
+  const Dependencies deps;
+  el.appendChild(deps.toXml(doc, "dependencies"));
+  doc.appendChild(el);
+
+  const Params restored(doc.documentElement());
+  CHECK(restored.mode() == MODE_AUTO);
+  CHECK(restored.obliqueMode() == MODE_DISABLED);
+  CHECK(Catch::Approx(0.0).margin(1e-12) == restored.obliqueAngle());
+  CHECK(restored.deskewAngle() == Catch::Approx(0.1875).epsilon((1e-6) / 100.0));
+}
+
 /** Selective Apply To… merge semantics (issue #117): deskew-only must not overwrite oblique. */
 TEST_CASE("DeskewParamsTestSuite / apply_merge_deskew_only_preserves_oblique") {
   const Dependencies deps;
