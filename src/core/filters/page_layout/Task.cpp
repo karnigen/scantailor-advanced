@@ -67,10 +67,12 @@ Task::~Task() = default;
 FilterResultPtr Task::process(const TaskStatus& status,
                               const FilterData& data,
                               const QRectF& pageRect,
-                              const QRectF& contentRect) {
+                              const QRectF& contentRect,
+                              const bool pageBoundaryEnabled) {
   status.throwIfCancelled();
 
   const QSizeF contentSizeMm(Utils::calcRectSizeMM(data.xform(), contentRect));
+  const QSizeF pageBoundarySizeMM = pageBoundaryEnabled ? Utils::calcRectSizeMM(data.xform(), pageRect) : QSizeF();
 
   if (m_settings->isPageAutoMarginsEnabled(m_pageId)) {
     const Margins& marginsMm = Utils::calcMarginsMM(data.xform(), pageRect, contentRect);
@@ -80,6 +82,7 @@ FilterResultPtr Task::process(const TaskStatus& status,
   QSizeF aggHardSizeBefore;
   QSizeF aggHardSizeAfter;
   const Params params(m_settings->updateContentSizeAndGetParams(m_pageId, pageRect, contentRect, contentSizeMm,
+                                                                pageBoundaryEnabled, pageBoundarySizeMM,
                                                                 &aggHardSizeBefore, &aggHardSizeAfter));
 
   const QRectF adaptedContentRect(Utils::adaptContentRect(data.xform(), contentRect));

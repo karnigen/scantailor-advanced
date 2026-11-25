@@ -4,11 +4,16 @@
 #include "../filters/page_layout/Alignment.h"
 #include "../filters/page_layout/OrderByHeightProvider.h"
 #include "../filters/page_layout/OrderByWidthProvider.h"
+#include "../filters/page_layout/Params.h"
 #include "../filters/page_layout/Settings.h"
+#include "../filters/page_layout/Utils.h"
 
 #include <ImageId.h>
 #include <PageId.h>
 
+#include <QPointF>
+#include <QPolygonF>
+#include <QRectF>
 #include <QSizeF>
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -51,6 +56,28 @@ TEST_CASE("PageLayoutSettingsTestSuite / test_equal_dimensions_keep_both_ordered
   unaligned.setNull(true);
   settings.setPageAlignment(first, unaligned);
   CHECK(settings.getAggregateHardSizeMM() == QSizeF(120.0, 60.0));
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / active_page_boundary_contributes_to_common_size") {
+  page_layout::Settings settings;
+  const PageId pageId(ImageId("/page-boundary.tif", 0), PageId::SINGLE_PAGE);
+
+  const page_layout::Params params(
+      settings.updateContentSizeAndGetParams(pageId, QRectF(0.0, 0.0, 800.0, 600.0), QRectF(100.0, 100.0, 600.0, 400.0),
+                                             QSizeF(100.0, 50.0), true, QSizeF(200.0, 150.0)));
+
+  CHECK(params.isPageBoundaryEnabled());
+  CHECK(params.pageBoundarySizeMM() == QSizeF(200.0, 150.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(200.0, 150.0));
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / page_boundary_is_included_in_output_rectangle") {
+  QPolygonF outputRect{QPointF(0.0, 0.0), QPointF(10.0, 0.0), QPointF(10.0, 10.0), QPointF(0.0, 10.0)};
+  const QPolygonF pageBoundary{QPointF(-5.0, -10.0), QPointF(15.0, -10.0), QPointF(15.0, 20.0), QPointF(-5.0, 20.0)};
+
+  page_layout::Utils::extendPolyRectToInclude(outputRect, pageBoundary);
+
+  CHECK(outputRect.boundingRect() == QRectF(-5.0, -10.0, 20.0, 30.0));
 }
 
 TEST_CASE("PageLayoutSettingsTestSuite / size ordering uses a stable snapshot during sorting") {

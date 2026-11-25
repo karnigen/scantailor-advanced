@@ -84,6 +84,8 @@ class Settings {
                                        const QRectF& pageRect,
                                        const QRectF& contentRect,
                                        const QSizeF& contentSizeMm,
+                                       bool pageBoundaryEnabled = false,
+                                       const QSizeF& pageBoundarySizeMm = QSizeF(),
                                        QSizeF* aggHardSizeBefore = nullptr,
                                        QSizeF* aggHardSizeAfter = nullptr);
 

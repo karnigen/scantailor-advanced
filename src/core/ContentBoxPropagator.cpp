@@ -16,7 +16,10 @@ class ContentBoxPropagator::Collector : public ContentBoxCollector {
  public:
   Collector();
 
-  void process(const ImageTransformation& xform, const QRectF& pageRect, const QRectF& contentRect) override;
+  void process(const ImageTransformation& xform,
+               const QRectF& pageRect,
+               const QRectF& contentRect,
+               bool pageBoundaryEnabled) override;
 
   bool collected() const { return m_collected; }
 
@@ -26,10 +29,13 @@ class ContentBoxPropagator::Collector : public ContentBoxCollector {
 
   const QRectF& contentRect() const { return m_contentRect; }
 
+  bool pageBoundaryEnabled() const { return m_pageBoundaryEnabled; }
+
  private:
   ImageTransformation m_xform;
   QRectF m_pageRect;
   QRectF m_contentRect;
+  bool m_pageBoundaryEnabled = false;
   bool m_collected;
 };
 
@@ -58,8 +64,8 @@ void ContentBoxPropagator::propagate(const ProjectPages& pages, const std::set<I
     Collector collector;
     m_task->process(pageInfo, &collector);
     if (collector.collected()) {
-      m_pageLayoutFilter->setContentBox(pageInfo.id(), collector.xform(), collector.pageRect(),
-                                        collector.contentRect());
+      m_pageLayoutFilter->setContentBox(pageInfo.id(), collector.xform(), collector.pageRect(), collector.contentRect(),
+                                        collector.pageBoundaryEnabled());
     } else {
       m_pageLayoutFilter->invalidateContentBox(pageInfo.id());
     }
@@ -72,9 +78,11 @@ ContentBoxPropagator::Collector::Collector() : m_xform(QRectF(0, 0, 1, 1), Dpi(3
 
 void ContentBoxPropagator::Collector::process(const ImageTransformation& xform,
                                               const QRectF& pageRect,
-                                              const QRectF& contentRect) {
+                                              const QRectF& contentRect,
+                                              const bool pageBoundaryEnabled) {
   m_xform = xform;
   m_pageRect = pageRect;
   m_contentRect = contentRect;
+  m_pageBoundaryEnabled = pageBoundaryEnabled;
   m_collected = true;
 }

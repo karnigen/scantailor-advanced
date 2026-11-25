@@ -41,11 +41,12 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
   }
 
   if (auto* col = dynamic_cast<ContentBoxCollector*>(collector)) {
-    col->process(xform, params->pageRect(), params->contentRect());
+    col->process(xform, params->pageRect(), params->contentRect(), params->pageDetectionMode() != MODE_DISABLED);
   }
 
   if (m_nextTask) {
-    m_nextTask->process(pageInfo, collector, xform, params->pageRect(), params->contentRect());
+    m_nextTask->process(pageInfo, collector, xform, params->pageRect(), params->contentRect(),
+                        params->pageDetectionMode() != MODE_DISABLED);
     return;
   }
 

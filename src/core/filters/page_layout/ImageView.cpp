@@ -229,6 +229,7 @@ void ImageView::aggregateHardSizeChanged() {
 }
 
 void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) {
+  const std::unique_ptr<Params> pageParams(m_settings->getPageParams(m_pageId));
   QColor bgColor;
   QColor fgColor;
   if (m_alignment.isNull()) {
@@ -270,6 +271,15 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
   }
   if (!m_nullContentRect) {
     painter.drawRect(m_innerRect);
+  }
+
+  if (pageParams && pageParams->isPageBoundaryEnabled()) {
+    QPen boundaryPen(QColor(0xff, 0x7f, 0x00));
+    boundaryPen.setCosmetic(true);
+    boundaryPen.setWidthF(2.0);
+    painter.setPen(boundaryPen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(pageParams->pageRect());
   }
 
   if (!m_alignment.isNull()) {
@@ -507,11 +517,15 @@ void ImageView::recalcBoxesAndFit(const Margins& marginsMm) {
   Utils::extendPolyRectWithMargins(polyMm, marginsMm);
 
   const QRectF middleRect(mmToVirt.map(polyMm).boundingRect());
+  const std::unique_ptr<Params> params(m_settings->getPageParams(m_pageId));
+  if (params && params->isPageBoundaryEnabled()) {
+    Utils::extendPolyRectToInclude(polyMm, virtToMm.map(QPolygonF(params->pageRect())));
+  }
 
   const QSizeF hardSizeMm(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
-  const Margins softMarginsMm(Utils::calcSoftMarginsMM(
-      hardSizeMm, m_aggregateHardSizeMM, m_alignment, m_settings->getPageParams(m_pageId)->contentRect(),
-      m_settings->getPageParams(m_pageId)->contentSizeMM(), m_settings->getPageParams(m_pageId)->pageRect()));
+  const Margins softMarginsMm(Utils::calcSoftMarginsMM(hardSizeMm, m_aggregateHardSizeMM, m_alignment,
+                                                       params->contentRect(), params->contentSizeMM(),
+                                                       params->pageRect()));
 
   Utils::extendPolyRectWithMargins(polyMm, softMarginsMm);
 
@@ -594,11 +608,15 @@ void ImageView::recalcOuterRect() {
   const QTransform mmToVirt(m_mmToPixelsXform * imageToVirtual());
 
   QPolygonF polyMm(virtToMm.map(m_middleRect));
+  const std::unique_ptr<Params> params(m_settings->getPageParams(m_pageId));
+  if (params && params->isPageBoundaryEnabled()) {
+    Utils::extendPolyRectToInclude(polyMm, virtToMm.map(QPolygonF(params->pageRect())));
+  }
 
   const QSizeF hardSizeMm(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
-  const Margins softMarginsMm(Utils::calcSoftMarginsMM(
-      hardSizeMm, m_aggregateHardSizeMM, m_alignment, m_settings->getPageParams(m_pageId)->contentRect(),
-      m_settings->getPageParams(m_pageId)->contentSizeMM(), m_settings->getPageParams(m_pageId)->pageRect()));
+  const Margins softMarginsMm(Utils::calcSoftMarginsMM(hardSizeMm, m_aggregateHardSizeMM, m_alignment,
+                                                       params->contentRect(), params->contentSizeMM(),
+                                                       params->pageRect()));
 
   Utils::extendPolyRectWithMargins(polyMm, softMarginsMm);
 

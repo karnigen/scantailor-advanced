@@ -38,7 +38,7 @@
       <item>
        <widget class="CollapsibleGroupBox" name="pageBoxGroup">
         <property name="title">
-         <string>Page Box</string>
+         <string>Page Boundary</string>
         </property>
         <property name="alignment">
          <set>Qt::AlignCenter</set>

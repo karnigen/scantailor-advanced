@@ -8,6 +8,7 @@
 
 #include <QRectF>
 #include <QSizeF>
+#include <QString>
 #include <cmath>
 
 #include "Dependencies.h"
@@ -30,7 +31,8 @@ class Params {
          const Dependencies& deps,
          AutoManualMode contentDetectionMode,
          AutoManualMode pageDetectionMode,
-         bool fineTuneCorners);
+         bool fineTuneCorners,
+         const QString& pageSizePresetId = QString());
 
   explicit Params(const QDomElement& filterEl);
 
@@ -52,6 +54,8 @@ class Params {
 
   bool isFineTuningEnabled() const;
 
+  const QString& pageSizePresetId() const;
+
   void setContentDetectionMode(AutoManualMode mode);
 
   void setPageDetectionMode(AutoManualMode mode);
@@ -66,6 +70,8 @@ class Params {
 
   void setFineTuneCornersEnabled(bool fineTuneCorners);
 
+  void setPageSizePresetId(const QString& pageSizePresetId);
+
  private:
   QRectF m_contentRect;
   QRectF m_pageRect;
@@ -74,6 +80,7 @@ class Params {
   AutoManualMode m_contentDetectionMode;
   AutoManualMode m_pageDetectionMode;
   bool m_fineTuneCorners;
+  QString m_pageSizePresetId;
 };
 
 
@@ -105,6 +112,10 @@ inline bool Params::isFineTuningEnabled() const {
   return m_fineTuneCorners;
 }
 
+inline const QString& Params::pageSizePresetId() const {
+  return m_pageSizePresetId;
+}
+
 inline void Params::setContentDetectionMode(const AutoManualMode mode) {
   m_contentDetectionMode = mode;
 }
@@ -131,6 +142,10 @@ inline void Params::setDependencies(const Dependencies& deps) {
 
 inline void Params::setFineTuneCornersEnabled(bool fineTuneCorners) {
   m_fineTuneCorners = fineTuneCorners;
+}
+
+inline void Params::setPageSizePresetId(const QString& pageSizePresetId) {
+  m_pageSizePresetId = pageSizePresetId;
 }
 }  // namespace select_content
 #endif  // ifndef SCANTAILOR_SELECT_CONTENT_PARAMS_H_

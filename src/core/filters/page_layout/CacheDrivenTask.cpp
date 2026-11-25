@@ -27,7 +27,8 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
                               AbstractFilterDataCollector* collector,
                               const ImageTransformation& xform,
                               const QRectF& pageRect,
-                              const QRectF& contentRect) {
+                              const QRectF& contentRect,
+                              const bool pageBoundaryEnabled) {
   const std::unique_ptr<Params> params(m_settings->getPageParams(pageInfo.id()));
   if (!params || (params->contentSizeMM().isEmpty() && !contentRect.isEmpty())) {
     if (auto* thumbCol = dynamic_cast<ThumbnailCollector*>(collector)) {
@@ -37,8 +38,9 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
     return;
   }
 
+  const QSizeF pageBoundarySizeMM = pageBoundaryEnabled ? Utils::calcRectSizeMM(xform, pageRect) : QSizeF();
   const Params newParams(params->hardMarginsMM(), pageRect, contentRect, params->contentSizeMM(), params->alignment(),
-                         params->isAutoMarginsEnabled());
+                         params->isAutoMarginsEnabled(), pageBoundaryEnabled, pageBoundarySizeMM);
 
   const QRectF adaptedContentRect(Utils::adaptContentRect(xform, contentRect));
   const QPolygonF contentRectPhys(xform.transformBack().map(adaptedContentRect));

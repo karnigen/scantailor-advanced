@@ -64,6 +64,24 @@ void Utils::extendPolyRectWithMargins(QPolygonF& polyRect, const Margins& margin
   }
 }
 
+void Utils::extendPolyRectToInclude(QPolygonF& polyRect, const QPolygonF& otherRect) {
+  const QPointF origin(polyRect[0]);
+  const QLineF rightLine(polyRect[0], polyRect[1]);
+  const QLineF downLine(polyRect[0], polyRect[3]);
+  const QPointF right(rightLine.unitVector().p2() - origin);
+  const QPointF down(downLine.unitVector().p2() - origin);
+  const QTransform localToMm(right.x(), right.y(), down.x(), down.y(), origin.x(), origin.y());
+  bool invertible = false;
+  const QTransform mmToLocal(localToMm.inverted(&invertible));
+  assert(invertible);
+
+  QPolygonF localBounds(mmToLocal.map(polyRect));
+  localBounds += mmToLocal.map(otherRect);
+  const QRectF bounds(localBounds.boundingRect());
+  const QPolygonF localRect{bounds.topLeft(), bounds.topRight(), bounds.bottomRight(), bounds.bottomLeft()};
+  polyRect = localToMm.map(localRect);
+}
+
 Margins Utils::calcMarginsMM(const ImageTransformation& xform, const QRectF& pageRect, const QRectF& contentRect) {
   const QSizeF contentSizeMm(Utils::calcRectSizeMM(xform, contentRect));
 
@@ -203,6 +221,11 @@ QPolygonF Utils::calcPageRectPhys(const ImageTransformation& xform,
 
   QPolygonF polyMm(pixelsToMmTransform.map(contentRectPhys));
   extendPolyRectWithMargins(polyMm, params.hardMarginsMM());
+  if (params.isPageBoundaryEnabled()) {
+    const QPolygonF boundaryRectPhys(xform.transformBack().map(QPolygonF(params.pageRect())));
+    const QPolygonF boundaryRectMm(pixelsToMmTransform.map(boundaryRectPhys));
+    extendPolyRectToInclude(polyMm, boundaryRectMm);
+  }
 
   const QSizeF hardSizeMm(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
   Margins softMarginsMm(calcSoftMarginsMM(hardSizeMm, aggregateHardSizeMm, params.alignment(), params.contentRect(),

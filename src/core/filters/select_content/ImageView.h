@@ -34,7 +34,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
             const ImageTransformation& xform,
             const QRectF& contentRect,
             const QRectF& pageRect,
-            bool pageRectEnabled);
+            bool pageRectEnabled,
+            bool pageRectSizeLocked);
 
   ~ImageView() override;
 
@@ -51,6 +52,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   void pageRectSetExternally(const QRectF& pageRect);
 
   void setPageRectEnabled(bool state);
+
+  void setPageRectSizeLocked(bool locked);
 
  private slots:
 
@@ -144,6 +147,7 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   QRectF m_pageRect;
 
   bool m_pageRectEnabled;
+  bool m_pageRectSizeLocked;
   bool m_pageRectReloadRequested;
 
   QSizeF m_minBoxSize;

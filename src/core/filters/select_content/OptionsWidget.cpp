@@ -25,6 +25,9 @@
 
 namespace select_content {
 namespace {
+constexpr int kPageSizeDataRole = Qt::UserRole;
+constexpr int kPageSizePresetIdRole = Qt::UserRole + 1;
+
 struct PageSizePreset {
   QString name;
   QSizeF sizeMm;
@@ -118,6 +121,7 @@ void OptionsWidget::postUpdateUI(const UiData& uiData) {
 
   updateContentModeIndication(uiData.contentDetectionMode());
   updatePageModeIndication(uiData.pageDetectionMode());
+  updatePageSizePresetDisplay();
 
   contentBoxGroup->setEnabled(true);
   pageBoxGroup->setEnabled(true);
@@ -151,14 +155,16 @@ void OptionsWidget::manualPageRectSet(const QRectF& pageRect) {
 void OptionsWidget::updatePageRectSize(const QSizeF& size) {
   auto block = m_connectionManager.getScopedBlock();
 
-  if (pageSizeCombo->currentIndex() > 0) {
-    const QSizeF selectedSizeMm = pageSizeCombo->currentData().toSizeF();
+  if (!m_uiData.pageSizePresetId().isEmpty()) {
+    const QSizeF selectedSizeMm = pageSizeCombo->currentData(kPageSizeDataRole).toSizeF();
     double currentWidthMm = size.width();
     double currentHeightMm = size.height();
     UnitsProvider::getInstance().convertFrom(currentWidthMm, currentHeightMm, PIXELS, m_dpi);
     UnitsProvider::getInstance().convertTo(currentWidthMm, currentHeightMm, MILLIMETRES, m_dpi);
     if (!sizesMatch(QSizeF(currentWidthMm, currentHeightMm), selectedSizeMm)) {
       pageSizeCombo->setCurrentIndex(0);
+      m_uiData.setPageSizePresetId(QString());
+      emit pageRectSizeLockChanged(false);
     }
   }
 
@@ -183,6 +189,11 @@ void OptionsWidget::pageDetectToggled(const AutoManualMode mode) {
   const bool needUpdateState = ((mode == MODE_MANUAL) && (m_uiData.pageDetectionMode() == MODE_DISABLED));
 
   m_uiData.setPageDetectionMode(mode);
+  if (mode != MODE_MANUAL && !m_uiData.pageSizePresetId().isEmpty()) {
+    m_uiData.setPageSizePresetId(QString());
+    pageSizeCombo->setCurrentIndex(0);
+    emit pageRectSizeLockChanged(false);
+  }
   updatePageDetectOptionsDisplay();
   commitCurrentParams();
 
@@ -195,12 +206,23 @@ void OptionsWidget::pageDetectToggled(const AutoManualMode mode) {
 }
 
 void OptionsWidget::pageSizePresetChanged(const int index) {
-  if (index <= 0) {
+  if (index == 0) {
+    if (!m_uiData.pageSizePresetId().isEmpty()) {
+      m_uiData.setPageSizePresetId(QString());
+      emit pageRectSizeLockChanged(false);
+      commitCurrentParams();
+    }
+    return;
+  }
+  if (index < 0) {
     return;
   }
 
-  double width = pageSizeCombo->itemData(index).toSizeF().width();
-  double height = pageSizeCombo->itemData(index).toSizeF().height();
+  m_uiData.setPageSizePresetId(pageSizeCombo->itemData(index, kPageSizePresetIdRole).toString());
+  emit pageRectSizeLockChanged(true);
+
+  double width = pageSizeCombo->itemData(index, kPageSizeDataRole).toSizeF().width();
+  double height = pageSizeCombo->itemData(index, kPageSizeDataRole).toSizeF().height();
   UnitsProvider::getInstance().convertFrom(width, height, MILLIMETRES, m_dpi);
 
   {
@@ -260,17 +282,36 @@ void OptionsWidget::dimensionsChangedLocally(double) {
   updatePageRectFromDimensions();
 }
 
+void OptionsWidget::updatePageSizePresetDisplay() {
+  const QString presetId = m_uiData.pageSizePresetId();
+  if (presetId.isEmpty()) {
+    pageSizeCombo->setCurrentIndex(0);
+    return;
+  }
+
+  const int index = pageSizeCombo->findData(presetId, kPageSizePresetIdRole);
+  if (index <= 0) {
+    m_uiData.setPageSizePresetId(QString());
+    pageSizeCombo->setCurrentIndex(0);
+    return;
+  }
+  pageSizeCombo->setCurrentIndex(index);
+}
+
 void OptionsWidget::populatePageSizePresets() {
   pageSizeCombo->addItem(tr("Custom"));
   for (const PageSizePreset& preset : loadPageSizePresets()) {
-    const auto addOrientation = [this, &preset](const QString& orientation, const QSizeF& sizeMm) {
-      const int index = pageSizeCombo->count();
-      pageSizeCombo->addItem(tr("%1 (%2)").arg(preset.name, orientation), sizeMm);
-      pageSizeCombo->setItemData(index, pageSizeCombo->itemText(index), Qt::ToolTipRole);
-    };
+    const auto addOrientation
+        = [this, &preset](const QString& orientation, const QString& orientationId, const QSizeF& sizeMm) {
+            const int index = pageSizeCombo->count();
+            pageSizeCombo->addItem(tr("%1 (%2)").arg(preset.name, orientation));
+            pageSizeCombo->setItemData(index, sizeMm, kPageSizeDataRole);
+            pageSizeCombo->setItemData(index, preset.name + QLatin1Char(':') + orientationId, kPageSizePresetIdRole);
+            pageSizeCombo->setItemData(index, pageSizeCombo->itemText(index), Qt::ToolTipRole);
+          };
 
-    addOrientation(tr("portrait"), preset.sizeMm);
-    addOrientation(tr("landscape"), QSizeF(preset.sizeMm.height(), preset.sizeMm.width()));
+    addOrientation(tr("portrait"), QStringLiteral("portrait"), preset.sizeMm);
+    addOrientation(tr("landscape"), QStringLiteral("landscape"), QSizeF(preset.sizeMm.height(), preset.sizeMm.width()));
   }
 }
 
@@ -282,6 +323,7 @@ void OptionsWidget::updatePageRectFromDimensions() {
   QRectF newPageRect = m_uiData.pageRect();
   newPageRect.setSize(QSizeF(widthSpinBoxValue, heightSpinBoxValue));
 
+  manualPageRectSet(newPageRect);
   emit pageRectChangedLocally(newPageRect);
 }
 
@@ -289,7 +331,8 @@ void OptionsWidget::commitCurrentParams() {
   updateDependenciesIfNecessary();
 
   Params params(m_uiData.contentRect(), m_uiData.contentSizeMM(), m_uiData.pageRect(), m_uiData.dependencies(),
-                m_uiData.contentDetectionMode(), m_uiData.pageDetectionMode(), m_uiData.isFineTuningCornersEnabled());
+                m_uiData.contentDetectionMode(), m_uiData.pageDetectionMode(), m_uiData.isFineTuningCornersEnabled(),
+                m_uiData.pageSizePresetId());
   m_settings->setPageParams(m_pageId, params);
 }
 
@@ -325,7 +368,7 @@ void OptionsWidget::applySelection(const std::set<PageId>& pages, const bool app
 
   const Params params(m_uiData.contentRect(), m_uiData.contentSizeMM(), m_uiData.pageRect(), Dependencies(),
                       m_uiData.contentDetectionMode(), m_uiData.pageDetectionMode(),
-                      m_uiData.isFineTuningCornersEnabled());
+                      m_uiData.isFineTuningCornersEnabled(), m_uiData.pageSizePresetId());
 
   for (const PageId& pageId : pages) {
     if (m_pageId == pageId) {
@@ -338,6 +381,7 @@ void OptionsWidget::applySelection(const std::set<PageId>& pages, const bool app
       if (newParams.pageDetectionMode() == MODE_MANUAL) {
         if (!applyPageBox) {
           newParams.setPageRect(oldParams->pageRect());
+          newParams.setPageSizePresetId(oldParams->pageSizePresetId());
         } else {
           QRectF correctedPageRect = newParams.pageRect();
           const QRectF sourceImageRect = newParams.dependencies().rotatedPageOutline().boundingRect();

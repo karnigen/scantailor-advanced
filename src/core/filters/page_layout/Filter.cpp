@@ -160,9 +160,12 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
 void Filter::setContentBox(const PageId& pageId,
                            const ImageTransformation& xform,
                            const QRectF& pageRect,
-                           const QRectF& contentRect) {
+                           const QRectF& contentRect,
+                           const bool pageBoundaryEnabled) {
   const QSizeF contentSizeMm(Utils::calcRectSizeMM(xform, contentRect));
-  m_settings->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm);
+  const QSizeF pageBoundarySizeMM = pageBoundaryEnabled ? Utils::calcRectSizeMM(xform, pageRect) : QSizeF();
+  m_settings->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, pageBoundaryEnabled,
+                                            pageBoundarySizeMM);
 }
 
 void Filter::invalidateContentBox(const PageId& pageId) {
