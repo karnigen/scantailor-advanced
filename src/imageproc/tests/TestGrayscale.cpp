@@ -58,5 +58,33 @@ TEST_CASE("GrayscaleTestSuite / test_argb32_to_grayscale") {
   CHECK(toGrayscale(argb32) == gray);
 }
 
+TEST_CASE("GrayscaleTestSuite / color formats match per-pixel grayscale conversion") {
+  const int width = 37;
+  const int height = 23;
+  QImage argb(width, height, QImage::Format_ARGB32);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      argb.setPixel(
+          x, y,
+          qRgba((x * 17 + y * 3) & 0xff, (x * 5 + y * 29) & 0xff, (x * 31 + y * 7) & 0xff, 0x80 | ((x + y) & 0x7f)));
+    }
+  }
+
+  const QImage::Format formats[] = {QImage::Format_RGB32, QImage::Format_ARGB32, QImage::Format_RGB888,
+                                    QImage::Format_ARGB32_Premultiplied, QImage::Format_RGB16};
+  for (const QImage::Format format : formats) {
+    const QImage src(argb.convertToFormat(format));
+    const QImage gray(toGrayscale(src));
+
+    REQUIRE(gray.format() == QImage::Format_Indexed8);
+    REQUIRE(gray.size() == src.size());
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        CHECK(gray.constScanLine(y)[x] == qGray(src.pixel(x, y)));
+      }
+    }
+  }
+}
+
 }  // namespace tests
 }  // namespace imageproc

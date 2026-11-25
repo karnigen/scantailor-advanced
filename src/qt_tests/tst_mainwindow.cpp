@@ -19,10 +19,12 @@
 
 #include <QApplication>
 #include <QDomDocument>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
+#include <QMessageBox>
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -248,4 +250,109 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QCOMPARE(QFileInfo::exists(copyPath), !cancelSaveAs);
   QVERIFY(original.open(QIODevice::ReadOnly));
   QCOMPARE(original.readAll() == originalContents, !saveFirst && !cancelSaveAs);
+}
+
+void TestMainWindowAsync::batchProcessingBenchmark() {
+  const QString projectPath = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_PROJECT");
+  if (projectPath.isEmpty()) {
+    QSKIP("Set SCANTAILOR_BATCH_BENCH_PROJECT to run the opt-in batch benchmark.");
+  }
+  QVERIFY2(QFileInfo(projectPath).isFile(), qPrintable(QString("Project file does not exist: %1").arg(projectPath)));
+
+  const QString stage = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_STAGE", "page-layout");
+  QString batchWarning;
+  MainWindow window(QFileInfo(projectPath).absolutePath());
+  int filterIndex = -1;
+  if (stage == "fix-orientation") {
+    filterIndex = window.m_stages->fixOrientationFilterIdx();
+  } else if (stage == "select-content") {
+    filterIndex = window.m_stages->selectContentFilterIdx();
+  } else if (stage == "page-layout") {
+    filterIndex = window.m_stages->pageLayoutFilterIdx();
+  } else if (stage == "output") {
+    filterIndex = window.m_stages->outputFilterIdx();
+  } else {
+    QFAIL("SCANTAILOR_BATCH_BENCH_STAGE must be fix-orientation, select-content, page-layout, or output.");
+  }
+
+  QTimer dialogWatcher;
+  connect(&dialogWatcher, &QTimer::timeout, &window, [&batchWarning]() {
+    auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+    if (dialog->windowTitle() == QObject::tr("Batch processing")) {
+      batchWarning = dialog->text();
+    }
+    dialog->accept();
+  });
+  dialogWatcher.start(25);
+
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+
+  window.filterList->selectRow(filterIndex);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, filterIndex, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_waitingForCancelledTasks, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+
+  QElapsedTimer timer;
+  timer.start();
+  window.startBatchProcessing();
+  QVERIFY(window.isBatchProcessingInProgress());
+  QTRY_VERIFY_WITH_TIMEOUT(!window.isBatchProcessingInProgress(), 1800000);
+  const qint64 elapsedMs = timer.elapsed();
+
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  QTest::qWait(50);
+  dialogWatcher.stop();
+  QVERIFY2(batchWarning.isEmpty(), qPrintable(batchWarning));
+
+  qInfo().noquote() << QStringLiteral("PR196_BATCH_BENCH stage=%1 pages=%2 elapsed_ms=%3")
+                           .arg(stage)
+                           .arg(static_cast<qulonglong>(window.allPages().numPages()))
+                           .arg(elapsedMs);
+}
+
+void TestMainWindowAsync::stageSwitchBenchmark() {
+  const QString projectPath = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_PROJECT");
+  if (projectPath.isEmpty()) {
+    QSKIP("Set SCANTAILOR_BATCH_BENCH_PROJECT to run the opt-in stage-switch benchmark.");
+  }
+  QVERIFY2(QFileInfo(projectPath).isFile(), qPrintable(QString("Project file does not exist: %1").arg(projectPath)));
+
+  MainWindow window(QFileInfo(projectPath).absolutePath());
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  window.show();
+  QTest::qWait(100);
+
+  const int fixOrientation = window.m_stages->fixOrientationFilterIdx();
+  const int pageLayout = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayout);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayout, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  window.filterList->selectRow(fixOrientation);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, fixOrientation, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  QTest::qWait(100);
+
+  for (int iteration = 0; iteration < 6; ++iteration) {
+    const int target = (iteration % 2 == 0) ? pageLayout : fixOrientation;
+    QElapsedTimer timer;
+    timer.start();
+    window.filterList->selectRow(target);
+    QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, target, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_waitingForCancelledTasks, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+    window.repaint();
+    QApplication::processEvents();
+    const qint64 elapsedUs = timer.nsecsElapsed() / 1000;
+    qInfo().noquote() << QStringLiteral("PR196_STAGE_SWITCH_BENCH target=%1 pages=%2 elapsed_us=%3")
+                             .arg(target == pageLayout ? "page-layout" : "fix-orientation")
+                             .arg(static_cast<qulonglong>(window.allPages().numPages()))
+                             .arg(elapsedUs);
+  }
 }
