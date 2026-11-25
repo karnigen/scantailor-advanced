@@ -290,6 +290,28 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QCOMPARE(original.readAll() == originalContents, !saveFirst && !cancelSaveAs);
 }
 
+void TestMainWindowAsync::sourceImageLocationDetection() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString projectDirectory = directory.filePath("project");
+  const QString nestedDirectory = QDir(projectDirectory).filePath("images/nested");
+  const QString siblingDirectory = directory.filePath("project-copy");
+  QVERIFY(QDir().mkpath(nestedDirectory));
+  QVERIFY(QDir().mkpath(siblingDirectory));
+
+  const QString nestedImage = QDir(nestedDirectory).filePath("page.png");
+  const QString siblingImage = QDir(siblingDirectory).filePath("page.png");
+  for (const QString& path : {nestedImage, siblingImage}) {
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+  }
+
+  QVERIFY(MainWindow::isPathWithinDirectory(nestedImage, projectDirectory));
+  QVERIFY(MainWindow::isPathWithinDirectory(QDir(projectDirectory).filePath("missing.png"), projectDirectory));
+  QVERIFY(!MainWindow::isPathWithinDirectory(siblingImage, projectDirectory));
+}
+
 void TestMainWindowAsync::missingOutputDirectoryPrompt_data() {
   QTest::addColumn<bool>("createOutputDirectory");
   QTest::newRow("create-directory") << true;

@@ -18,6 +18,7 @@ class TestMainWindowAsync : public QObject {
   void applySourceDpiCopiesSelectedAxesIndependently();
   void filterDockWidthRestoresFromConfiguration();
   void sourceDpiChangesPersistInMargins();
+  void sourceImageLocationDetection();
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();
   void batchProcessingBenchmark();

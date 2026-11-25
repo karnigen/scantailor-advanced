@@ -95,6 +95,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
  private:
   enum MainAreaAction { UPDATE_MAIN_AREA, CLEAR_MAIN_AREA };
 
+  static bool isPathWithinDirectory(const QString& path, const QString& directory);
+
+  void warnAboutExternalImages();
+
  private slots:
 
   void autoSaveProject();

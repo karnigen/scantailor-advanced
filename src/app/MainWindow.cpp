@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFileSystemModel>
 #include <QFrame>
 #include <QImageReader>
@@ -24,6 +25,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QProgressDialog>
+#include <QPushButton>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
@@ -1019,6 +1021,60 @@ void MainWindow::showRelinkingDialog() {
   dialog->show();
 }
 
+bool MainWindow::isPathWithinDirectory(const QString& path, const QString& directory) {
+  const QFileInfo pathInfo(path);
+  const QFileInfo directoryInfo(directory);
+  const QString absolutePath
+      = pathInfo.canonicalFilePath().isEmpty() ? pathInfo.absoluteFilePath() : pathInfo.canonicalFilePath();
+  const QString absoluteDirectory = directoryInfo.canonicalFilePath().isEmpty() ? directoryInfo.absoluteFilePath()
+                                                                                : directoryInfo.canonicalFilePath();
+  const QString relativePath = QDir::fromNativeSeparators(QDir(absoluteDirectory).relativeFilePath(absolutePath));
+
+  return !QDir::isAbsolutePath(relativePath) && relativePath != ".." && !relativePath.startsWith("../");
+}
+
+void MainWindow::warnAboutExternalImages() {
+  if (!isProjectLoaded() || m_projectFile.isEmpty()) {
+    return;
+  }
+
+  QStringList externalImages;
+  const QString projectDirectory = QFileInfo(m_projectFile).absolutePath();
+  for (const ImageFileInfo& image : m_pages->toImageFileInfo()) {
+    const QString imagePath = image.fileInfo().filePath();
+    if (!isPathWithinDirectory(imagePath, projectDirectory)) {
+      externalImages.push_back(imagePath);
+    }
+  }
+  if (externalImages.isEmpty()) {
+    return;
+  }
+
+  constexpr int displayedPathLimit = 5;
+  const qsizetype displayedPathCount = std::min<qsizetype>(displayedPathLimit, externalImages.size());
+  QString message
+      = tr("Some source images are outside the folder containing this project. This may be intentional, but it can "
+           "mean the project is using a different image set than expected.\n\n%1 external image(s):")
+            .arg(externalImages.size());
+  for (qsizetype i = 0; i < displayedPathCount; ++i) {
+    message += QStringLiteral("\n%1").arg(QDir::toNativeSeparators(externalImages.at(i)));
+  }
+  if (externalImages.size() > displayedPathLimit) {
+    message += tr("\n... and %1 more").arg(externalImages.size() - displayedPathLimit);
+  }
+
+  QMessageBox messageBox(QMessageBox::Warning, tr("Source Images Outside Project Folder"), message,
+                         QMessageBox::NoButton, this);
+  QPushButton* relinkButton = messageBox.addButton(tr("Relink..."), QMessageBox::ActionRole);
+  QPushButton* continueButton = messageBox.addButton(tr("Continue"), QMessageBox::RejectRole);
+  messageBox.setDefaultButton(continueButton);
+  messageBox.setEscapeButton(continueButton);
+  messageBox.exec();
+  if (messageBox.clickedButton() == relinkButton) {
+    showRelinkingDialog();
+  }
+}
+
 void MainWindow::performRelinking(const std::shared_ptr<AbstractRelinker>& relinker) {
   assert(relinker);
 
@@ -1902,6 +1958,7 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
 
   switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
                      context->projectFile(), context->projectReader());
+  warnAboutExternalImages();
 }
 
 void MainWindow::closeProject() {
