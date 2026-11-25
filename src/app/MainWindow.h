@@ -331,7 +331,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void setDockWidgetsVisible(bool state);
 
-  void scaleThumbnails(int scaleFactor);
+  void scaleThumbnails(double scaleFactor, bool anchorUnderMouse = false);
 
   void updateMaxLogicalThumbSize();
 
@@ -386,6 +386,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QTimer m_autoSaveTimer;
   StatusBarPanel* m_statusBarPanel;
   QActionGroup* m_unitsMenuActionGroup;
+  int m_thumbnailNavigationWheelDelta = 0;
   QTimer m_maxLogicalThumbSizeUpdater;
   QTimer m_sceneItemsPosUpdater;
 };

@@ -20,6 +20,7 @@
 #include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPalette>
 #include <QResource>
 #include <QScrollBar>
@@ -32,6 +33,7 @@
 #include <QVBoxLayout>
 #include <QtWidgets/QInputDialog>
 #include <algorithm>
+#include <cmath>
 #include <exception>
 #include <memory>
 
@@ -569,8 +571,10 @@ void MainWindow::updateThumbViewMinWidth() {
 
 void MainWindow::setupThumbView() {
   updateThumbViewMinWidth();
+  thumbView->setRenderHint(QPainter::SmoothPixmapTransform, true);
   m_thumbSequence->attachView(thumbView);
   thumbView->installEventFilter(this);
+  thumbView->viewport()->installEventFilter(this);
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
@@ -580,13 +584,44 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
     }
   }
 
-  if ((obj == thumbView || obj == thumbView->verticalScrollBar()) && (ev->type() == QEvent::Wheel)) {
+  const bool isThumbnailView = (obj == thumbView) || (obj == thumbView->viewport());
+  if (isThumbnailView && ev->type() == QEvent::Wheel) {
     auto* wheelEvent = static_cast<QWheelEvent*>(ev);
+    if (wheelEvent->modifiers() == Qt::ControlModifier) {
+      const QPoint pixelDelta = wheelEvent->pixelDelta();
+      const QPoint angleDelta = wheelEvent->angleDelta();
+      const int wheelDelta = !pixelDelta.isNull() ? (pixelDelta.y() != 0 ? pixelDelta.y() : pixelDelta.x())
+                                                  : (angleDelta.y() != 0 ? angleDelta.y() : angleDelta.x());
+      m_thumbnailNavigationWheelDelta += wheelDelta;
+      const int pageSteps = m_thumbnailNavigationWheelDelta / 120;
+      m_thumbnailNavigationWheelDelta %= 120;
+      if (pageSteps != 0 && !isBatchProcessingInProgress() && isProjectLoaded()) {
+        const PageInfo currentPage = m_thumbSequence->selectionLeader();
+        PageInfo targetPage = currentPage;
+        const bool moveBackward = pageSteps > 0;
+        for (int i = 0; i < std::abs(pageSteps) && !targetPage.isNull(); ++i) {
+          const PageInfo nextPage
+              = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
+          if (nextPage.isNull()) {
+            break;
+          }
+          targetPage = nextPage;
+        }
+        if (!targetPage.isNull() && targetPage.id() != currentPage.id()) {
+          goToPage(targetPage.id());
+        }
+      }
+      wheelEvent->accept();
+      return true;
+    }
+
     if (wheelEvent->modifiers() == Qt::AltModifier) {
-      const QPoint& angleDelta = wheelEvent->angleDelta();
-      const int wheelDist = angleDelta.x() + angleDelta.y();
-      if (std::abs(wheelDist) >= 30) {
-        scaleThumbnails(std::copysign(1, wheelDist));
+      const QPoint pixelDelta = wheelEvent->pixelDelta();
+      const QPoint angleDelta = wheelEvent->angleDelta();
+      const double scaleSteps
+          = !pixelDelta.isNull() ? (pixelDelta.x() + pixelDelta.y()) / 40.0 : (angleDelta.x() + angleDelta.y()) / 120.0;
+      if (scaleSteps != 0.0) {
+        scaleThumbnails(scaleSteps, isThumbnailView);
       }
       wheelEvent->accept();
       return true;
@@ -2843,19 +2878,30 @@ void MainWindow::setDockWidgetsVisible(bool state) {
   thumbnailsDockWidget->setVisible(state);
 }
 
-void MainWindow::scaleThumbnails(int scaleFactor) {
+void MainWindow::scaleThumbnails(const double scaleFactor, const bool anchorUnderMouse) {
+  const QSizeF oldSize(m_maxLogicalThumbSize);
   const double dx = 25.0 * scaleFactor;
   const double dy = 16.0 * scaleFactor;
   const double width = qBound(100.0, m_maxLogicalThumbSize.width() + dx, 1000.0);
   const double height = qBound(64.0, m_maxLogicalThumbSize.height() + dy, 640.0);
-  m_maxLogicalThumbSize = QSizeF(width, height);
-  if (!m_maxLogicalThumbSizeUpdater.isActive()) {
-    m_maxLogicalThumbSizeUpdater.start(350);
+  if ((width == oldSize.width()) && (height == oldSize.height())) {
+    return;
   }
+
+  const double scale = std::sqrt((width / oldSize.width()) * (height / oldSize.height()));
+  const QGraphicsView::ViewportAnchor oldAnchor = thumbView->transformationAnchor();
+  thumbView->setTransformationAnchor(anchorUnderMouse ? QGraphicsView::AnchorUnderMouse
+                                                      : QGraphicsView::AnchorViewCenter);
+  thumbView->scale(scale, scale);
+  thumbView->setTransformationAnchor(oldAnchor);
+
+  m_maxLogicalThumbSize = QSizeF(width, height);
+  m_maxLogicalThumbSizeUpdater.start(350);
   ApplicationSettings::getInstance().setMaxLogicalThumbnailSize(m_maxLogicalThumbSize);
 }
 
 void MainWindow::updateMaxLogicalThumbSize() {
+  thumbView->resetTransform();
   m_thumbSequence->setMaxLogicalThumbSize(m_maxLogicalThumbSize);
   updateThumbViewMinWidth();
   resetThumbSequence(currentPageOrderProvider(), ThumbnailSequence::KEEP_SELECTION);
