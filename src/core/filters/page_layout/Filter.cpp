@@ -157,9 +157,12 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
   }
 }  // Filter::loadSettings
 
-void Filter::setContentBox(const PageId& pageId, const ImageTransformation& xform, const QRectF& contentRect) {
+void Filter::setContentBox(const PageId& pageId,
+                           const ImageTransformation& xform,
+                           const QRectF& pageRect,
+                           const QRectF& contentRect) {
   const QSizeF contentSizeMm(Utils::calcRectSizeMM(xform, contentRect));
-  m_settings->setContentSizeMM(pageId, contentSizeMm);
+  m_settings->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm);
 }
 
 void Filter::invalidateContentBox(const PageId& pageId) {

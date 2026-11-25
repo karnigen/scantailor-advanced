@@ -9,6 +9,8 @@
 #include <QString>
 #include <Qt>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -64,6 +66,12 @@ class ProjectPages : public QObject {
   void performRelinking(const AbstractRelinker& relinker);
 
   void setLayoutTypeFor(const ImageId& imageId, LayoutType layout);
+
+  // Capture before reading the split settings; stale page metadata is rejected.
+  std::optional<std::uint64_t> layoutRevision(const PageInfo& pageInfo) const;
+
+  // Reject cached results if another operation has updated this image since capture.
+  bool setLayoutTypeForIfUnchanged(const ImageId& imageId, LayoutType layout, std::uint64_t revision);
 
   void setLayoutTypeForAllPages(LayoutType layout);
 
@@ -129,6 +137,7 @@ class ProjectPages : public QObject {
     int numLogicalPages;    // 1 or 2
     bool leftHalfRemoved;   // Both can't be true, and if one is true,
     bool rightHalfRemoved;  // then numLogicalPages is 1.
+    std::uint64_t layoutRevision = 0;
 
     explicit ImageDesc(const ImageInfo& imageInfo);
 
@@ -158,6 +167,7 @@ class ProjectPages : public QObject {
   PageInfo unremovePageImpl(const PageId& pageId, bool& modified);
 
   mutable QMutex m_mutex;
+  std::uint64_t m_nextLayoutRevision = 0;
   std::vector<ImageDesc> m_images;
   PageId::SubPage m_subPagesInOrder[2];
 };

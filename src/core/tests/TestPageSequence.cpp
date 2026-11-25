@@ -2,11 +2,18 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include <ImageId.h>
+#include <ImageInfo.h>
+#include <ImageTransformation.h>
 #include <PageId.h>
 #include <PageInfo.h>
 #include <PageSequence.h>
+#include <ProcessingTaskQueue.h>
+#include <ProjectPages.h>
+#include <filters/page_split/CacheDrivenTask.h>
+#include <filters/page_split/Settings.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -18,6 +25,12 @@ static PageInfo makePage(const char* path, const int imageIdx) {
   return info;
 }
 
+class CompletedBatchTask : public BackgroundTask {
+ public:
+  CompletedBatchTask() : BackgroundTask(BATCH) {}
+  FilterResultPtr operator()() override { return nullptr; }
+  FilterResultPtr exceptionResult(const QString&) override { return nullptr; }
+};
 
 TEST_CASE("PageSequenceTestSuite / select_this_page_and_following_every_other_from_first") {
   PageSequence seq;
@@ -77,5 +90,108 @@ TEST_CASE("PageSequenceTestSuite / select_this_page_and_following_every_other_pa
   }
 }
 
+TEST_CASE("ProjectPages / cached split cannot overwrite a newer worker layout") {
+  const ImageId imageId("/page.tif", 0);
+  const ImageMetadata oldMetadata(QSize(100, 200), Dpi(300, 300));
+  const ImageMetadata newMetadata(QSize(200, 100), Dpi(300, 300));
+  ProjectPages pages({ImageInfo(imageId, oldMetadata, 1, false, false)}, Qt::LeftToRight);
+  const PageInfo oldPage = pages.toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto cachedRevision = pages.layoutRevision(oldPage);
+  REQUIRE(cachedRevision);
+  ProcessingTaskQueue queue;
+  const auto task = std::make_shared<CompletedBatchTask>();
+  queue.addProcessingTask(oldPage, task);
+  REQUIRE(queue.takeForProcessing() == task);
+
+  pages.updateImageMetadata(imageId, newMetadata);
+  pages.setLayoutTypeFor(imageId, ProjectPages::TWO_PAGE_LAYOUT);
+
+  CHECK_FALSE(pages.setLayoutTypeForIfUnchanged(imageId, ProjectPages::ONE_PAGE_LAYOUT, *cachedRevision));
+  CHECK_FALSE(pages.layoutRevision(oldPage));
+  queue.processingFinished(task);
+  REQUIRE(queue.allProcessed());
+  const PageSequence completed = pages.toPageSequence(PAGE_VIEW);
+  REQUIRE(completed.numPages() == 2);
+  CHECK(completed.pageAt(0).id().subPage() == PageId::LEFT_PAGE);
+  CHECK(completed.pageAt(1).id().subPage() == PageId::RIGHT_PAGE);
+}
+
+TEST_CASE("ProjectPages / cached split rejects a newer layout even when page count did not change") {
+  const ImageId imageId("/page.tif", 0);
+  const ImageMetadata metadata(QSize(100, 200), Dpi(300, 300));
+  ProjectPages pages({ImageInfo(imageId, metadata, 1, false, false)}, Qt::LeftToRight);
+  const PageInfo page = pages.toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto cachedRevision = pages.layoutRevision(page);
+  REQUIRE(cachedRevision);
+
+  pages.setLayoutTypeFor(imageId, ProjectPages::ONE_PAGE_LAYOUT);
+  CHECK_FALSE(pages.setLayoutTypeForIfUnchanged(imageId, ProjectPages::TWO_PAGE_LAYOUT, *cachedRevision));
+  CHECK(pages.toPageSequence(PAGE_VIEW).numPages() == 1);
+
+  const auto currentRevision = pages.layoutRevision(page);
+  REQUIRE(currentRevision);
+  CHECK(pages.setLayoutTypeForIfUnchanged(imageId, ProjectPages::TWO_PAGE_LAYOUT, *currentRevision));
+  CHECK(pages.toPageSequence(PAGE_VIEW).numPages() == 2);
+}
+
+TEST_CASE("ProjectPages / another image does not invalidate a cached split") {
+  const ImageId firstId("/first.tif", 0);
+  const ImageId secondId("/second.tif", 0);
+  const ImageMetadata metadata(QSize(100, 200), Dpi(300, 300));
+  ProjectPages pages({ImageInfo(firstId, metadata, 1, false, false), ImageInfo(secondId, metadata, 1, false, false)},
+                     Qt::LeftToRight);
+  const PageInfo firstPage = pages.toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto revision = pages.layoutRevision(firstPage);
+  REQUIRE(revision);
+  pages.setLayoutTypeFor(secondId, ProjectPages::TWO_PAGE_LAYOUT);
+
+  CHECK(pages.setLayoutTypeForIfUnchanged(firstId, ProjectPages::TWO_PAGE_LAYOUT, *revision));
+  CHECK(pages.toPageSequence(PAGE_VIEW).numPages() == 4);
+}
+
+TEST_CASE("PageSplitCacheDrivenTask / stale page metadata cannot restore an old split") {
+  const ImageId imageId("/page.tif", 0);
+  const ImageMetadata oldMetadata(QSize(100, 200), Dpi(300, 300));
+  const ImageMetadata newMetadata(QSize(200, 100), Dpi(300, 300));
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, oldMetadata, 1, false, false)}, Qt::LeftToRight);
+  const PageInfo oldPage = pages->toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto settings = std::make_shared<page_split::Settings>();
+  const QRectF oldRect(0, 0, 100, 200);
+  page_split::Settings::UpdateAction update;
+  update.setLayoutType(page_split::SINGLE_PAGE_UNCUT);
+  update.setParams(page_split::Params(
+      page_split::PageLayout(oldRect),
+      page_split::Dependencies(oldMetadata.size(), OrthogonalRotation(), page_split::SINGLE_PAGE_UNCUT), MODE_MANUAL));
+  settings->updatePage(imageId, update);
+  pages->updateImageMetadata(imageId, newMetadata);
+  pages->setLayoutTypeFor(imageId, ProjectPages::TWO_PAGE_LAYOUT);
+
+  page_split::CacheDrivenTask cache(settings, pages, nullptr);
+  cache.process(oldPage, nullptr, ImageTransformation(oldRect, Dpi(300, 300)));
+
+  CHECK(pages->toPageSequence(PAGE_VIEW).numPages() == 2);
+}
+
+TEST_CASE("PageSplitCacheDrivenTask / current cached split updates the page count") {
+  const ImageId imageId("/page.tif", 0);
+  const ImageMetadata metadata(QSize(200, 100), Dpi(300, 300));
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, metadata, 1, false, false)}, Qt::LeftToRight);
+  const PageInfo page = pages->toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto settings = std::make_shared<page_split::Settings>();
+  const QRectF rect(0, 0, 200, 100);
+  const page_split::PageLayout layout(rect, QLineF(100, 0, 100, 100));
+  page_split::Settings::UpdateAction update;
+  update.setLayoutType(page_split::TWO_PAGES);
+  update.setParams(page_split::Params(
+      layout, page_split::Dependencies(metadata.size(), OrthogonalRotation(), page_split::TWO_PAGES), MODE_MANUAL));
+  settings->updatePage(imageId, update);
+
+  page_split::CacheDrivenTask cache(settings, pages, nullptr);
+  cache.process(page, nullptr, ImageTransformation(rect, Dpi(300, 300)));
+
+  CHECK(pages->toPageSequence(PAGE_VIEW).numPages() == 2);
+}
 
 }  // namespace Tests

@@ -78,7 +78,7 @@ TEST_CASE("DeviationProviderTestSuite / computes values through its callback") {
   CHECK_FALSE(provider.isDeviant(1));
 }
 
-TEST_CASE("DeviationProviderTestSuite / incremental statistics follow updates and removals") {
+TEST_CASE("DeviationProviderTestSuite / statistics follow updates and removals") {
   const double nan = std::numeric_limits<double>::quiet_NaN();
   DeviationProvider<int> provider;
   for (int i = 0; i < 5; ++i) {
@@ -103,6 +103,27 @@ TEST_CASE("DeviationProviderTestSuite / incremental statistics follow updates an
   CHECK(provider.getDeviationValue(3) == -1.0);
   CHECK(provider.getDeviationValue(2) == Catch::Approx(140.0 / 3.0 - 30.0));
   CHECK(provider.getDeviationValue(4) == Catch::Approx(10.0 / 3.0));
+}
+
+TEST_CASE("DeviationProviderTestSuite / equal negative values are not outliers") {
+  DeviationProvider<int> provider;
+  for (int i = 0; i < 10; ++i) {
+    provider.addOrUpdate(i, -5.2);
+  }
+  for (int i = 0; i < 10; ++i) {
+    CHECK_FALSE(provider.isDeviant(i, 1.5, 1.0));
+  }
+}
+
+TEST_CASE("DeviationProviderTestSuite / close values retain meaningful variation") {
+  DeviationProvider<int> provider;
+  for (int i = 0; i < 9; ++i) {
+    provider.addOrUpdate(i, -5.2);
+  }
+  provider.addOrUpdate(9, -5.2 - 1e-8);
+
+  CHECK_FALSE(provider.isDeviant(0, 1.5, 1.0));
+  CHECK(provider.isDeviant(9, 1.5, 1.0));
 }
 
 TEST_CASE("DeviationProviderTestSuite / concurrent updates and queries stay coherent") {

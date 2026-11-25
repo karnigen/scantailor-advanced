@@ -16,16 +16,19 @@ class ContentBoxPropagator::Collector : public ContentBoxCollector {
  public:
   Collector();
 
-  void process(const ImageTransformation& xform, const QRectF& contentRect) override;
+  void process(const ImageTransformation& xform, const QRectF& pageRect, const QRectF& contentRect) override;
 
   bool collected() const { return m_collected; }
 
   const ImageTransformation& xform() const { return m_xform; }
 
+  const QRectF& pageRect() const { return m_pageRect; }
+
   const QRectF& contentRect() const { return m_contentRect; }
 
  private:
   ImageTransformation m_xform;
+  QRectF m_pageRect;
   QRectF m_contentRect;
   bool m_collected;
 };
@@ -44,7 +47,8 @@ void ContentBoxPropagator::propagate(const ProjectPages& pages) {
     Collector collector;
     m_task->process(pageInfo, &collector);
     if (collector.collected()) {
-      m_pageLayoutFilter->setContentBox(pageInfo.id(), collector.xform(), collector.contentRect());
+      m_pageLayoutFilter->setContentBox(pageInfo.id(), collector.xform(), collector.pageRect(),
+                                        collector.contentRect());
     } else {
       m_pageLayoutFilter->invalidateContentBox(pageInfo.id());
     }
@@ -55,8 +59,11 @@ void ContentBoxPropagator::propagate(const ProjectPages& pages) {
 
 ContentBoxPropagator::Collector::Collector() : m_xform(QRectF(0, 0, 1, 1), Dpi(300, 300)), m_collected(false) {}
 
-void ContentBoxPropagator::Collector::process(const ImageTransformation& xform, const QRectF& contentRect) {
+void ContentBoxPropagator::Collector::process(const ImageTransformation& xform,
+                                              const QRectF& pageRect,
+                                              const QRectF& contentRect) {
   m_xform = xform;
+  m_pageRect = pageRect;
   m_contentRect = contentRect;
   m_collected = true;
 }

@@ -5,11 +5,19 @@
 
 #include <SmartFilenameOrdering.h>
 #include <Units.h>
+#include <filters/page_layout/Filter.h>
+#include <filters/page_layout/Params.h>
+#include <filters/select_content/CacheDrivenTask.h>
+#include <filters/select_content/Dependencies.h>
+#include <filters/select_content/Settings.h>
 #include <foundation/Utils.h>
 
+#include <QDomDocument>
+#include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QString>
+#include <QTemporaryDir>
 #include <QtTest/QtTest>
 #include <stdexcept>
 #include <utility>
@@ -17,11 +25,35 @@
 #include "AbstractCommand.h"
 #include "BackgroundExecutor.h"
 #include "BackgroundTask.h"
+#include "CompositeCacheDrivenTask.h"
+#include "ContentBoxPropagator.h"
+#include "FileNameDisambiguator.h"
 #include "FilterResult.h"
+#include "ImageInfo.h"
+#include "ImageTransformation.h"
+#include "OutputFileNameGenerator.h"
+#include "PageSelectionAccessor.h"
 #include "ProcessingTaskQueue.h"
+#include "ProjectPages.h"
+#include "ProjectWriter.h"
+#include "SelectedPage.h"
 #include "WorkerThreadPool.h"
 
 namespace {
+
+class SelectContentCache : public CompositeCacheDrivenTask {
+ public:
+  SelectContentCache(std::shared_ptr<select_content::Settings> settings, const ImageTransformation& xform)
+      : m_task(std::move(settings), nullptr), m_xform(xform) {}
+
+  void process(const PageInfo& pageInfo, AbstractFilterDataCollector* collector) override {
+    m_task.process(pageInfo, collector, m_xform);
+  }
+
+ private:
+  select_content::CacheDrivenTask m_task;
+  ImageTransformation m_xform;
+};
 
 struct AsyncTaskState {
   bool failed = false;
@@ -121,6 +153,64 @@ class UnexpectedlyCancelledBackgroundTask : public BackgroundTask {
 };
 
 }  // namespace
+
+void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
+  const ImageMetadata metadata(QSize(200, 300), Dpi(300, 300));
+  const ImageId firstId("/first.tif", 0);
+  const ImageId secondId("/second.tif", 0);
+  const auto pages
+      = std::make_shared<ProjectPages>(std::vector<ImageInfo>{ImageInfo(firstId, metadata, 1, false, false),
+                                                              ImageInfo(secondId, metadata, 1, false, false)},
+                                       Qt::LeftToRight);
+  const auto contentSettings = std::make_shared<select_content::Settings>();
+  const ImageTransformation xform(QRectF(0, 0, 200, 300), Dpi(300, 300));
+  const select_content::Dependencies deps(xform.resultingPreCropArea(), MODE_MANUAL, MODE_MANUAL, false);
+  const QRectF pageRect(5, 6, 180, 280);
+  const QRectF contentRects[] = {QRectF(15, 20, 140, 230), QRectF(25, 30, 130, 210)};
+  const PageId pageIds[] = {PageId(firstId, PageId::SINGLE_PAGE), PageId(secondId, PageId::SINGLE_PAGE)};
+  for (int i = 0; i < 2; ++i) {
+    contentSettings->setPageParams(pageIds[i], select_content::Params(contentRects[i], QSizeF(10, 10), pageRect, deps,
+                                                                      MODE_MANUAL, MODE_MANUAL, false));
+  }
+
+  const auto filter = std::make_shared<page_layout::Filter>(pages, PageSelectionAccessor(nullptr));
+  const auto cache = std::make_shared<SelectContentCache>(contentSettings, xform);
+  ContentBoxPropagator(filter, cache).propagate(*pages);
+
+  const QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(), directory.path(), Qt::LeftToRight);
+  const ProjectWriter writer(pages, SelectedPage(), output);
+  const QString projectPath = directory.filePath("project.scan");
+  QString error;
+  QVERIFY2(writer.write(projectPath, {filter}, &error), qPrintable(error));
+  QFile file(projectPath);
+  QVERIFY(file.open(QIODevice::ReadOnly));
+  QDomDocument document;
+  QVERIFY(document.setContent(&file));
+  const QDomNodeList savedPages = document.elementsByTagName("page-layout").at(0).toElement().elementsByTagName("page");
+  QCOMPARE(savedPages.size(), 2);
+  for (int i = 0; i < 2; ++i) {
+    const QDomElement paramsElement = savedPages.at(i).firstChildElement("params");
+    QVERIFY(!paramsElement.isNull());
+    const page_layout::Params params(paramsElement);
+    QCOMPARE(params.pageRect(), pageRect);
+    QCOMPARE(params.contentRect(), contentRects[i]);
+    QVERIFY(!params.contentSizeMM().isEmpty());
+  }
+
+  contentSettings->clearPageParams(pageIds[1]);
+  ContentBoxPropagator(filter, cache).propagate(*pages);
+  QDomDocument updatedDocument;
+  const QDomElement updatedFilter = filter->saveSettings(writer, updatedDocument);
+  const QDomNodeList updatedPages = updatedFilter.elementsByTagName("page");
+  QCOMPARE(updatedPages.size(), 2);
+  const page_layout::Params unchanged(updatedPages.at(0).firstChildElement("params"));
+  const page_layout::Params unavailable(updatedPages.at(1).firstChildElement("params"));
+  QCOMPARE(unchanged.contentRect(), contentRects[0]);
+  QVERIFY(unavailable.contentRect().isEmpty());
+  QVERIFY(unavailable.contentSizeMM().isEmpty());
+}
 
 void TestCoreQt::testUnitsToString() {
   QCOMPARE(unitsToString(PIXELS), QString("px"));

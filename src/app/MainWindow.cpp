@@ -1184,6 +1184,11 @@ void MainWindow::filterSelectionChanged(const QItemSelection& selected) {
   const bool nowBelowFixOrientation = isBelowFixOrientation(m_curFilter);
   const bool nowBelowSelectContent = isBelowSelectContent(m_curFilter);
 
+  if ((!wasBelowSelectContent && nowBelowSelectContent) || (!wasBelowFixOrientation && nowBelowFixOrientation)) {
+    // Cancelled tasks may still be updating settings when propagation starts.
+    m_workerThreadPool->shutdown();
+  }
+
   m_stages->filterAt(m_curFilter)->selected();
 
   updateSortOptions();

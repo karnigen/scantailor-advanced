@@ -21,6 +21,7 @@ class TestCoreQt : public QObject {
   void testWorkerThreadPoolReturnsFailureResult();
   void testWorkerThreadPoolCompletesWhenFailureResultIsUnavailable();
   void testWorkerThreadPoolCompletesUnexpectedCancellation();
+  void testContentBoxPropagationPersistsGeometry();
 };
 
 class Emitter : public QObject {

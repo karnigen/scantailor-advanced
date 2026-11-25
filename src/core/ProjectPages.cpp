@@ -4,6 +4,7 @@
 #include "ProjectPages.h"
 
 #include <QDebug>
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <map>
@@ -139,11 +140,11 @@ void ProjectPages::listRelinkablePaths(const VirtualFunction<void, const Relinka
 
 void ProjectPages::performRelinking(const AbstractRelinker& relinker) {
   QMutexLocker locker(&m_mutex);
-
   for (ImageDesc& image : m_images) {
     const RelinkablePath oldPath(image.id.filePath(), RelinkablePath::File);
     const QString newPath(relinker.substitutionPathFor(oldPath));
     image.id.setFilePath(newPath);
+    image.layoutRevision = ++m_nextLayoutRevision;
   }
 }
 
@@ -158,6 +159,35 @@ void ProjectPages::setLayoutTypeFor(const ImageId& imageId, const LayoutType lay
   if (wasModified) {
     emit modified();
   }
+}
+
+std::optional<std::uint64_t> ProjectPages::layoutRevision(const PageInfo& pageInfo) const {
+  const QMutexLocker locker(&m_mutex);
+  for (const ImageDesc& image : m_images) {
+    if (image.id == pageInfo.imageId() && image.metadata == pageInfo.metadata()) {
+      return image.layoutRevision;
+    }
+  }
+  return std::nullopt;
+}
+
+bool ProjectPages::setLayoutTypeForIfUnchanged(const ImageId& imageId,
+                                               const LayoutType layout,
+                                               const std::uint64_t revision) {
+  bool wasModified = false;
+  {
+    const QMutexLocker locker(&m_mutex);
+    const auto it = std::find_if(m_images.begin(), m_images.end(),
+                                 [&imageId](const ImageDesc& image) { return image.id == imageId; });
+    if (it == m_images.end() || revision != it->layoutRevision) {
+      return false;
+    }
+    setLayoutTypeForImpl(imageId, layout, &wasModified);
+  }
+  if (wasModified) {
+    emit modified();
+  }
+  return true;
 }
 
 void ProjectPages::setLayoutTypeForAllPages(const LayoutType layout) {
@@ -321,11 +351,11 @@ void ProjectPages::updateMetadataFrom(const std::vector<ImageFileInfo>& files) {
   }
 
   QMutexLocker locker(&m_mutex);
-
   for (ImageDesc& image : m_images) {
     const MetadataMap::const_iterator it(metadataMap.find(image.id));
     if (it != metadataMap.end()) {
       image.metadata = it->second;
+      image.layoutRevision = ++m_nextLayoutRevision;
     }
   }
 }
@@ -336,6 +366,7 @@ void ProjectPages::setLayoutTypeForImpl(const ImageId& imageId, const LayoutType
   for (int i = 0; i < numImages; ++i) {
     ImageDesc& image = m_images[i];
     if (image.id == imageId) {
+      image.layoutRevision = ++m_nextLayoutRevision;
       int adjustedNumPages = numPages;
       if ((numPages == 2) && (image.leftHalfRemoved != image.rightHalfRemoved)) {
         // Both can't be removed, but we handle that case anyway
@@ -361,6 +392,7 @@ void ProjectPages::setLayoutTypeForAllPagesImpl(const LayoutType layout, bool* m
   const auto numImages = static_cast<int>(m_images.size());
   for (int i = 0; i < numImages; ++i) {
     ImageDesc& image = m_images[i];
+    image.layoutRevision = ++m_nextLayoutRevision;
 
     int adjustedNumPages = numPages;
     if ((numPages == 2) && (image.leftHalfRemoved != image.rightHalfRemoved)) {
@@ -384,6 +416,7 @@ void ProjectPages::autoSetLayoutTypeForImpl(const ImageId& imageId, const Orthog
   for (int i = 0; i < numImages; ++i) {
     ImageDesc& image = m_images[i];
     if (image.id == imageId) {
+      image.layoutRevision = ++m_nextLayoutRevision;
       int numPages = adviseNumberOfLogicalPages(image.metadata, rotation);
       if ((numPages == 2) && (image.leftHalfRemoved != image.rightHalfRemoved)) {
         // Both can't be removed, but we handle that case anyway
@@ -409,6 +442,7 @@ void ProjectPages::updateImageMetadataImpl(const ImageId& imageId, const ImageMe
   for (int i = 0; i < numImages; ++i) {
     ImageDesc& image = m_images[i];
     if (image.id == imageId) {
+      image.layoutRevision = ++m_nextLayoutRevision;
       if (image.metadata != metadata) {
         image.metadata = metadata;
         *modified = true;
@@ -441,6 +475,7 @@ std::vector<PageInfo> ProjectPages::insertImageImpl(const ImageInfo& newImage,
   }
 
   ImageDesc imageDesc(newImage);
+  imageDesc.layoutRevision = ++m_nextLayoutRevision;
 
   // Enforce some rules.
   if (imageDesc.numLogicalPages == 2) {
@@ -484,6 +519,11 @@ void ProjectPages::removePagesImpl(const std::set<PageId>& toRemove, bool& modif
   const auto numOldImages = static_cast<int>(m_images.size());
   for (int i = 0; i < numOldImages; ++i) {
     ImageDesc image(m_images[i]);
+    if (toRemove.find(PageId(image.id, PageId::SINGLE_PAGE)) != toRemoveEnd
+        || toRemove.find(PageId(image.id, PageId::LEFT_PAGE)) != toRemoveEnd
+        || toRemove.find(PageId(image.id, PageId::RIGHT_PAGE)) != toRemoveEnd) {
+      image.layoutRevision = ++m_nextLayoutRevision;
+    }
 
     if (toRemove.find(PageId(image.id, PageId::SINGLE_PAGE)) != toRemoveEnd) {
       image.numLogicalPages = 0;
@@ -541,6 +581,7 @@ PageInfo ProjectPages::unremovePageImpl(const PageId& pageId, bool& modified) {
   }
 
   image.numLogicalPages = 2;
+  image.layoutRevision = ++m_nextLayoutRevision;
   return PageInfo(pageId, image.metadata, image.numLogicalPages, image.leftHalfRemoved, image.rightHalfRemoved);
 }  // ProjectPages::unremovePageImpl
 
