@@ -3,16 +3,21 @@
 
 #include "tst_core_qt.h"
 
+#include <Dpi.h>
 #include <SmartFilenameOrdering.h>
 #include <Units.h>
+#include <UnitsConverter.h>
 #include <filters/page_layout/Filter.h>
 #include <filters/page_layout/Params.h>
 #include <filters/select_content/CacheDrivenTask.h>
 #include <filters/select_content/Dependencies.h>
+#include <filters/select_content/OptionsWidget.h>
 #include <filters/select_content/Settings.h>
 #include <foundation/Utils.h>
 
+#include <QComboBox>
 #include <QDomDocument>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
 #include <QSemaphore>
@@ -368,6 +373,52 @@ void TestCoreQt::testUnitsToLocalizedString() {
   QString mm = unitsToLocalizedString(MILLIMETRES);
   QVERIFY(!px.isEmpty());
   QVERIFY(!mm.isEmpty());
+}
+
+void TestCoreQt::testPageSizePresetsApplyPhysicalDimensions() {
+  const Dpi dpi(300, 300);
+  const PageId pageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::SINGLE_PAGE);
+  const PageInfo page(pageId, ImageMetadata(QSize(1000, 1200), dpi), 1, false, false);
+  select_content::OptionsWidget widget(std::make_shared<select_content::Settings>(), PageSelectionAccessor(nullptr));
+  widget.preUpdateUI(page);
+
+  select_content::OptionsWidget::UiData uiData;
+  uiData.setPageRect(QRectF(10, 20, 800, 1000));
+  uiData.setPageDetectionMode(MODE_MANUAL);
+  widget.postUpdateUI(uiData);
+
+  auto* pageSizeCombo = widget.findChild<QComboBox*>(QStringLiteral("pageSizeCombo"));
+  auto* widthSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("widthSpinBox"));
+  QVERIFY(pageSizeCombo);
+  QVERIFY(widthSpinBox);
+
+  const int a4PortraitIndex = pageSizeCombo->findText(QStringLiteral("A4 (portrait)"));
+  QVERIFY(a4PortraitIndex > 0);
+
+  QSignalSpy pageRectSpy(&widget, &select_content::OptionsWidget::pageRectChangedLocally);
+  pageSizeCombo->setCurrentIndex(a4PortraitIndex);
+  QCOMPARE(pageRectSpy.count(), 1);
+
+  const QRectF selectedPageRect = pageRectSpy.takeFirst().at(0).toRectF();
+  double expectedWidth = 210.0;
+  double expectedHeight = 297.0;
+  UnitsConverter(dpi).convert(expectedWidth, expectedHeight, MILLIMETRES, PIXELS);
+  QVERIFY(std::abs(selectedPageRect.width() - expectedWidth) < 0.2);
+  QVERIFY(std::abs(selectedPageRect.height() - expectedHeight) < 0.2);
+
+  const int a4LandscapeIndex = pageSizeCombo->findText(QStringLiteral("A4 (landscape)"));
+  QVERIFY(a4LandscapeIndex > 0);
+  pageSizeCombo->setCurrentIndex(a4LandscapeIndex);
+  QCOMPARE(pageRectSpy.count(), 1);
+  const QRectF landscapePageRect = pageRectSpy.takeFirst().at(0).toRectF();
+  expectedWidth = 297.0;
+  expectedHeight = 210.0;
+  UnitsConverter(dpi).convert(expectedWidth, expectedHeight, MILLIMETRES, PIXELS);
+  QVERIFY(std::abs(landscapePageRect.width() - expectedWidth) < 0.2);
+  QVERIFY(std::abs(landscapePageRect.height() - expectedHeight) < 0.2);
+
+  widthSpinBox->setValue(widthSpinBox->value() + 1.0);
+  QCOMPARE(pageSizeCombo->currentIndex(), 0);
 }
 
 void TestCoreQt::testUtilsDoubleToString() {

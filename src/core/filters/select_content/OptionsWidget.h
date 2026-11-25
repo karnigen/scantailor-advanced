@@ -107,6 +107,8 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
   void pageDetectToggled(AutoManualMode mode);
 
+  void pageSizePresetChanged(int index);
+
   void fineTuningChanged(bool checked);
 
   void dimensionsChangedLocally(double);
@@ -117,6 +119,10 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
   void updatePageModeIndication(AutoManualMode mode);
 
   void updatePageDetectOptionsDisplay();
+
+  void populatePageSizePresets();
+
+  void updatePageRectFromDimensions();
 
   void commitCurrentParams();
 

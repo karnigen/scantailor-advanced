@@ -13,6 +13,7 @@ class TestCoreQt : public QObject {
   void testUnitsToString();
   void testUnitsFromString();
   void testUnitsToLocalizedString();
+  void testPageSizePresetsApplyPhysicalDimensions();
   void testUtilsDoubleToString();
   void testSmartFilenameOrdering();
   void testSignalSpy();

@@ -3,21 +3,93 @@
 
 #include "OptionsWidget.h"
 
+#include <UnitsConverter.h>
 #include <UnitsProvider.h>
 
+#include <QComboBox>
+#include <QFile>
+
+#include <cmath>
 #include <functional>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
+
+#include <toml++/toml.h>
 
 #include "ApplyDialog.h"
 #include "Settings.h"
 
 namespace select_content {
+namespace {
+struct PageSizePreset {
+  QString name;
+  QSizeF sizeMm;
+};
+
+std::vector<PageSizePreset> loadPageSizePresets() {
+  QFile file(QStringLiteral(":/page_sizes.toml"));
+  if (!file.open(QIODevice::ReadOnly)) {
+    throw std::runtime_error("Unable to read the built-in page size catalog: " + file.errorString().toStdString());
+  }
+
+  const QByteArray contents = file.readAll();
+  if (file.error() != QFileDevice::NoError) {
+    throw std::runtime_error("Unable to read the built-in page size catalog: " + file.errorString().toStdString());
+  }
+
+  toml::table document;
+  try {
+    document = toml::parse(std::string_view(contents.constData(), static_cast<std::size_t>(contents.size())));
+  } catch (const toml::parse_error& parseError) {
+    throw std::runtime_error("Invalid built-in page size catalog: " + std::string(parseError.what()));
+  }
+
+  const toml::array* sizes = document["paper_size"].as_array();
+  if (!sizes) {
+    throw std::runtime_error("The built-in page size catalog has no paper_size array.");
+  }
+
+  std::vector<PageSizePreset> presets;
+  presets.reserve(sizes->size());
+  for (const toml::node& node : *sizes) {
+    const toml::table* entry = node.as_table();
+    if (!entry) {
+      throw std::runtime_error("The built-in page size catalog contains an invalid entry.");
+    }
+
+    const toml::node* nameNode = entry->get("name");
+    const toml::node* widthNode = entry->get("width_mm");
+    const toml::node* heightNode = entry->get("height_mm");
+    const auto name = nameNode ? nameNode->value<std::string>() : std::nullopt;
+    const auto width = widthNode ? widthNode->value<double>() : std::nullopt;
+    const auto height = heightNode ? heightNode->value<double>() : std::nullopt;
+    if (!name || name->empty() || !width || !height || !std::isfinite(*width) || !std::isfinite(*height)
+        || *width <= 0.0 || *height <= 0.0) {
+      throw std::runtime_error("The built-in page size catalog contains an invalid paper size.");
+    }
+
+    presets.push_back({QString::fromStdString(*name), QSizeF(*width, *height)});
+  }
+  return presets;
+}
+
+bool sizesMatch(const QSizeF& lhs, const QSizeF& rhs) {
+  constexpr double toleranceMm = 0.5;
+  return std::abs(lhs.width() - rhs.width()) <= toleranceMm && std::abs(lhs.height() - rhs.height()) <= toleranceMm;
+}
+}  // namespace
+
 OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings, const PageSelectionAccessor& pageSelectionAccessor)
     : m_settings(std::move(settings)),
       m_pageSelectionAccessor(pageSelectionAccessor),
       m_connectionManager(std::bind(&OptionsWidget::setupUiConnections, this)) {
   setupUi(this);
 
+  populatePageSizePresets();
   setupUiConnections();
 }
 
@@ -79,6 +151,17 @@ void OptionsWidget::manualPageRectSet(const QRectF& pageRect) {
 void OptionsWidget::updatePageRectSize(const QSizeF& size) {
   auto block = m_connectionManager.getScopedBlock();
 
+  if (pageSizeCombo->currentIndex() > 0) {
+    const QSizeF selectedSizeMm = pageSizeCombo->currentData().toSizeF();
+    double currentWidthMm = size.width();
+    double currentHeightMm = size.height();
+    UnitsProvider::getInstance().convertFrom(currentWidthMm, currentHeightMm, PIXELS, m_dpi);
+    UnitsProvider::getInstance().convertTo(currentWidthMm, currentHeightMm, MILLIMETRES, m_dpi);
+    if (!sizesMatch(QSizeF(currentWidthMm, currentHeightMm), selectedSizeMm)) {
+      pageSizeCombo->setCurrentIndex(0);
+    }
+  }
+
   double width = size.width();
   double height = size.height();
   UnitsProvider::getInstance().convertFrom(width, height, PIXELS, m_dpi);
@@ -109,6 +192,24 @@ void OptionsWidget::pageDetectToggled(const AutoManualMode mode) {
     emit pageRectStateChanged(true);
     emit invalidateThumbnail(m_pageId);
   }
+}
+
+void OptionsWidget::pageSizePresetChanged(const int index) {
+  if (index <= 0) {
+    return;
+  }
+
+  double width = pageSizeCombo->itemData(index).toSizeF().width();
+  double height = pageSizeCombo->itemData(index).toSizeF().height();
+  UnitsProvider::getInstance().convertFrom(width, height, MILLIMETRES, m_dpi);
+
+  {
+    auto block = m_connectionManager.getScopedBlock();
+    widthSpinBox->setValue(width);
+    heightSpinBox->setValue(height);
+  }
+
+  updatePageRectFromDimensions();
 }
 
 void OptionsWidget::fineTuningChanged(bool checked) {
@@ -155,6 +256,25 @@ void OptionsWidget::updatePageDetectOptionsDisplay() {
 }
 
 void OptionsWidget::dimensionsChangedLocally(double) {
+  pageSizeCombo->setCurrentIndex(0);
+  updatePageRectFromDimensions();
+}
+
+void OptionsWidget::populatePageSizePresets() {
+  pageSizeCombo->addItem(tr("Custom"));
+  for (const PageSizePreset& preset : loadPageSizePresets()) {
+    const auto addOrientation = [this, &preset](const QString& orientation, const QSizeF& sizeMm) {
+      const int index = pageSizeCombo->count();
+      pageSizeCombo->addItem(tr("%1 (%2)").arg(preset.name, orientation), sizeMm);
+      pageSizeCombo->setItemData(index, pageSizeCombo->itemText(index), Qt::ToolTipRole);
+    };
+
+    addOrientation(tr("portrait"), preset.sizeMm);
+    addOrientation(tr("landscape"), QSizeF(preset.sizeMm.height(), preset.sizeMm.width()));
+  }
+}
+
+void OptionsWidget::updatePageRectFromDimensions() {
   double widthSpinBoxValue = widthSpinBox->value();
   double heightSpinBoxValue = heightSpinBox->value();
   UnitsProvider::getInstance().convertTo(widthSpinBoxValue, heightSpinBoxValue, PIXELS, m_dpi);
@@ -292,6 +412,7 @@ void OptionsWidget::onUnitsChanged(Units units) {
 void OptionsWidget::setupUiConnections() {
   CONNECT(widthSpinBox, SIGNAL(valueChanged(double)), this, SLOT(dimensionsChangedLocally(double)));
   CONNECT(heightSpinBox, SIGNAL(valueChanged(double)), this, SLOT(dimensionsChangedLocally(double)));
+  CONNECT(pageSizeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(pageSizePresetChanged(int)));
   CONNECT(contentDetectAutoBtn, &QPushButton::pressed, this,
           std::bind(&OptionsWidget::contentDetectToggled, this, MODE_AUTO));
   CONNECT(contentDetectManualBtn, &QPushButton::pressed, this,
