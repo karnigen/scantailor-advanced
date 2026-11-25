@@ -9,6 +9,7 @@
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -1887,6 +1888,15 @@ void MainWindow::showKeyboardShortcuts() {
           + "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th><th align='left'>"
           + tr("Context").toHtmlEscaped() + "</th></tr>";
 
+  const QStringList stageNames{
+      QCoreApplication::translate("fix_orientation::Filter", "Fix Orientation"),
+      QCoreApplication::translate("page_split::Filter", "Split Pages"),
+      QCoreApplication::translate("deskew::Filter", "Deskew & Oblique"),
+      QCoreApplication::translate("select_content::Filter", "Select Content"),
+      QCoreApplication::translate("page_layout::Filter", "Margins"),
+      QCoreApplication::translate("output::Filter", "Output"),
+  };
+
   QList<QAction*> actions;
   QSet<QAction*> uniqueActions;
   auto appendActions = [&actions, &uniqueActions](const QList<QAction*>& candidates) {
@@ -1927,8 +1937,12 @@ void MainWindow::showKeyboardShortcuts() {
     }
 
     QString label = action->text();
-    if (action->objectName().startsWith("actionSwitchFilter") && !action->toolTip().isEmpty()) {
-      label = action->toolTip();
+    if (action->objectName().startsWith("actionSwitchFilter")) {
+      bool ok = false;
+      const int stageNumber = action->objectName().mid(QStringLiteral("actionSwitchFilter").size()).toInt(&ok);
+      if (ok && stageNumber >= 1 && stageNumber <= stageNames.size()) {
+        label = stageNames.at(stageNumber - 1);
+      }
     }
     if (label.isEmpty()) {
       label = action->toolTip();

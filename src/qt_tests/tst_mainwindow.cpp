@@ -30,6 +30,7 @@
 #include <QMessageBox>
 #include <QSemaphore>
 #include <QTemporaryDir>
+#include <QTextBrowser>
 #include <QTimer>
 #include <QtTest/QtTest>
 #include <functional>
@@ -322,6 +323,25 @@ void TestMainWindowAsync::missingOutputDirectoryPrompt() {
     QVERIFY(!window.isProjectLoaded());
   }
   dialogWatcher.stop();
+}
+
+void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
+  MainWindow window;
+  QString shortcutHelp;
+  QTimer::singleShot(0, &window, [&shortcutHelp]() {
+    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+    if (auto* browser = dialog->findChild<QTextBrowser*>()) {
+      shortcutHelp = browser->toPlainText();
+    }
+    dialog->reject();
+  });
+
+  QVERIFY(QMetaObject::invokeMethod(&window, "showKeyboardShortcuts", Qt::DirectConnection));
+  QVERIFY(shortcutHelp.contains("Fix Orientation"));
+  QVERIFY(!shortcutHelp.contains("Open the manual Fix Orientation stage."));
 }
 
 void TestMainWindowAsync::batchProcessingBenchmark() {
