@@ -28,6 +28,7 @@
 #include "ZoomHandler.h"
 
 class Margins;
+class QKeyEvent;
 
 namespace page_layout {
 class OptionsWidget;
@@ -106,6 +107,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   };
 
   void onPaint(QPainter& painter, const InteractionState& interaction) override;
+
+  void keyPressEvent(QKeyEvent* event) override;
 
   void onContextMenuEvent(QContextMenuEvent* event, InteractionState& interaction) override;
 

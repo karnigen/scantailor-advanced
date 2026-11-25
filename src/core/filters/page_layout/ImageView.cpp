@@ -9,6 +9,7 @@
 #include <imageproc/GrayImage.h>
 #include <imageproc/Transform.h>
 
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -305,6 +306,36 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
     }
   }
 }  // ImageView::onPaint
+
+void ImageView::keyPressEvent(QKeyEvent* event) {
+  QPointF delta;
+  switch (event->key()) {
+    case Qt::Key_Left:
+      delta.setX(-1.0);
+      break;
+    case Qt::Key_Right:
+      delta.setX(1.0);
+      break;
+    case Qt::Key_Up:
+      delta.setY(-1.0);
+      break;
+    case Qt::Key_Down:
+      delta.setY(1.0);
+      break;
+    default:
+      ImageViewBase::keyPressEvent(event);
+      return;
+  }
+
+  if (event->modifiers().testFlag(Qt::AltModifier)) {
+    delta *= 0.1;
+  }
+
+  dragInitiated(QPointF(0.0, 0.0));
+  innerRectMoveRequest(delta);
+  dragFinished();
+  event->accept();
+}
 
 Proximity ImageView::cornerProximity(const int edgeMask, const QRectF* box, const QPointF& mousePos) const {
   const QRectF r(virtualToWidget().mapRect(*box));

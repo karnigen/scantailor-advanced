@@ -40,6 +40,8 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
   setupUi(this);
   setupIcons();
   setupSourceDpiControls();
+  textBrowser->append(
+      tr("Arrow keys move page content by 1 screen pixel; Alt+Arrow keys move it by 0.1 screen pixel."));
 
   updateLinkDisplay(topBottomLink, m_topBottomLinked);
   updateLinkDisplay(leftRightLink, m_leftRightLinked);
