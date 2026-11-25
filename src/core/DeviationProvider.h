@@ -11,6 +11,7 @@
 #include <limits>
 #include <mutex>
 #include <unordered_map>
+#include <utility>
 
 template <typename K, typename Hash = std::hash<K>>
 class DeviationProvider {
@@ -18,7 +19,7 @@ class DeviationProvider {
  public:
   DeviationProvider() = default;
 
-  explicit DeviationProvider(const std::function<double(const K&)>& computeValueByKey);
+  explicit DeviationProvider(std::function<double(const K&)> computeValueByKey);
 
   bool isDeviant(const K& key, double coefficient = 1.0, double threshold = 0.0, bool defaultVal = false) const;
 
@@ -34,7 +35,7 @@ class DeviationProvider {
 
   void clear();
 
-  void setComputeValueByKey(const std::function<double(const K&)>& computeValueByKey);
+  void setComputeValueByKey(std::function<double(const K&)> computeValueByKey);
 
  private:
   // Both functions require m_mutex.
@@ -52,8 +53,8 @@ class DeviationProvider {
 
 
 template <typename K, typename Hash>
-DeviationProvider<K, Hash>::DeviationProvider(const std::function<double(const K&)>& computeValueByKey)
-    : m_computeValueByKey(computeValueByKey) {}
+DeviationProvider<K, Hash>::DeviationProvider(std::function<double(const K&)> computeValueByKey)
+    : m_computeValueByKey(std::move(computeValueByKey)) {}
 
 template <typename K, typename Hash>
 bool DeviationProvider<K, Hash>::isDeviant(const K& key, double coefficient, double threshold, bool defaultVal) const {
@@ -181,9 +182,9 @@ void DeviationProvider<K, Hash>::remove(const K& key) {
 }
 
 template <typename K, typename Hash>
-void DeviationProvider<K, Hash>::setComputeValueByKey(const std::function<double(const K&)>& computeValueByKey) {
+void DeviationProvider<K, Hash>::setComputeValueByKey(std::function<double(const K&)> computeValueByKey) {
   const std::lock_guard<std::mutex> lock(m_mutex);
-  m_computeValueByKey = computeValueByKey;
+  m_computeValueByKey = std::move(computeValueByKey);
 }
 
 template <typename K, typename Hash>
