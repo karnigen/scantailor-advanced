@@ -5,6 +5,7 @@
 #include "MainWindow.h"
 
 #include <ApplicationSettings.h>
+#include <FilterOptionsWidget.h>
 #include <ImageInfo.h>
 #include <ImageTransformation.h>
 #include <PageSequence.h>
@@ -19,6 +20,7 @@
 
 #include <QAbstractButton>
 #include <QApplication>
+#include <QComboBox>
 #include <QDialog>
 #include <QDir>
 #include <QDomDocument>
@@ -26,7 +28,10 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QHBoxLayout>
 #include <QImage>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QSemaphore>
 #include <QTemporaryDir>
@@ -361,6 +366,63 @@ void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
   QVERIFY(help.contains("CCITT G4"));
   QVERIFY(help.contains("JPEG"));
   dialog->close();
+}
+
+void TestMainWindowAsync::sourceDpiChangesPersistInMargins() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path());
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  auto* dpiCombo = window.m_optionsWidget->findChild<QComboBox*>("sourceDpiCombo");
+  auto* xDpi = window.m_optionsWidget->findChild<QLineEdit*>("sourceXDpi");
+  auto* yDpi = window.m_optionsWidget->findChild<QLineEdit*>("sourceYDpi");
+  auto* dpiLabel = window.m_optionsWidget->findChild<QLabel*>("sourceDpiLabel");
+  auto* dpiValuesLayout = window.m_optionsWidget->findChild<QHBoxLayout*>("sourceDpiValuesLayout");
+  QVERIFY(dpiCombo);
+  QVERIFY(xDpi);
+  QVERIFY(yDpi);
+  QVERIFY(dpiLabel);
+  QVERIFY(dpiValuesLayout);
+  QCOMPARE(dpiLabel->text(), QStringLiteral("sDPI"));
+  QCOMPARE(dpiValuesLayout->spacing(), 0);
+
+  dpiCombo->setCurrentIndex(2);
+  QVERIFY(QMetaObject::invokeMethod(window.m_optionsWidget.data(), "sourceDpiComboActivated", Qt::DirectConnection,
+                                    Q_ARG(int, 2)));
+  QCoreApplication::processEvents();
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_thumbSequence->toPageSequence().pageAt(size_t(0)).metadata().dpi(), Dpi(400, 400),
+                            10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QCOMPARE(xDpi->text(), QStringLiteral("400"));
+  QCOMPARE(yDpi->text(), QStringLiteral("400"));
+  QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(size_t(0)).metadata().dpi(), Dpi(400, 400));
+
+  xDpi->setText(QStringLiteral("600"));
+  yDpi->setText(QStringLiteral("400"));
+  QVERIFY(QMetaObject::invokeMethod(window.m_optionsWidget.data(), "sourceDpiEditingFinished", Qt::DirectConnection));
+  QCoreApplication::processEvents();
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_thumbSequence->toPageSequence().pageAt(size_t(0)).metadata().dpi(), Dpi(600, 400),
+                            10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QCOMPARE(xDpi->text(), QStringLiteral("600"));
+  QCOMPARE(yDpi->text(), QStringLiteral("400"));
+  QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(size_t(0)).metadata().dpi(), Dpi(600, 400));
 }
 
 void TestMainWindowAsync::batchProcessingBenchmark() {

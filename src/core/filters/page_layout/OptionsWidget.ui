@@ -300,9 +300,25 @@ QToolButton:pressed {
       <item>
        <layout class="QHBoxLayout" name="sourceDpiLayout">
         <item>
+         <spacer name="sourceDpiLeftSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeType">
+           <enum>QSizePolicy::Expanding</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>1</width>
+            <height>1</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
          <widget class="QLabel" name="sourceDpiLabel">
           <property name="text">
-           <string>Source DPI</string>
+           <string>sDPI</string>
           </property>
          </widget>
         </item>
@@ -314,37 +330,60 @@ QToolButton:pressed {
          </widget>
         </item>
         <item>
-         <widget class="QLineEdit" name="sourceXDpi">
-          <property name="maximumSize">
-           <size>
-            <width>40</width>
-            <height>16777215</height>
-           </size>
+         <layout class="QHBoxLayout" name="sourceDpiValuesLayout">
+          <property name="spacing">
+           <number>0</number>
           </property>
-          <property name="toolTip">
-           <string>Enter source x dpi.</string>
-          </property>
-         </widget>
+          <item>
+           <widget class="QLineEdit" name="sourceXDpi">
+            <property name="maximumSize">
+             <size>
+              <width>40</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Enter source x dpi.</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="sourceDpiTimesLabel">
+            <property name="text">
+             <string notr="true">×</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="sourceYDpi">
+            <property name="maximumSize">
+             <size>
+              <width>40</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Enter source y dpi.</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
         <item>
-         <widget class="QLabel" name="sourceDpiTimesLabel">
-          <property name="text">
-           <string notr="true">×</string>
+         <spacer name="sourceDpiRightSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
           </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="sourceYDpi">
-          <property name="maximumSize">
+          <property name="sizeType">
+           <enum>QSizePolicy::Expanding</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
            <size>
-            <width>40</width>
-            <height>16777215</height>
+            <width>1</width>
+            <height>1</height>
            </size>
           </property>
-          <property name="toolTip">
-           <string>Enter source y dpi.</string>
-          </property>
-         </widget>
+         </spacer>
         </item>
        </layout>
       </item>

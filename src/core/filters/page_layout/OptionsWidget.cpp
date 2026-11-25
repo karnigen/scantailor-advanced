@@ -566,6 +566,11 @@ void OptionsWidget::onFixDpiClicked() {
 }
 
 void OptionsWidget::setupSourceDpiControls() {
+  QSizePolicy comboSizePolicy = sourceDpiCombo->sizePolicy();
+  comboSizePolicy.setHorizontalPolicy(QSizePolicy::Fixed);
+  sourceDpiCombo->setSizePolicy(comboSizePolicy);
+  sourceDpiCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+
   sourceDpiCombo->addItem(tr("Custom"), QVariant());
   sourceDpiCombo->addItem(QStringLiteral("300 x 300"), QSize(300, 300));
   sourceDpiCombo->addItem(QStringLiteral("400 x 400"), QSize(400, 400));
@@ -625,6 +630,11 @@ void OptionsWidget::commitSourceDpiIfValid() {
   }
 
   m_pages->updateImageMetadata(m_pageId.imageId(), updated);
+  for (const PageInfo& pageInfo : m_pages->toPageSequence(PAGE_VIEW)) {
+    if (pageInfo.imageId() == m_pageId.imageId()) {
+      emit invalidateThumbnail(pageInfo);
+    }
+  }
   m_dpi = dpi;
   emit invalidateAllThumbnails();
   emit reloadRequested();
