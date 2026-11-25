@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>361</width>
-    <height>290</height>
+    <height>390</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -163,6 +163,41 @@
      </layout>
     </widget>
    </item>
+    <item>
+     <widget class="QGroupBox" name="settingsToApplyGroup">
+      <property name="title">
+       <string>Settings to copy</string>
+      </property>
+      <layout class="QVBoxLayout" name="settingsToApplyLayout">
+       <item>
+        <widget class="QCheckBox" name="copyCommonSizeCB">
+         <property name="text">
+          <string>Use for common size</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+         <property name="toolTip">
+          <string>Copy this page's on/off setting for common-size matching to the target pages.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="copyAlignmentCB">
+         <property name="text">
+          <string>Alignment (horizontal and vertical)</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+         <property name="toolTip">
+          <string>Copy this page's horizontal and vertical alignment settings.</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
    <item>
     <spacer name="verticalSpacer">
      <property name="orientation">

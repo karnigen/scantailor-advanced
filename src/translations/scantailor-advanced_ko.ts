@@ -3352,6 +3352,26 @@ You should remove them from the project.</source>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>복사할 설정</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>공통 크기에 사용</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>공통 크기 맞춤에 이 페이지를 포함할지 여부를 대상 페이지에 복사합니다.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>정렬(가로 및 세로)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>이 페이지의 가로 및 세로 정렬 설정을 복사합니다.</translation>
+    </message>
+    <message>
         <source>Apply to</source>
         <translation type="unfinished">적용하기</translation>
     </message>
@@ -3458,6 +3478,22 @@ You should remove them from the project.</source>
 </context>
 <context>
     <name>page_layout::OptionsWidget</name>
+    <message>
+        <source>Use for common size</source>
+        <translation>공통 크기에 사용</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>공통 크기 계산에 이 페이지를 포함하고 해당 크기에 맞춥니다.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>공통 크기 잠금</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>해제할 때까지 현재 공통 크기를 고정합니다.</translation>
+    </message>
     <message>
         <source>Apply Margins</source>
         <translation>테두리 적용</translation>

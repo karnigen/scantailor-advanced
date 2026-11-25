@@ -93,8 +93,6 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
   void showApplyAlignmentDialog();
 
-  void matchSizeToAllPages();
-
   void freezeAggregateHardSizeToggled(bool checked);
 
   void onFixDpiClicked();
@@ -109,7 +107,7 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
                     bool applyTop = true,
                     bool applyBottom = true);
 
-  void applyAlignment(const std::set<PageId>& pages);
+  void applyAlignment(const std::set<PageId>& pages, bool copyCommonSize, bool copyAlignment);
 
  private:
   using AlignmentByButton = std::unordered_map<QToolButton*, Alignment>;

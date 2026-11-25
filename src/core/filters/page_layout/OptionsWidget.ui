@@ -473,13 +473,13 @@ QToolButton:pressed {
         <item>
          <widget class="QCheckBox" name="alignWithOthersCB">
           <property name="text">
-           <string>Match size with other pages</string>
+           <string>Use for common size</string>
           </property>
           <property name="checked">
            <bool>true</bool>
           </property>
           <property name="toolTip">
-           <string>Match this page size to the maximum width and height in the project.</string>
+           <string>Include this page in the common-size calculation and match it to that size.</string>
           </property>
          </widget>
         </item>
@@ -871,16 +871,6 @@ QToolButton:pressed {
        </layout>
       </item>
       <item>
-       <widget class="QCheckBox" name="freezeAggregateHardSizeCb">
-        <property name="toolTip">
-         <string>Keep the aggregate page size used for matching fixed while you switch pages, so the reference dimensions do not jump.</string>
-        </property>
-        <property name="text">
-         <string>Lock aggregate size for matching</string>
-        </property>
-       </widget>
-      </item>
-      <item>
        <layout class="QHBoxLayout" name="horizontalLayout_6">
         <item>
          <spacer name="horizontalSpacer_11">
@@ -906,16 +896,6 @@ QToolButton:pressed {
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="matchSizeToAllBtn">
-          <property name="text">
-           <string>Match size to all pages</string>
-          </property>
-          <property name="toolTip">
-           <string>Apply &quot;Match size with other pages&quot; to every page so they all share the same output size.</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <spacer name="horizontalSpacer_12">
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
@@ -931,6 +911,16 @@ QToolButton:pressed {
        </layout>
       </item>
      </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="freezeAggregateHardSizeCb">
+     <property name="toolTip">
+      <string>Keep the current common size fixed until unchecked.</string>
+     </property>
+     <property name="text">
+      <string>Lock common size</string>
+     </property>
     </widget>
    </item>
    <item>

@@ -3026,6 +3026,26 @@ Należy je usunąć z projektu.</translation>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Ustawienia do skopiowania</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Użyj do wspólnego rozmiaru</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Skopiuj do stron docelowych ustawienie tej strony dotyczące udziału we wspólnym dopasowaniu rozmiaru.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Wyrównanie (poziome i pionowe)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Skopiuj poziome i pionowe ustawienia wyrównania tej strony.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation>Zastosuj do</translation>
@@ -3158,6 +3178,22 @@ Należy je usunąć z projektu.</translation>
 </context>
 <context>
     <name>page_layout::OptionsWidget</name>
+    <message>
+        <source>Use for common size</source>
+        <translation>Użyj do wspólnego rozmiaru</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Uwzględnij tę stronę w obliczaniu wspólnego rozmiaru i dopasuj ją do niego.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Zablokuj wspólny rozmiar</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Zachowaj bieżący wspólny rozmiar do momentu odblokowania.</translation>
+    </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
         <source>Apply Margins</source>

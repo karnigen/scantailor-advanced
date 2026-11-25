@@ -325,7 +325,8 @@ void OptionsWidget::showApplyAlignmentDialog() {
   auto* dialog = new ApplyDialog(this, m_pageId, m_pageSelectionAccessor);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowTitle(tr("Apply Alignment"));
-  connect(dialog, SIGNAL(accepted(const std::set<PageId>&)), this, SLOT(applyAlignment(const std::set<PageId>&)));
+  connect(dialog, SIGNAL(accepted(const std::set<PageId>&, bool, bool)), this,
+          SLOT(applyAlignment(const std::set<PageId>&, bool, bool)));
   dialog->show();
 }
 
@@ -365,8 +366,8 @@ void OptionsWidget::applyMargins(const std::set<PageId>& pages,
   emit invalidateAllThumbnails();
 }
 
-void OptionsWidget::applyAlignment(const std::set<PageId>& pages) {
-  if (pages.empty()) {
+void OptionsWidget::applyAlignment(const std::set<PageId>& pages, const bool copyCommonSize, const bool copyAlignment) {
+  if (pages.empty() || (!copyCommonSize && !copyAlignment)) {
     return;
   }
 
@@ -375,26 +376,19 @@ void OptionsWidget::applyAlignment(const std::set<PageId>& pages) {
       continue;
     }
 
-    m_settings->setPageAlignment(pageId, m_alignment);
+    Alignment targetAlignment = m_settings->getPageAlignment(pageId);
+    if (copyCommonSize) {
+      targetAlignment.setNull(m_alignment.isNull());
+    }
+    if (copyAlignment) {
+      targetAlignment.setHorizontal(m_alignment.horizontal());
+      targetAlignment.setVertical(m_alignment.vertical());
+    }
+    m_settings->setPageAlignment(pageId, targetAlignment);
   }
 
-  emit invalidateAllThumbnails();
-}
-
-void OptionsWidget::matchSizeToAllPages() {
-  std::set<PageId> allPages;
-  m_pageSelectionAccessor.allPages().selectAll().swap(allPages);
-  if (allPages.empty()) {
-    return;
-  }
-  m_alignment.setNull(false);
-  {
-    auto block = m_connectionManager.getScopedBlock();
-    alignWithOthersCB->setChecked(true);
-    updateAlignmentButtonsEnabled();
-  }
-  applyAlignment(allPages);
   emit aggregateHardSizeChanged();
+  emit invalidateAllThumbnails();
 }
 
 void OptionsWidget::freezeAggregateHardSizeToggled(const bool checked) {
@@ -472,7 +466,6 @@ void OptionsWidget::setupUiConnections() {
   CONNECT(sourceYDpi, SIGNAL(editingFinished()), this, SLOT(sourceDpiEditingFinished()));
   CONNECT(alignWithOthersCB, SIGNAL(toggled(bool)), this, SLOT(alignWithOthersToggled()));
   CONNECT(applyAlignmentBtn, SIGNAL(clicked()), this, SLOT(showApplyAlignmentDialog()));
-  CONNECT(matchSizeToAllBtn, SIGNAL(clicked()), this, SLOT(matchSizeToAllPages()));
   CONNECT(freezeAggregateHardSizeCb, SIGNAL(clicked(bool)), this, SLOT(freezeAggregateHardSizeToggled(bool)));
   for (const auto& kv : m_alignmentByButton) {
     CONNECT(kv.first, SIGNAL(clicked()), this, SLOT(alignmentButtonClicked()));

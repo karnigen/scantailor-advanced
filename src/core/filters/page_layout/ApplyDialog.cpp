@@ -38,6 +38,8 @@ ApplyDialog::~ApplyDialog() = default;
 
 void ApplyDialog::onSubmit() {
   std::set<PageId> pages;
+  const bool copyCommonSize = copyCommonSizeCB->isChecked();
+  const bool copyAlignment = copyAlignmentCB->isChecked();
 
   // thisPageRB is intentionally not handled.
   if (allPagesRB->isChecked()) {
@@ -45,7 +47,7 @@ void ApplyDialog::onSubmit() {
   } else if (thisPageAndFollowersRB->isChecked()) {
     m_pages.selectPagePlusFollowers(m_curPage).swap(pages);
   } else if (selectedPagesRB->isChecked()) {
-    emit accepted(m_selectedPages);
+    emit accepted(m_selectedPages, copyCommonSize, copyAlignment);
     accept();
     return;
   } else if (everyOtherRB->isChecked()) {
@@ -58,7 +60,7 @@ void ApplyDialog::onSubmit() {
     range.selectEveryOther(m_curPage).swap(pages);
   }
 
-  emit accepted(pages);
+  emit accepted(pages, copyCommonSize, copyAlignment);
 
   // We assume the default connection from accepted() to accept()
   // was removed.

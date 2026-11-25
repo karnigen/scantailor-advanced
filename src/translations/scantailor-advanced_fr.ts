@@ -3022,6 +3022,26 @@ Vous devriez les retirer du projet.</translation>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Paramètres à copier</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Utiliser pour la taille commune</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Copier sur les pages cibles le choix de cette page d’inclure ou non l’ajustement à la taille commune.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Alignement (horizontal et vertical)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Copier les paramètres d’alignement horizontal et vertical de cette page.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation>Appliquer à</translation>
@@ -3152,6 +3172,22 @@ Vous devriez les retirer du projet.</translation>
 </context>
 <context>
     <name>page_layout::OptionsWidget</name>
+    <message>
+        <source>Use for common size</source>
+        <translation>Utiliser pour la taille commune</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Inclure cette page dans le calcul de la taille commune et l’ajuster à cette taille.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Verrouiller la taille commune</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Conserver la taille commune actuelle jusqu’à désactivation.</translation>
+    </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
         <source>Apply Margins</source>

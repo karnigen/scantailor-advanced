@@ -21,8 +21,10 @@
 
 #include <QAbstractButton>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDomDocument>
 #include <QElapsedTimer>
@@ -34,10 +36,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QRadioButton>
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTimer>
+#include <QToolButton>
 #include <QtTest/QtTest>
 #include <functional>
 #include <stdexcept>
@@ -390,6 +395,147 @@ void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
   QVERIFY(help.contains("CCITT G4"));
   QVERIFY(help.contains("JPEG"));
   dialog->close();
+}
+
+void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  const QString firstImagePath = directory.filePath("first.png");
+  const QString secondImagePath = directory.filePath("second.png");
+  QVERIFY(image.save(firstImagePath));
+  QVERIFY(image.save(secondImagePath));
+
+  const ImageId firstImageId(firstImagePath, 0);
+  const ImageId secondImageId(secondImagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(firstImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false),
+                             ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path());
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
+  const PageId firstPage = pageSequence.pageAt(0).id();
+  const PageId secondPage = pageSequence.pageAt(1).id();
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  auto* options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  QVERIFY(!options->findChild<QPushButton*>("matchSizeToAllBtn"));
+
+  auto* useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  auto* horizontalMode = options->findChild<QComboBox*>("hAlignmentModeCB");
+  auto* verticalMode = options->findChild<QComboBox*>("vAlignmentModeCB");
+  auto* topRight = options->findChild<QToolButton*>("alignTopRightBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(horizontalMode);
+  QVERIFY(verticalMode);
+  QVERIFY(topRight);
+  useForCommonSize->setChecked(true);
+  horizontalMode->setCurrentIndex(1);
+  verticalMode->setCurrentIndex(1);
+  topRight->click();
+  QVERIFY(topRight->isChecked());
+
+  window.goToPage(secondPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  horizontalMode = options->findChild<QComboBox*>("hAlignmentModeCB");
+  verticalMode = options->findChild<QComboBox*>("vAlignmentModeCB");
+  auto* bottomLeft = options->findChild<QToolButton*>("alignBottomLeftBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(horizontalMode);
+  QVERIFY(verticalMode);
+  QVERIFY(bottomLeft);
+  useForCommonSize->setChecked(true);
+  horizontalMode->setCurrentIndex(1);
+  verticalMode->setCurrentIndex(1);
+  bottomLeft->click();
+  useForCommonSize->setChecked(false);
+  QVERIFY(bottomLeft->isChecked());
+  QVERIFY(!useForCommonSize->isChecked());
+
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  auto* applyButton = options->findChild<QPushButton*>("applyAlignmentBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+  auto* dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  auto* allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  auto* copyCommonSize = dialog->findChild<QCheckBox*>("copyCommonSizeCB");
+  auto* copyAlignment = dialog->findChild<QCheckBox*>("copyAlignmentCB");
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(copyCommonSize);
+  QVERIFY(copyAlignment);
+  QVERIFY(buttonBox);
+  allPages->setChecked(true);
+  copyCommonSize->setChecked(true);
+  copyAlignment->setChecked(false);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  window.goToPage(secondPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  bottomLeft = options->findChild<QToolButton*>("alignBottomLeftBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(bottomLeft);
+  QVERIFY(useForCommonSize->isChecked());
+  QVERIFY(bottomLeft->isChecked());
+
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  QVERIFY(useForCommonSize);
+  useForCommonSize->setChecked(false);
+  QVERIFY(!useForCommonSize->isChecked());
+
+  applyButton = options->findChild<QPushButton*>("applyAlignmentBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+  dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  copyCommonSize = dialog->findChild<QCheckBox*>("copyCommonSizeCB");
+  copyAlignment = dialog->findChild<QCheckBox*>("copyAlignmentCB");
+  buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(copyCommonSize);
+  QVERIFY(copyAlignment);
+  QVERIFY(buttonBox);
+  allPages->setChecked(true);
+  copyCommonSize->setChecked(false);
+  copyAlignment->setChecked(true);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  window.goToPage(secondPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  auto* topRightTarget = options->findChild<QToolButton*>("alignTopRightBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(topRightTarget);
+  QVERIFY(useForCommonSize->isChecked());
+  QVERIFY(topRightTarget->isChecked());
 }
 
 void TestMainWindowAsync::filterDockWidthRestoresFromConfiguration() {
