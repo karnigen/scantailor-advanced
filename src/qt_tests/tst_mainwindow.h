@@ -13,6 +13,7 @@ class TestMainWindowAsync : public QObject {
   void deferredSavesPreserveOrder_data();
   void deferredSavesPreserveOrder();
   void keyboardShortcutsShowConciseStageNames();
+  void supportedImageFormatsHelpShowsOutputAndCompression();
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();
   void batchProcessingBenchmark();

@@ -82,6 +82,8 @@ unit-test suites.
   is cancelled or an autosave is requested.
 - Opening a project with a missing output directory asks whether to create it;
   accepting creates the directory, while declining leaves the project unopened.
+- The Help image-format dialog documents supported input formats, TIFF output,
+  and which image types use the B&W and color compression settings.
 
 The Qt tests use the offscreen platform and can simulate interaction without opening windows.
 They compile application GUI sources for the tests but do not build Qt itself.

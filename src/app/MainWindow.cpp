@@ -16,6 +16,7 @@
 #include <QFileDialog>
 #include <QFileSystemModel>
 #include <QFrame>
+#include <QImageReader>
 #include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
@@ -286,6 +287,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionGotoPage, SIGNAL(triggered(bool)), this, SLOT(execGotoPageDialog()));
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
   connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
+  connect(actionSupportedImageFormats, &QAction::triggered, this, &MainWindow::showSupportedImageFormats);
   connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
   connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
@@ -2008,6 +2010,71 @@ void MainWindow::showKeyboardShortcuts() {
 
   dialog.resize(640, 720);
   dialog.exec();
+}
+
+void MainWindow::showSupportedImageFormats() {
+  if (auto* dialog = findChild<QDialog*>(QStringLiteral("supportedImageFormatsDialog"))) {
+    dialog->raise();
+    dialog->activateWindow();
+    return;
+  }
+
+  auto* dialog = new QDialog(this);
+  dialog->setObjectName(QStringLiteral("supportedImageFormatsDialog"));
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle(tr("Supported Image Formats"));
+
+  auto* layout = new QVBoxLayout(dialog);
+  auto* browser = new QTextBrowser(dialog);
+  browser->setOpenLinks(false);
+  browser->setFrameShape(QFrame::NoFrame);
+
+  QStringList qtFormats;
+  for (const QByteArray& format : QImageReader::supportedImageFormats()) {
+    const QString extension = QString::fromLatin1(format).toLower();
+    if (extension != QStringLiteral("tif") && extension != QStringLiteral("tiff")) {
+      qtFormats.append(QLatin1Char('.') + extension);
+    }
+  }
+  qtFormats.removeDuplicates();
+  qtFormats.sort(Qt::CaseInsensitive);
+
+  QString html = "<html><body>";
+  html += "<h3>" + tr("Input formats").toHtmlEscaped() + "</h3>";
+  html += "<p>" + tr("TIFF (.tif, .tiff) is supported, including multi-page TIFF files.").toHtmlEscaped() + "</p>";
+  if (!qtFormats.isEmpty()) {
+    html += "<p>"
+            + tr("Other supported formats depend on the Qt image plugins available in this installation: %1.")
+                  .arg(qtFormats.join(", ").toHtmlEscaped())
+                  .toHtmlEscaped()
+            + "</p>";
+  }
+  html += "<p>" + tr("Only the first page is read from non-TIFF formats.").toHtmlEscaped() + "</p>";
+  html += "<h3>" + tr("Output format").toHtmlEscaped() + "</h3>";
+  html += "<p>" + tr("Processed images are written as TIFF (.tif).").toHtmlEscaped() + "</p>";
+  html += "<h3>" + tr("TIFF compression").toHtmlEscaped() + "</h3>";
+  html += "<table width='100%' cellspacing='0' cellpadding='7'>";
+  html += "<tr><th align='left'>" + tr("Output image type").toHtmlEscaped() + "</th><th align='left'>"
+          + tr("Settings option").toHtmlEscaped() + "</th><th align='left'>"
+          + tr("Available compression methods").toHtmlEscaped() + "</th></tr>";
+  html += "<tr><td>" + tr("1-bit black and white").toHtmlEscaped() + "</td><td>" + tr("B&W Compression").toHtmlEscaped()
+          + "</td><td>" + tr("None, LZW, Deflate, CCITT G4 (default)").toHtmlEscaped() + "</td></tr>";
+  html += "<tr><td>" + tr("Indexed, RGB and RGBA").toHtmlEscaped() + "</td><td>"
+          + tr("Color Compression").toHtmlEscaped() + "</td><td>"
+          + tr("None, LZW, Deflate, JPEG (default: LZW)").toHtmlEscaped() + "</td></tr>";
+  html += "</table>";
+  html += "<p>" + tr("LZW and Deflate are lossless. JPEG compression is lossy.").toHtmlEscaped() + "</p>";
+  html += "</body></html>";
+  browser->setHtml(html);
+  layout->addWidget(browser);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+  connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::close);
+  layout->addWidget(buttonBox);
+
+  dialog->resize(640, 520);
+  dialog->show();
 }
 
 void MainWindow::showConfigurationDialog() {

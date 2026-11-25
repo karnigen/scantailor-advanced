@@ -192,6 +192,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void showKeyboardShortcuts();
 
+  void showSupportedImageFormats();
+
   void showCommandLineArguments();
 
   void showConfigurationDialog();

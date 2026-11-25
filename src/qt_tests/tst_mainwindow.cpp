@@ -344,6 +344,25 @@ void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
   QVERIFY(!shortcutHelp.contains("Open the manual Fix Orientation stage."));
 }
 
+void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
+  MainWindow window;
+  QVERIFY(QMetaObject::invokeMethod(&window, "showSupportedImageFormats", Qt::DirectConnection));
+
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("supportedImageFormatsDialog"));
+  QVERIFY(dialog);
+  auto* browser = dialog->findChild<QTextBrowser*>();
+  QVERIFY(browser);
+
+  const QString help = browser->toPlainText();
+  QVERIFY(help.contains("TIFF (.tif, .tiff)"));
+  QVERIFY(help.contains("TIFF (.tif)"));
+  QVERIFY(help.contains("B&W Compression"));
+  QVERIFY(help.contains("Color Compression"));
+  QVERIFY(help.contains("CCITT G4"));
+  QVERIFY(help.contains("JPEG"));
+  dialog->close();
+}
+
 void TestMainWindowAsync::batchProcessingBenchmark() {
   const QString projectPath = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_PROJECT");
   if (projectPath.isEmpty()) {

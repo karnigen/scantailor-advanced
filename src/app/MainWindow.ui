@@ -103,7 +103,8 @@
      <string>Help</string>
     </property>
     <addaction name="actionKeyboardShortcuts"/>
-     <addaction name="actionCommandLineArguments"/>
+    <addaction name="actionSupportedImageFormats"/>
+    <addaction name="actionCommandLineArguments"/>
     <addaction name="actionConfiguration"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
@@ -1308,6 +1309,14 @@ QToolButton:pressed {
    <property name="toolTip">
     <string>Show available keyboard shortcuts.</string>
    </property>
+  </action>
+  <action name="actionSupportedImageFormats">
+  <property name="text">
+   <string>Supported Image Formats...</string>
+  </property>
+  <property name="toolTip">
+   <string>Show supported input and output image formats and TIFF compression options.</string>
+  </property>
   </action>
   <action name="actionCommandLineArguments">
    <property name="text">
