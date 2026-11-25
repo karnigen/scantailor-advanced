@@ -13,6 +13,7 @@ struct ProjectMigrationReport {
   int colorSettingsWithDefaultFillOutsidePageBox = 0;
   int obliqueModesFromAutoOblique = 0;
   int obliqueModesFromDeskewMode = 0;
+  int obliqueModesDisabledForMissingAttributes = 0;
   int obliqueAutoModesFromAutoOblique = 0;
   int obliqueManualModesFromAutoOblique = 0;
   int obliqueAutoModesFromDeskewMode = 0;

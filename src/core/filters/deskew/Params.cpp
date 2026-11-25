@@ -25,6 +25,8 @@ ObliqueParams obliqueParamsFromXml(const QDomElement& deskewEl) {
     mode = stringToAutoManualMode(deskewEl.attribute("oblique-mode"));
   } else if (deskewEl.hasAttribute("autoOblique")) {
     mode = deskewEl.attribute("autoOblique", "1") != "0" ? MODE_AUTO : MODE_MANUAL;
+  } else if (!deskewEl.hasAttribute("oblique")) {
+    mode = MODE_DISABLED;
   } else {
     mode = deskewEl.attribute("mode") == "manual" ? MODE_MANUAL : MODE_AUTO;
   }

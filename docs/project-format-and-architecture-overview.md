@@ -38,12 +38,14 @@ paths relative to the project file. The 1.0.19 implementation still stored and c
 original path representation. This is a relevant compatibility characteristic even though both
 versions retain project format number 3.
 
-The reader accepts only the exact value of `PROJECT_VERSION`:
+The current reader accepts versions from `MIN_READABLE_PROJECT_VERSION` through `PROJECT_VERSION`
+(currently 3 through 4). Opening a v3 project does not modify it: the UI reports known defaults
+and compatibility changes, and saving upgrades it to format 4 after preserving the original in a
+unique backup. Default-parameter profiles use the same readable version range; newly written
+profiles use the current version.
 
-- A missing or different version prevents project loading.
-- `ProjectOpeningContext` reports incompatible project files as incompatible with the current
-  application version.
-- No general v3-to-v4 migration layer was found in the initial source review.
+This is a compatibility reader and safe-save path, not a general-purpose XML transformation
+layer. The key-level document describes the supported defaults and legacy deskew behavior.
 
 For a key-level comparison of format 3 and format 4, see
 [ScanTailor project XML keys](scan-tailor-project-keys.md).
@@ -53,8 +55,8 @@ For a key-level comparison of format 3 and format 4, see
 No tracked `.ScanTailor` project sample in format 3 or 4 was found in the working trees or in
 the initial Git file searches.
 
-Consequently, the source review establishes that format 4 is XML and that format compatibility
-is strict, but it does not yet prove the exact structural differences between versions 3 and 4.
+Consequently, the source review does not prove every structural difference between versions 3 and
+4 or cover every real-world project variant.
 
 Before claiming a version 3/4 diff, collect:
 

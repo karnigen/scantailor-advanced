@@ -1258,6 +1258,7 @@ void MainWindow::waitForCancelledTasks() {
 }
 
 void MainWindow::finishWaitingForCancelledTasks() {
+  // TODO: If a cancelled worker remains blocked in I/O, it cannot report completion and this wait can persist indefinitely.
   if (!m_waitingForCancelledTasks || m_finishingCancelledTasks || !m_workerThreadPool->isIdle()) {
     return;
   }

@@ -31,6 +31,8 @@ class ProjectReader {
 
   ~ProjectReader();
 
+  static bool isVersionReadable(const QString& version);
+
   void readFilterSettings(const std::vector<FilterPtr>& filters) const;
 
   bool success() const { return (m_pages != nullptr); }

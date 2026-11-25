@@ -22,7 +22,10 @@ ProjectOpeningContext::~ProjectOpeningContext() {
 void ProjectOpeningContext::proceed() {
   if (!m_reader.success()) {
     deleteLater();
-    if (!m_reader.getVersion().isNull() && (m_reader.getVersion().toInt() != PROJECT_VERSION)) {
+    bool versionOk = false;
+    const QString& version = m_reader.getVersion();
+    version.toInt(&versionOk);
+    if (versionOk && !ProjectReader::isVersionReadable(version)) {
       QMessageBox::warning(m_parent, tr("Error"),
                            tr("The project file is not compatible with the current application version."));
       return;
@@ -42,6 +45,11 @@ void ProjectOpeningContext::proceed() {
     if (migrationReport.colorSettingsWithDefaultFillOutsidePageBox > 0) {
       details << tr("%1 <color-or-grayscale> setting(s) have no fillOutsidePageBox value; the default is 0.")
                      .arg(migrationReport.colorSettingsWithDefaultFillOutsidePageBox);
+    }
+    if (migrationReport.obliqueModesDisabledForMissingAttributes > 0) {
+      details << tr("%1 deskew page(s) have no oblique, oblique-mode, or autoOblique attribute; oblique correction "
+                    "will remain off at angle 0.")
+                     .arg(migrationReport.obliqueModesDisabledForMissingAttributes);
     }
     if (migrationReport.obliqueModesFromAutoOblique > 0) {
       details

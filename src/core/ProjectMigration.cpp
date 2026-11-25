@@ -84,22 +84,22 @@ ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const 
       }
 
       const QDomElement paramsEl(pageNode.namedItem("params").toElement());
-      if (paramsEl.isNull() || paramsEl.hasAttribute("oblique-mode")) {
+      if (paramsEl.isNull() || paramsEl.hasAttribute("oblique-mode") || paramsEl.attribute("oblique-disabled") == "1") {
         continue;
       }
 
-      const bool automatic = paramsEl.hasAttribute("autoOblique") ? paramsEl.attribute("autoOblique") != "0"
-                                                                  : paramsEl.attribute("mode") != "manual";
       if (paramsEl.hasAttribute("autoOblique")) {
         ++report.obliqueModesFromAutoOblique;
-        if (automatic) {
+        if (paramsEl.attribute("autoOblique") != "0") {
           ++report.obliqueAutoModesFromAutoOblique;
         } else {
           ++report.obliqueManualModesFromAutoOblique;
         }
+      } else if (!paramsEl.hasAttribute("oblique")) {
+        ++report.obliqueModesDisabledForMissingAttributes;
       } else {
         ++report.obliqueModesFromDeskewMode;
-        if (automatic) {
+        if (paramsEl.attribute("mode") != "manual") {
           ++report.obliqueAutoModesFromDeskewMode;
         } else {
           ++report.obliqueManualModesFromDeskewMode;
