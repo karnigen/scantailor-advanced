@@ -3,6 +3,7 @@
 
 #include <core/DefaultParams.h>
 #include <core/DefaultParamsProfileManager.h>
+#include <core/PathUtils.h>
 
 #include <QDomDocument>
 #include <QFile>
@@ -39,7 +40,7 @@ TEST_CASE("DefaultParamsProfileManagerTestSuite / reads_legacy_and_current_profi
   REQUIRE(writeProfile(tempDir.filePath("legacy.stp"), "3"));
   REQUIRE(writeProfile(tempDir.filePath("current.stp"), QString::number(PROJECT_VERSION)));
 
-  const DefaultParamsProfileManager manager(tempDir.path());
+  const DefaultParamsProfileManager manager(core::toFileSystemPath(tempDir.path()));
   for (const QString& name : {QStringLiteral("legacy"), QStringLiteral("current")}) {
     DefaultParamsProfileManager::LoadStatus status = DefaultParamsProfileManager::IO_ERROR;
     const std::unique_ptr<DefaultParams> profile(manager.readProfile(name, &status));
@@ -55,7 +56,7 @@ TEST_CASE("DefaultParamsProfileManagerTestSuite / rejects_unsupported_profile_ve
   REQUIRE(writeProfile(tempDir.filePath("newer.stp"), QString::number(PROJECT_VERSION + 1)));
   REQUIRE(writeProfile(tempDir.filePath("nonnumeric.stp"), "invalid"));
 
-  const DefaultParamsProfileManager manager(tempDir.path());
+  const DefaultParamsProfileManager manager(core::toFileSystemPath(tempDir.path()));
   for (const QString& name : {QStringLiteral("old"), QStringLiteral("newer"), QStringLiteral("nonnumeric")}) {
     DefaultParamsProfileManager::LoadStatus status = DefaultParamsProfileManager::SUCCESS;
     const std::unique_ptr<DefaultParams> profile(manager.readProfile(name, &status));

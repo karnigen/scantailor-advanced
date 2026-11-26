@@ -8,6 +8,7 @@
 #include <foundation/NonCopyable.h>
 
 #include <QtCore/QString>
+#include <filesystem>
 #include <list>
 #include <memory>
 
@@ -18,7 +19,7 @@ class DefaultParamsProfileManager {
  public:
   DefaultParamsProfileManager();
 
-  explicit DefaultParamsProfileManager(const QString& path);
+  explicit DefaultParamsProfileManager(std::filesystem::path path);
 
   enum LoadStatus { SUCCESS, IO_ERROR, INCOMPATIBLE_VERSION_ERROR };
 
@@ -35,7 +36,7 @@ class DefaultParamsProfileManager {
   std::unique_ptr<DefaultParams> createSourceProfile() const;
 
  private:
-  QString m_path;
+  std::filesystem::path m_path;
 };
 
 

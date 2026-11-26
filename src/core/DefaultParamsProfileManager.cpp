@@ -6,7 +6,10 @@
 #include <QtGui/QtGui>
 #include <QtXml/QDomDocument>
 
+#include <utility>
+
 #include "DefaultParams.h"
+#include "PathUtils.h"
 #include "ProjectReader.h"
 #include "SettingsStore.h"
 #include "version.h"
@@ -16,15 +19,15 @@ using namespace output;
 using namespace page_layout;
 
 DefaultParamsProfileManager::DefaultParamsProfileManager() {
-  m_path = SettingsStore::profilesDirectory();
+  m_path = core::toFileSystemPath(SettingsStore::profilesDirectory());
 }
 
-DefaultParamsProfileManager::DefaultParamsProfileManager(const QString& path) : m_path(path) {}
+DefaultParamsProfileManager::DefaultParamsProfileManager(std::filesystem::path path) : m_path(std::move(path)) {}
 
 std::list<QString> DefaultParamsProfileManager::getProfileList() const {
   std::list<QString> profileList;
 
-  QDir dir(m_path);
+  QDir dir(core::toQString(m_path));
   if (dir.exists()) {
     QList<QFileInfo> fileInfoList = dir.entryInfoList();
     for (const QFileInfo& fileInfo : fileInfoList) {
@@ -37,7 +40,7 @@ std::list<QString> DefaultParamsProfileManager::getProfileList() const {
 }
 
 std::unique_ptr<DefaultParams> DefaultParamsProfileManager::readProfile(const QString& name, LoadStatus* status) const {
-  QDir dir(m_path);
+  QDir dir(core::toQString(m_path));
   QFileInfo profile(dir.absoluteFilePath(name + ".stp"));
   if (!profile.exists()) {
     profile = QFileInfo(dir.absoluteFilePath(name + ".xml"));
@@ -90,7 +93,7 @@ bool DefaultParamsProfileManager::writeProfile(const DefaultParams& params, cons
   rootElement.setAttribute("version", PROJECT_VERSION);
   rootElement.appendChild(params.toXml(doc, "default-params"));
 
-  QDir dir(m_path);
+  QDir dir(core::toQString(m_path));
   if (!dir.exists()) {
     dir.mkpath(".");
   }
@@ -140,7 +143,7 @@ std::unique_ptr<DefaultParams> DefaultParamsProfileManager::createSourceProfile(
 }
 
 bool DefaultParamsProfileManager::deleteProfile(const QString& name) const {
-  QDir dir(m_path);
+  QDir dir(core::toQString(m_path));
   QFileInfo profile(dir.absoluteFilePath(name + ".stp"));
   if (!profile.exists()) {
     profile = QFileInfo(dir.absoluteFilePath(name + ".xml"));
