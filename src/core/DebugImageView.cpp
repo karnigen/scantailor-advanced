@@ -35,11 +35,11 @@ class DebugImageView::ImageLoadResult : public AbstractCommand<void> {
 
 class DebugImageView::ImageLoader : public BackgroundExecutor::Task {
  public:
-  ImageLoader(DebugImageView* owner, const quint64 generation, const QString& filePath)
+  ImageLoader(DebugImageView* owner, const quint64 generation, const std::filesystem::path& filePath)
       : m_owner(owner), m_generation(generation), m_filePath(filePath) {}
 
   BackgroundExecutor::TaskResultPtr operator()() override {
-    QImage image(m_filePath);
+    QImage image(core::toQString(m_filePath));
     return std::make_shared<ImageLoadResult>(m_owner, m_generation, image);
   }
 
@@ -52,7 +52,7 @@ class DebugImageView::ImageLoader : public BackgroundExecutor::Task {
  private:
   QPointer<DebugImageView> m_owner;
   quint64 m_generation;
-  QString m_filePath;
+  std::filesystem::path m_filePath;
 };
 
 
@@ -71,7 +71,7 @@ void DebugImageView::setLive(const bool live) {
   if (live && !m_isLive) {
     ++m_loadGeneration;
     ImageViewBase::backgroundExecutor().enqueueTask(
-        std::make_shared<ImageLoader>(this, m_loadGeneration, core::toQString(m_file.get())));
+        std::make_shared<ImageLoader>(this, m_loadGeneration, m_file.get()));
   } else if (!live && m_isLive) {
     ++m_loadGeneration;
     if (QWidget* wgt = currentWidget()) {
