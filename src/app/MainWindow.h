@@ -12,6 +12,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <set>
@@ -244,7 +245,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   std::shared_ptr<AbstractCommand<void>> relinkingDialogRequester() override;
 
   void switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
-                          const QString& outDir,
+                          const std::filesystem::path& outDir,
                           const QString& projectFilePath = QString(),
                           const ProjectReader* projectReader = nullptr);
 

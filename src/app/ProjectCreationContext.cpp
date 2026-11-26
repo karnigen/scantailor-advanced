@@ -4,12 +4,14 @@
 #include "ProjectCreationContext.h"
 
 #include <cassert>
+#include <utility>
 
 #include "FixDpiDialog.h"
+#include "PathUtils.h"
 #include "ProjectFilesDialog.h"
 
-ProjectCreationContext::ProjectCreationContext(QWidget* parent, const QString& initialDirectory)
-    : m_layoutDirection(Qt::LeftToRight), m_initialDirectory(initialDirectory), m_parent(parent) {
+ProjectCreationContext::ProjectCreationContext(QWidget* parent, std::filesystem::path initialDirectory)
+    : m_layoutDirection(Qt::LeftToRight), m_initialDirectory(std::move(initialDirectory)), m_parent(parent) {
   showProjectFilesDialog();
 }
 
@@ -30,7 +32,7 @@ bool allDpisOK(const T& container) {
 
 void ProjectCreationContext::projectFilesSubmitted() {
   m_files = m_projectFilesDialog->inProjectFiles();
-  m_outDir = m_projectFilesDialog->outputDirectory();
+  m_outDir = core::toFileSystemPath(m_projectFilesDialog->outputDirectory());
   m_layoutDirection = Qt::LeftToRight;
   if (m_projectFilesDialog->isRtlLayout()) {
     m_layoutDirection = Qt::RightToLeft;
@@ -60,7 +62,7 @@ void ProjectCreationContext::fixDpiDialogDestroyed() {
 
 void ProjectCreationContext::showProjectFilesDialog() {
   assert(!m_projectFilesDialog);
-  m_projectFilesDialog = new ProjectFilesDialog(m_parent, m_initialDirectory);
+  m_projectFilesDialog = new ProjectFilesDialog(m_parent, core::toQString(m_initialDirectory));
   m_projectFilesDialog->setAttribute(Qt::WA_DeleteOnClose);
   m_projectFilesDialog->setAttribute(Qt::WA_QuitOnClose, false);
   if (m_parent) {

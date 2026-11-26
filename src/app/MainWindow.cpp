@@ -490,14 +490,14 @@ std::vector<PageRange> MainWindow::selectedRanges() const {
 }
 
 void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
-                                    const QString& outDir,
+                                    const std::filesystem::path& outDir,
                                     const QString& projectFilePath,
                                     const ProjectReader* projectReader) {
   stopBatchProcessing(CLEAR_MAIN_AREA);
   m_interactiveQueue->cancelAndClear();
 
-  if (!outDir.isEmpty()) {
-    Utils::maybeCreateCacheDir(core::toFileSystemPath(outDir));
+  if (!outDir.empty()) {
+    Utils::maybeCreateCacheDir(outDir);
   }
   m_pages = pages;
   m_projectFile = projectFilePath;
@@ -513,7 +513,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
     disambiguator.reset(new FileNameDisambiguator);
   }
 
-  m_outFileNameGen = OutputFileNameGenerator(disambiguator, core::toFileSystemPath(outDir), pages->layoutDirection());
+  m_outFileNameGen = OutputFileNameGenerator(disambiguator, outDir, pages->layoutDirection());
   // These two need to go in this order.
   updateDisambiguationRecords(pages->toPageSequence(IMAGE_VIEW));
 
@@ -546,7 +546,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
 
   // Thumbnails are stored relative to the output directory,
   // so recreate the thumbnail cache.
-  if (outDir.isEmpty()) {
+  if (outDir.empty()) {
     m_thumbnailCache.reset();
   } else {
     m_thumbnailCache = Utils::createThumbnailCache(m_outFileNameGen.outDir());
@@ -1948,7 +1948,7 @@ void MainWindow::newProject() {
   }
 
   // It will delete itself when it's done.
-  auto* context = new ProjectCreationContext(this, m_initialDirectory);
+  auto* context = new ProjectCreationContext(this, core::toFileSystemPath(m_initialDirectory));
   connect(context, SIGNAL(done(ProjectCreationContext*)), this, SLOT(newProjectCreated(ProjectCreationContext*)));
 }
 
@@ -2036,7 +2036,7 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
 
   SettingsStore().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
 
-  switchToNewProject(context->projectReader()->pages(), core::toQString(context->projectReader()->outputDirectory()),
+  switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
                      context->projectFile(), context->projectReader());
   warnAboutExternalImages();
 }
@@ -2838,7 +2838,7 @@ bool MainWindow::closeProjectInteractive() {
 
 void MainWindow::closeProjectWithoutSaving() {
   auto pages = std::make_shared<ProjectPages>();
-  switchToNewProject(pages, QString());
+  switchToNewProject(pages, {});
 }
 
 bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {

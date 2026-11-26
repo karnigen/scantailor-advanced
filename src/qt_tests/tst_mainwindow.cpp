@@ -173,7 +173,7 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QSemaphore started;
   QSemaphore release;
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
   QTRY_VERIFY(window.m_workerThreadPool->isIdle());
 
   const int margins = window.m_stages->selectContentFilterIdx() + 1;
@@ -260,7 +260,7 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QSemaphore release;
   AutoSaveSetting autoSaveSetting;
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), originalPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), originalPath);
   QTRY_VERIFY(window.m_workerThreadPool->isIdle());
   QVERIFY(window.saveProjectInteractive());
 
@@ -642,7 +642,7 @@ void TestMainWindowAsync::missingOutputDirectoryPrompt() {
 
   {
     MainWindow creator;
-    creator.switchToNewProject(pages, outputDirectory, projectPath);
+    creator.switchToNewProject(pages, core::toFileSystemPath(outputDirectory), projectPath);
     QTRY_VERIFY(creator.m_workerThreadPool->isIdle());
     QVERIFY(creator.saveProjectInteractive());
   }
@@ -701,7 +701,7 @@ void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
   const auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
 
   MainWindow window;
-  window.switchToNewProject(pages, directory.path());
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
 
   const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
@@ -888,7 +888,7 @@ void TestMainWindowAsync::fixDpiDialogPersistsProjectDpiOnAccept() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath(QStringLiteral("project.ScanTailor"));
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
 
   QVERIFY(QMetaObject::invokeMethod(&window, "fixDpiDialogRequested", Qt::DirectConnection));
@@ -1038,7 +1038,7 @@ void TestMainWindowAsync::reloadProjectConfirmsDiscardWithoutOfferingSave() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
   QVERIFY(window.saveProjectWithFeedback(projectPath));
 
@@ -1080,7 +1080,7 @@ void TestMainWindowAsync::closeProjectSaveCreatesHistoryBackup() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
   QVERIFY(window.saveProjectWithFeedback(projectPath));
 
@@ -1149,7 +1149,7 @@ void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
   QVERIFY(window.windowTitle().startsWith(QStringLiteral("[*] project")));
   QVERIFY(window.saveProjectWithFeedback(projectPath));
@@ -1212,7 +1212,7 @@ void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
                              ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
   MainWindow window;
-  window.switchToNewProject(pages, directory.path());
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
 
   const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
@@ -1372,7 +1372,7 @@ void TestMainWindowAsync::applySourceDpiCopiesSelectedAxesIndependently() {
                              ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(600, 700)), 1, false, false)},
       Qt::LeftToRight);
   MainWindow window;
-  window.switchToNewProject(pages, directory.path());
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
 
   const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
@@ -1526,7 +1526,7 @@ void TestMainWindowAsync::sourceDpiChangesPersistInMargins() {
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
   MainWindow window;
-  window.switchToNewProject(pages, directory.path());
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
   const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
   window.filterList->selectRow(pageLayoutFilterIdx);
@@ -1584,7 +1584,7 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
   window.resize(1100, 700);
   window.show();
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
