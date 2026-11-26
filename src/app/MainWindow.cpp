@@ -1057,7 +1057,7 @@ void MainWindow::showRelinkingDialog() {
     return;
   }
 
-  auto* dialog = new RelinkingDialog(core::toQString(m_projectFile), this, core::toQString(m_initialDirectory));
+  auto* dialog = new RelinkingDialog(m_projectFile, this, m_initialDirectory);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowModality(Qt::WindowModal);
 

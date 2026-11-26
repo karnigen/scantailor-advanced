@@ -355,7 +355,7 @@ void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
 
-  RelinkingDialog dialog(directory.filePath("project.ScanTailor"));
+  RelinkingDialog dialog(core::toFileSystemPath(directory.filePath("project.ScanTailor")));
   const QString imagePath = directory.filePath("input/page.png");
   dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File));
   dialog.selectFirstPath();
@@ -405,7 +405,7 @@ void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
   QVERIFY(imageFile.open(QIODevice::WriteOnly));
   imageFile.close();
 
-  RelinkingDialog dialog(QDir(configDirectory).filePath("project.ScanTailor"));
+  RelinkingDialog dialog(core::toFileSystemPath(QDir(configDirectory).filePath("project.ScanTailor")));
   dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File));
   dialog.addCommonImageRoot();
   dialog.selectFirstPath();
@@ -430,7 +430,7 @@ void TestMainWindowAsync::relinkingDialogDisablesConfigPathForOutput() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
 
-  RelinkingDialog dialog(directory.filePath("project.ScanTailor"));
+  RelinkingDialog dialog(core::toFileSystemPath(directory.filePath("project.ScanTailor")));
   dialog.addOutputPath(RelinkablePath(core::toFileSystemPath(directory.filePath("out")), RelinkablePath::Dir));
   dialog.selectFirstPath();
 
@@ -576,7 +576,7 @@ void TestMainWindowAsync::relinkingDialogGroupsPathsInDirectoryTree() {
   QVERIFY(QDir().mkpath(QFileInfo(secondImage).absolutePath()));
   QVERIFY(QDir().mkpath(outputDirectory));
 
-  RelinkingDialog dialog(projectFile);
+  RelinkingDialog dialog(core::toFileSystemPath(projectFile));
   dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(firstImage), RelinkablePath::File));
   dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(secondImage), RelinkablePath::File));
   dialog.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));

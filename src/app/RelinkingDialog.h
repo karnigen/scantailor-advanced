@@ -8,6 +8,7 @@
 #include <QStandardItemModel>
 #include <QTimer>
 #include <QVector>
+#include <filesystem>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -24,9 +25,9 @@ class QString;
 class RelinkingDialog : public QDialog {
   Q_OBJECT
  public:
-  explicit RelinkingDialog(const QString& projectFilePath,
+  explicit RelinkingDialog(const std::filesystem::path& projectFilePath,
                            QWidget* parent = nullptr,
-                           const QString& initialDirectory = QString());
+                           const std::filesystem::path& initialDirectory = {});
 
   ProxyFunction<RelinkingModel&, void, const RelinkablePath&> pathCollector() {
     return ProxyFunction<RelinkingModel&, void, const RelinkablePath&>(m_model);
@@ -96,7 +97,7 @@ class RelinkingDialog : public QDialog {
   RelinkingSortingModel* m_sortingModel;
   QVector<QStandardItem*> m_treeItemsByRow;
   QTimer m_summaryUpdateTimer;
-  QString m_projectFileDir;
+  std::filesystem::path m_projectFileDir;
   bool m_treeBuilt = false;
 };
 

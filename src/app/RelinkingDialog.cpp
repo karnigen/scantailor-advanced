@@ -32,16 +32,18 @@ bool isPathWithinDirectory(const QString& path, const QString& directory) {
 
 }  // namespace
 
-RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent, const QString& initialDirectory)
+RelinkingDialog::RelinkingDialog(const std::filesystem::path& projectFilePath,
+                                 QWidget* parent,
+                                 const std::filesystem::path& initialDirectory)
     : QDialog(parent),
       m_treeModel(new QStandardItemModel(this)),
       m_sortingModel(new RelinkingSortingModel),
-      m_projectFileDir(QFileInfo(projectFilePath).absolutePath()) {
-  if (m_projectFileDir.isEmpty() || !QDir(m_projectFileDir).exists()) {
+      m_projectFileDir(core::toFileSystemPath(QFileInfo(core::toQString(projectFilePath)).absolutePath())) {
+  if (m_projectFileDir.empty() || !QDir(core::toQString(m_projectFileDir)).exists()) {
     m_projectFileDir = initialDirectory;
   }
-  if (m_projectFileDir.isEmpty() || !QDir(m_projectFileDir).exists()) {
-    m_projectFileDir = QDir::homePath();
+  if (m_projectFileDir.empty() || !QDir(core::toQString(m_projectFileDir)).exists()) {
+    m_projectFileDir = core::toFileSystemPath(QDir::homePath());
   }
   ui.setupUi(this);
   ui.undoButton->setIcon(IconProvider::getInstance().getIcon("undo"));
@@ -141,14 +143,15 @@ void RelinkingDialog::pathButtonClicked(const QString& prefixPath, const QString
 
   if (type == RelinkablePath::File) {
     const QDir dir(QFileInfo(prefixPath).dir());
-    replacementPath = QFileDialog::getOpenFileName(
-        this, tr("Substitution File for %1").arg(QDir::toNativeSeparators(prefixPath)),
-        dir.exists() ? dir.path() : m_projectFileDir, QString(), nullptr, QFileDialog::DontUseNativeDialog);
+    replacementPath
+        = QFileDialog::getOpenFileName(this, tr("Substitution File for %1").arg(QDir::toNativeSeparators(prefixPath)),
+                                       dir.exists() ? dir.path() : core::toQString(m_projectFileDir), QString(),
+                                       nullptr, QFileDialog::DontUseNativeDialog);
   } else {
     const QDir dir(prefixPath);
     replacementPath = QFileDialog::getExistingDirectory(
         this, tr("Substitution Directory for %1").arg(QDir::toNativeSeparators(prefixPath)),
-        dir.exists() ? prefixPath : m_projectFileDir, QFileDialog::DontUseNativeDialog);
+        dir.exists() ? prefixPath : core::toQString(m_projectFileDir), QFileDialog::DontUseNativeDialog);
   }
   // So what's wrong with native dialogs? The one for directory selection won't show files
   // at all (if you ask it to, the non-native dialog will appear), which is inconvenient
@@ -195,7 +198,7 @@ void RelinkingDialog::useConfigPath() {
     prefixPath = path;
   }
 
-  applyReplacement(prefixPath, suffixPath, m_projectFileDir, RelinkablePath::Dir, type, entryKind);
+  applyReplacement(prefixPath, suffixPath, core::toQString(m_projectFileDir), RelinkablePath::Dir, type, entryKind);
 }
 
 void RelinkingDialog::applyReplacement(const QString& prefixPath,
@@ -299,7 +302,7 @@ bool RelinkingDialog::imageRootIsOutsideProjectDirectory() const {
   if (commonRootPath.isEmpty()) {
     commonRootPath = RelinkingModel::findCommonImageRoot(imagePaths);
   }
-  return commonRootPath.isEmpty() || !isPathWithinDirectory(commonRootPath, m_projectFileDir);
+  return commonRootPath.isEmpty() || !isPathWithinDirectory(commonRootPath, core::toQString(m_projectFileDir));
 }
 
 void RelinkingDialog::rebuildTreeModel(const int selectedRow) {
