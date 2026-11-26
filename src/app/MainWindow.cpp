@@ -513,7 +513,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
     disambiguator.reset(new FileNameDisambiguator);
   }
 
-  m_outFileNameGen = OutputFileNameGenerator(disambiguator, outDir, pages->layoutDirection());
+  m_outFileNameGen = OutputFileNameGenerator(disambiguator, core::toFileSystemPath(outDir), pages->layoutDirection());
   // These two need to go in this order.
   updateDisambiguationRecords(pages->toPageSequence(IMAGE_VIEW));
 
@@ -549,7 +549,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
   if (outDir.isEmpty()) {
     m_thumbnailCache.reset();
   } else {
-    m_thumbnailCache = Utils::createThumbnailCache(m_outFileNameGen.outDir());
+    m_thumbnailCache = Utils::createThumbnailCache(core::toQString(m_outFileNameGen.outDir()));
   }
   resetThumbSequence(currentPageOrderProvider());
 
@@ -1061,7 +1061,7 @@ void MainWindow::showRelinkingDialog() {
   dialog->setWindowModality(Qt::WindowModal);
 
   m_pages->listRelinkablePaths(dialog->pathCollector());
-  dialog->addOutputPath(RelinkablePath(core::toFileSystemPath(m_outFileNameGen.outDir()), RelinkablePath::Dir));
+  dialog->addOutputPath(RelinkablePath(m_outFileNameGen.outDir(), RelinkablePath::Dir));
   dialog->addCommonImageRoot();
   dialog->selectFirstPath();
 
@@ -1098,7 +1098,7 @@ void MainWindow::warnAboutExternalImages() {
     }
   }
   const QString commonImageRoot = RelinkingModel::findCommonImageRoot(imagePaths);
-  const QString outputDirectory = m_outFileNameGen.outDir();
+  const QString outputDirectory = core::toQString(m_outFileNameGen.outDir());
   const bool outputOutsideImageRoot
       = !imagePaths.isEmpty()
         && (commonImageRoot.isEmpty() || !isPathWithinDirectory(outputDirectory, commonImageRoot));
@@ -1155,9 +1155,9 @@ void MainWindow::performRelinking(const std::shared_ptr<AbstractRelinker>& relin
   m_stages->performRelinking(*relinker);
   m_outFileNameGen.performRelinking(*relinker);
 
-  Utils::maybeCreateCacheDir(m_outFileNameGen.outDir());
+  Utils::maybeCreateCacheDir(core::toQString(m_outFileNameGen.outDir()));
 
-  m_thumbnailCache->setThumbDir(Utils::outputDirToThumbDir(m_outFileNameGen.outDir()));
+  m_thumbnailCache->setThumbDir(Utils::outputDirToThumbDir(core::toQString(m_outFileNameGen.outDir())));
   resetThumbSequence(currentPageOrderProvider());
   m_selectedPage.set(m_thumbSequence->selectionLeader().id(), getCurrentView());
 
@@ -2262,7 +2262,7 @@ void MainWindow::exportProcessedImages() {
   }
 
   const QString outputDirectory = QFileDialog::getExistingDirectory(
-      this, tr("Select Export Directory"), m_outFileNameGen.outDir(), QFileDialog::ShowDirsOnly);
+      this, tr("Select Export Directory"), core::toQString(m_outFileNameGen.outDir()), QFileDialog::ShowDirsOnly);
   if (outputDirectory.isEmpty()) {
     return;
   }
@@ -2297,8 +2297,8 @@ void MainWindow::exportPagesToPdf() {
   }
 
   QString outputFilePath = QFileDialog::getSaveFileName(
-      this, tr("Export Processed Pages as PDF"), QDir(m_outFileNameGen.outDir()).filePath(QStringLiteral("output.pdf")),
-      tr("PDF files (*.pdf)"));
+      this, tr("Export Processed Pages as PDF"),
+      QDir(core::toQString(m_outFileNameGen.outDir())).filePath(QStringLiteral("output.pdf")), tr("PDF files (*.pdf)"));
   if (outputFilePath.isEmpty()) {
     return;
   }
@@ -2575,7 +2575,7 @@ bool MainWindow::isBatchProcessingInProgress() const {
 }
 
 bool MainWindow::isProjectLoaded() const {
-  return !m_outFileNameGen.outDir().isEmpty();
+  return !m_outFileNameGen.outDir().empty();
 }
 
 bool MainWindow::isBelowSelectContent() const {
@@ -3100,7 +3100,7 @@ void MainWindow::eraseOutputFiles(const std::set<PageId>& pages) {
     }
 
     for (PageId::SubPage subpage : eraseVariations) {
-      QFile::remove(m_outFileNameGen.filePathFor(PageId(pageId.imageId(), subpage)));
+      QFile::remove(core::toQString(m_outFileNameGen.filePathFor(PageId(pageId.imageId(), subpage))));
     }
   }
 }

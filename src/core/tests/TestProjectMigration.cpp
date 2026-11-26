@@ -299,8 +299,8 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_
   const ImageInfo imageInfo(ImageId(core::toFileSystemPath(sourcePath), 0),
                             ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
   const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
-  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(),
-                                                        rootDir.filePath("output"), Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(
+      std::make_shared<FileNameDisambiguator>(), core::toFileSystemPath(rootDir.filePath("output")), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), outputFileNameGenerator);
   const std::vector<ProjectWriter::FilterPtr> filters;
 
@@ -345,8 +345,8 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_project_dpi_override_survives_sa
   const ImageMetadata originalMetadata(QSize(100, 120), Dpi(300, 300));
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, originalMetadata, 1, false, false)}, Qt::LeftToRight);
-  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(),
-                                                        rootDir.filePath("output"), Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(
+      std::make_shared<FileNameDisambiguator>(), core::toFileSystemPath(rootDir.filePath("output")), Qt::LeftToRight);
   const ProjectWriter initialWriter(pages, SelectedPage(), outputFileNameGenerator);
   QString errorMessage;
   REQUIRE(initialWriter.write(core::toFileSystemPath(projectPath), {}, &errorMessage));
@@ -409,8 +409,8 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_keeps_absolute_paths_whe
   const ImageInfo imageInfo(ImageId(core::toFileSystemPath(sourcePath), 0),
                             ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
   const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
-  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(), outputDir,
-                                                        Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(),
+                                                        core::toFileSystemPath(outputDir), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), outputFileNameGenerator);
   const std::vector<ProjectWriter::FilterPtr> filters;
 

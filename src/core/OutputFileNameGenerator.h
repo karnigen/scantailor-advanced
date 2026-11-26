@@ -6,6 +6,7 @@
 
 #include <QString>
 #include <Qt>
+#include <filesystem>
 #include <memory>
 
 #include "FileNameDisambiguator.h"
@@ -19,7 +20,7 @@ class OutputFileNameGenerator {
   OutputFileNameGenerator();
 
   OutputFileNameGenerator(std::shared_ptr<FileNameDisambiguator> disambiguator,
-                          const QString& outDir,
+                          std::filesystem::path outDir,
                           Qt::LayoutDirection layoutDirection);
 
   void performRelinking(const AbstractRelinker& relinker);
@@ -28,7 +29,7 @@ class OutputFileNameGenerator {
 
   Qt::LayoutDirection layoutDirection() const { return m_layoutDirection; }
 
-  const QString& outDir() const { return m_outDir; }
+  const std::filesystem::path& outDir() const { return m_outDir; }
 
   FileNameDisambiguator* disambiguator() { return m_disambiguator.get(); }
 
@@ -36,11 +37,11 @@ class OutputFileNameGenerator {
 
   QString fileNameFor(const PageId& page) const;
 
-  QString filePathFor(const PageId& page) const;
+  std::filesystem::path filePathFor(const PageId& page) const;
 
  private:
   std::shared_ptr<FileNameDisambiguator> m_disambiguator;
-  QString m_outDir;
+  std::filesystem::path m_outDir;
   Qt::LayoutDirection m_layoutDirection;
 };
 

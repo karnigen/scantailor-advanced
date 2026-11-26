@@ -20,6 +20,7 @@
 #include "OutputFileNameGenerator.h"
 #include "PageInfo.h"
 #include "PageSequence.h"
+#include "PathUtils.h"
 
 namespace {
 
@@ -32,7 +33,7 @@ void setError(QString* errorMessage, const QString& message) {
 QImage loadProcessedPage(const PageInfo& page,
                          const OutputFileNameGenerator& fileNameGenerator,
                          QString* errorMessage) {
-  const QString path = fileNameGenerator.filePathFor(page.id());
+  const QString path = core::toQString(fileNameGenerator.filePathFor(page.id()));
   QImage image = ImageLoader::load(path, 0);
   if (image.isNull()) {
     setError(errorMessage,
@@ -240,7 +241,7 @@ bool ProcessedPagesExporter::exportImages(const PageSequence& pages,
     if (image.isNull()) {
       return false;
     }
-    const QFileInfo sourceInfo(fileNameGenerator.filePathFor(page.id()));
+    const QFileInfo sourceInfo(core::toQString(fileNameGenerator.filePathFor(page.id())));
     const QString outputPath
         = QDir(outputDirectory).filePath(sourceInfo.completeBaseName() + QLatin1Char('.') + normalizedFormat);
     if (!writeImage(outputPath, normalizedFormat, image, errorMessage)) {

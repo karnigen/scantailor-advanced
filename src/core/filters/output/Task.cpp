@@ -121,11 +121,12 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
   newXform.postScaleToDpi(params.outputDpi());
 
   const QFileInfo sourceFileInfo(core::toQString(m_pageId.imageId().filePath()));
-  const QString outFilePath(m_outFileNameGen.filePathFor(m_pageId));
+  const QString outFilePath(core::toQString(m_outFileNameGen.filePathFor(m_pageId)));
   const QFileInfo outFileInfo(outFilePath);
-  const QString foregroundDir(Utils::foregroundDir(m_outFileNameGen.outDir()));
-  const QString backgroundDir(Utils::backgroundDir(m_outFileNameGen.outDir()));
-  const QString originalBackgroundDir(Utils::originalBackgroundDir(m_outFileNameGen.outDir()));
+  const QString outputDir(core::toQString(m_outFileNameGen.outDir()));
+  const QString foregroundDir(Utils::foregroundDir(outputDir));
+  const QString backgroundDir(Utils::backgroundDir(outputDir));
+  const QString originalBackgroundDir(Utils::originalBackgroundDir(outputDir));
   const QString foregroundFilePath(QDir(foregroundDir).absoluteFilePath(outFileInfo.fileName()));
   const QFileInfo foregroundFileInfo(foregroundFilePath);
   const QString backgroundFilePath(QDir(backgroundDir).absoluteFilePath(outFileInfo.fileName()));
@@ -133,11 +134,11 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
   const QString originalBackgroundFilePath(QDir(originalBackgroundDir).absoluteFilePath(outFileInfo.fileName()));
   const QFileInfo originalBackgroundFileInfo(originalBackgroundFilePath);
 
-  const QString automaskDir(Utils::automaskDir(m_outFileNameGen.outDir()));
+  const QString automaskDir(Utils::automaskDir(outputDir));
   const QString automaskFilePath(QDir(automaskDir).absoluteFilePath(outFileInfo.fileName()));
   QFileInfo automaskFileInfo(automaskFilePath);
 
-  const QString specklesDir(Utils::specklesDir(m_outFileNameGen.outDir()));
+  const QString specklesDir(Utils::specklesDir(outputDir));
   const QString specklesFilePath(QDir(specklesDir).absoluteFilePath(outFileInfo.fileName()));
   QFileInfo specklesFileInfo(specklesFilePath);
 
@@ -446,12 +447,12 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
 void Task::deleteMutuallyExclusiveOutputFiles() {
   switch (m_pageId.subPage()) {
     case PageId::SINGLE_PAGE:
-      QFile::remove(m_outFileNameGen.filePathFor(PageId(m_pageId.imageId(), PageId::LEFT_PAGE)));
-      QFile::remove(m_outFileNameGen.filePathFor(PageId(m_pageId.imageId(), PageId::RIGHT_PAGE)));
+      QFile::remove(core::toQString(m_outFileNameGen.filePathFor(PageId(m_pageId.imageId(), PageId::LEFT_PAGE))));
+      QFile::remove(core::toQString(m_outFileNameGen.filePathFor(PageId(m_pageId.imageId(), PageId::RIGHT_PAGE))));
       break;
     case PageId::LEFT_PAGE:
     case PageId::RIGHT_PAGE:
-      QFile::remove(m_outFileNameGen.filePathFor(PageId(m_pageId.imageId(), PageId::SINGLE_PAGE)));
+      QFile::remove(core::toQString(m_outFileNameGen.filePathFor(PageId(m_pageId.imageId(), PageId::SINGLE_PAGE))));
       break;
   }
 }

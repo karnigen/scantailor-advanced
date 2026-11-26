@@ -3,7 +3,6 @@
 
 #include "OutputFileNameGenerator.h"
 
-#include <QDir>
 #include <QFileInfo>
 #include <utility>
 
@@ -16,16 +15,15 @@ OutputFileNameGenerator::OutputFileNameGenerator()
     : m_disambiguator(std::make_shared<FileNameDisambiguator>()), m_outDir(), m_layoutDirection(Qt::LeftToRight) {}
 
 OutputFileNameGenerator::OutputFileNameGenerator(std::shared_ptr<FileNameDisambiguator> disambiguator,
-                                                 const QString& outDir,
+                                                 std::filesystem::path outDir,
                                                  Qt::LayoutDirection layoutDirection)
-    : m_disambiguator(std::move(disambiguator)), m_outDir(outDir), m_layoutDirection(layoutDirection) {
+    : m_disambiguator(std::move(disambiguator)), m_outDir(std::move(outDir)), m_layoutDirection(layoutDirection) {
   assert(m_disambiguator);
 }
 
 void OutputFileNameGenerator::performRelinking(const AbstractRelinker& relinker) {
   m_disambiguator->performRelinking(relinker);
-  m_outDir = core::toQString(
-      relinker.substitutionPathFor(RelinkablePath(core::toFileSystemPath(m_outDir), RelinkablePath::Dir)));
+  m_outDir = relinker.substitutionPathFor(RelinkablePath(m_outDir, RelinkablePath::Dir));
 }
 
 QString OutputFileNameGenerator::fileNameFor(const PageId& page) const {
@@ -50,7 +48,6 @@ QString OutputFileNameGenerator::fileNameFor(const PageId& page) const {
   return name;
 }
 
-QString OutputFileNameGenerator::filePathFor(const PageId& page) const {
-  const QString fileName(fileNameFor(page));
-  return QDir(m_outDir).absoluteFilePath(fileName);
+std::filesystem::path OutputFileNameGenerator::filePathFor(const PageId& page) const {
+  return std::filesystem::absolute(m_outDir / core::toFileSystemPath(fileNameFor(page)));
 }

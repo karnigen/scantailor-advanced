@@ -34,11 +34,12 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
                               const QPolygonF& contentRectPhys) {
   if (auto* thumbCol = dynamic_cast<ThumbnailCollector*>(collector)) {
     const QFileInfo sourceFileInfo(core::toQString(pageInfo.id().imageId().filePath()));
-    const QString outFilePath(m_outFileNameGen.filePathFor(pageInfo.id()));
+    const QString outFilePath(core::toQString(m_outFileNameGen.filePathFor(pageInfo.id())));
     const QFileInfo outFileInfo(outFilePath);
-    const QString foregroundDir(Utils::foregroundDir(m_outFileNameGen.outDir()));
-    const QString backgroundDir(Utils::backgroundDir(m_outFileNameGen.outDir()));
-    const QString originalBackgroundDir(Utils::originalBackgroundDir(m_outFileNameGen.outDir()));
+    const QString outputDir(core::toQString(m_outFileNameGen.outDir()));
+    const QString foregroundDir(Utils::foregroundDir(outputDir));
+    const QString backgroundDir(Utils::backgroundDir(outputDir));
+    const QString originalBackgroundDir(Utils::originalBackgroundDir(outputDir));
     const QString foregroundFilePath(QDir(foregroundDir).absoluteFilePath(outFileInfo.fileName()));
     const QFileInfo foregroundFileInfo(foregroundFilePath);
     const QString backgroundFilePath(QDir(backgroundDir).absoluteFilePath(outFileInfo.fileName()));

@@ -108,7 +108,8 @@ bool ProjectWriter::write(const std::filesystem::path& filePath,
   QDomElement rootEl(doc.createElement("project"));
   doc.appendChild(rootEl);
   rootEl.setAttribute("version", PROJECT_VERSION);
-  rootEl.setAttribute("outputDirectory", toRelativeIfPossible(projectDirPath, m_outFileNameGen.outDir()));
+  rootEl.setAttribute("outputDirectory",
+                      toRelativeIfPossible(projectDirPath, core::toQString(m_outFileNameGen.outDir())));
   rootEl.setAttribute("layoutDirection", m_layoutDirection == Qt::LeftToRight ? "LTR" : "RTL");
 
   rootEl.appendChild(processDirectories(doc, projectDirPath));

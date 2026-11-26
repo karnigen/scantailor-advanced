@@ -269,7 +269,8 @@ void TestCoreQt::testCancelledContentUpdateIsPropagatedBeforeSave() {
 
   const QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(), directory.path(), Qt::LeftToRight);
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(),
+                                       core::toFileSystemPath(directory.path()), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), output);
   const QString projectPath = directory.filePath("project.scan");
   QString error;
@@ -310,7 +311,8 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
 
   const QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(), directory.path(), Qt::LeftToRight);
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(),
+                                       core::toFileSystemPath(directory.path()), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), output);
   const QString projectPath = directory.filePath("project.scan");
   QString error;

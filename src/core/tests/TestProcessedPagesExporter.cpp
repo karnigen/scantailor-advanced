@@ -28,7 +28,7 @@ struct ExportFixture {
   ExportFixture()
       : tempDir(),
         outputDirectory(QDir(tempDir.path()).filePath(QStringLiteral("processed"))),
-        generator(std::make_shared<FileNameDisambiguator>(), outputDirectory, Qt::LeftToRight) {
+        generator(std::make_shared<FileNameDisambiguator>(), core::toFileSystemPath(outputDirectory), Qt::LeftToRight) {
     REQUIRE(tempDir.isValid());
     REQUIRE(QDir().mkpath(outputDirectory));
   }
@@ -42,7 +42,7 @@ struct ExportFixture {
 
     const PageInfo page(PageId(ImageId(core::toFileSystemPath(sourcePath)), PageId::SINGLE_PAGE),
                         ImageMetadata(processedImage.size(), Dpi(150, 150)), 1, false, false);
-    REQUIRE(TiffWriter::writeImage(generator.filePathFor(page.id()), processedImage));
+    REQUIRE(TiffWriter::writeImage(core::toQString(generator.filePathFor(page.id())), processedImage));
     pages.append(page);
     return page;
   }
