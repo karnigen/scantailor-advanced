@@ -719,6 +719,33 @@ void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
   QVERIFY(!shortcutHelp.contains("Open the manual Fix Orientation stage."));
 }
 
+void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
+  MainWindow window;
+  bool promptShown = false;
+  bool actionButtonsPresent = false;
+  QTimer::singleShot(0, &window, [&]() {
+    auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!messageBox) {
+      return;
+    }
+
+    promptShown = true;
+    auto* saveButton = messageBox->button(QMessageBox::Save);
+    auto* discardButton = messageBox->button(QMessageBox::Discard);
+    auto* cancelButton = messageBox->button(QMessageBox::Cancel);
+    actionButtonsPresent = saveButton && discardButton && cancelButton
+                           && messageBox->standardButton(saveButton) == QMessageBox::Save
+                           && messageBox->standardButton(discardButton) == QMessageBox::Discard;
+    if (discardButton) {
+      discardButton->click();
+    }
+  });
+
+  QCOMPARE(window.promptProjectSave(), MainWindow::DONT_SAVE);
+  QVERIFY(promptShown);
+  QVERIFY(actionButtonsPresent);
+}
+
 void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
   MainWindow window;
   QVERIFY(QMetaObject::invokeMethod(&window, "showSupportedImageFormats", Qt::DirectConnection));
