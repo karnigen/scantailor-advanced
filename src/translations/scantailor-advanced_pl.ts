@@ -3147,13 +3147,8 @@ Należy je usunąć z projektu.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Dodaj poziomą linię pomocniczą</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Dodaj pionową linię pomocniczą</translation>
+        <source>Add guide</source>
+        <translation>Dodaj linię pomocniczą</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>

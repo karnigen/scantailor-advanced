@@ -8,12 +8,15 @@
 #include <FilterOptionsWidget.h>
 #include <ImageInfo.h>
 #include <ImageTransformation.h>
+#include <Margins.h>
 #include <PageSequence.h>
 #include <ProcessingTaskQueue.h>
 #include <ProjectPages.h>
 #include <StageSequence.h>
 #include <WorkerThreadPool.h>
 #include <core/SettingsStore.h>
+#include <filters/page_layout/Alignment.h>
+#include <filters/page_layout/ImageView.h>
 #include <filters/page_layout/Params.h>
 #include <filters/select_content/CacheDrivenTask.h>
 #include <filters/select_content/Dependencies.h>
@@ -26,6 +29,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -38,6 +42,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
@@ -1103,6 +1108,66 @@ void TestMainWindowAsync::sourceDpiChangesPersistInMargins() {
   QCOMPARE(xDpi->text(), QStringLiteral("600"));
   QCOMPARE(yDpi->text(), QStringLiteral("400"));
   QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(size_t(0)).metadata().dpi(), Dpi(600, 400));
+}
+
+void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path());
+  window.resize(1100, 700);
+  window.show();
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  auto* view = window.findChild<page_layout::ImageView*>();
+  QVERIFY(view);
+  QMenu* const menu = view->findChild<QMenu*>();
+  QVERIFY(menu);
+  QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Add guide"));
+  QCOMPARE(menu->actions().at(1)->text(), QStringLiteral("Add guide"));
+  QVERIFY(!menu->actions().at(0)->icon().isNull());
+  QVERIFY(!menu->actions().at(1)->icon().isNull());
+
+  const QPoint center = view->viewport()->rect().center();
+  QContextMenuEvent centerEvent(QContextMenuEvent::Mouse, center, view->viewport()->mapToGlobal(center));
+  QApplication::sendEvent(view->viewport(), &centerEvent);
+  QTRY_VERIFY(menu->isVisible());
+  QVERIFY(menu->actions().at(0)->isEnabled());
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  menu->actions().at(0)->trigger();
+
+  const QPoint outsideX(view->viewport()->rect().left(), center.y());
+  QContextMenuEvent outsideXEvent(QContextMenuEvent::Mouse, outsideX, view->viewport()->mapToGlobal(outsideX));
+  QApplication::sendEvent(view->viewport(), &outsideXEvent);
+  QTRY_VERIFY(menu->isVisible());
+  QVERIFY(menu->actions().at(0)->isVisible());
+  QVERIFY(menu->actions().at(1)->isVisible());
+  QVERIFY(menu->actions().at(0)->isEnabled());
+  QVERIFY(!menu->actions().at(1)->isEnabled());
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->close();
+
+  const QPoint outsideY(center.x(), view->viewport()->rect().top());
+  QContextMenuEvent outsideYEvent(QContextMenuEvent::Mouse, outsideY, view->viewport()->mapToGlobal(outsideY));
+  QApplication::sendEvent(view->viewport(), &outsideYEvent);
+  QTRY_VERIFY(menu->isVisible());
+  QVERIFY(!menu->actions().at(0)->isEnabled());
+  QVERIFY(menu->actions().at(1)->isEnabled());
 }
 
 void TestMainWindowAsync::batchProcessingBenchmark() {

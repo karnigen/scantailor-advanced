@@ -3452,12 +3452,8 @@ You should remove them from the project.</source>
         <translation>왼쪽 버튼을 떼면 드래그가 종료됩니다.</translation>
     </message>
     <message>
-        <source>Add a horizontal guide</source>
-        <translation>가로 안내선 추가하기</translation>
-    </message>
-    <message>
-        <source>Add a vertical guide</source>
-        <translation>세로 안내선 추가하기</translation>
+        <source>Add guide</source>
+        <translation>안내선 추가하기</translation>
     </message>
     <message>
         <source>Remove all the guides</source>

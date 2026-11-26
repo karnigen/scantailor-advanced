@@ -2474,11 +2474,7 @@ You should remove them from the project.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add a horizontal guide</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add a vertical guide</source>
+        <source>Add guide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

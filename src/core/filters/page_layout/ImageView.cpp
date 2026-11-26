@@ -9,10 +9,15 @@
 #include <imageproc/GrayImage.h>
 #include <imageproc/Transform.h>
 
+#include <QColor>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPen>
+#include <QPixmap>
+#include <cmath>
 #include <functional>
 
 #include "ImagePresentation.h"
@@ -24,6 +29,25 @@
 using namespace imageproc;
 
 namespace page_layout {
+namespace {
+QIcon guideActionIcon(const Qt::Orientation orientation) {
+  QPixmap pixmap(16, 16);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  QPen pen(QColor(0x00, 0x9d, 0x9f));
+  pen.setWidth(2);
+  pen.setCapStyle(Qt::RoundCap);
+  painter.setPen(pen);
+  if (orientation == Qt::Horizontal) {
+    painter.drawLine(2, 8, 14, 8);
+  } else {
+    painter.drawLine(8, 2, 8, 14);
+  }
+  return QIcon(pixmap);
+}
+}  // namespace
+
 ImageView::ImageView(const std::shared_ptr<Settings>& settings,
                      const PageId& pageId,
                      const QImage& image,
@@ -697,8 +721,8 @@ void ImageView::updatePhysSize() {
 }
 
 void ImageView::setupContextMenuInteraction() {
-  m_addHorizontalGuideAction = m_contextMenu->addAction(tr("Add a horizontal guide"));
-  m_addVerticalGuideAction = m_contextMenu->addAction(tr("Add a vertical guide"));
+  m_addHorizontalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Horizontal), tr("Add guide"));
+  m_addVerticalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Vertical), tr("Add guide"));
   m_removeAllGuidesAction = m_contextMenu->addAction(tr("Remove all guides from the project"));
   m_removeGuideUnderMouseAction = m_contextMenu->addAction(tr("Remove this guide"));
   m_addHorizontalGuideAction->setToolTip(tr("Add a horizontal alignment guide at the cursor position."));
@@ -730,29 +754,26 @@ void ImageView::onContextMenuEvent(QContextMenuEvent* event, InteractionState& i
     // No context menus during resizing.
     return;
   }
-  if (m_alignment.isNull()) {
-    return;
-  }
 
   const QPointF eventPos = QPointF(0.5, 0.5) + event->pos();
-  // No context menus outside the outer rect.
-  if (!m_outerRect.contains(widgetToVirtual().map(eventPos))) {
-    return;
-  }
+  m_lastContextMenuPos = eventPos;
+  const QPointF guidePos(widgetToGuideCs().map(eventPos));
+  const bool hasGuideArea = !m_outerRect.isEmpty();
+  m_addHorizontalGuideAction->setEnabled(!m_alignment.isNull() && hasGuideArea
+                                         && std::abs(guidePos.y()) <= m_outerRect.height() / 2.0);
+  m_addVerticalGuideAction->setEnabled(!m_alignment.isNull() && hasGuideArea
+                                       && std::abs(guidePos.x()) <= m_outerRect.width() / 2.0);
 
-  m_guideUnderMouse = getGuideUnderMouse(eventPos, interaction);
+  m_guideUnderMouse = m_alignment.isNull() ? -1 : getGuideUnderMouse(eventPos, interaction);
+  m_removeAllGuidesAction->setEnabled(!m_alignment.isNull());
+  m_removeGuideUnderMouseAction->setEnabled(!m_alignment.isNull());
+  m_showMiddleRectAction->setEnabled(!m_alignment.isNull());
   if (m_guideUnderMouse == -1) {
-    m_addHorizontalGuideAction->setVisible(true);
-    m_addVerticalGuideAction->setVisible(true);
     m_removeAllGuidesAction->setVisible(!m_guides.empty());
     m_removeGuideUnderMouseAction->setVisible(false);
     m_guideActionsSeparator->setVisible(!m_nullContentRect);
     m_showMiddleRectAction->setVisible(!m_nullContentRect);
-
-    m_lastContextMenuPos = eventPos;
   } else {
-    m_addHorizontalGuideAction->setVisible(false);
-    m_addVerticalGuideAction->setVisible(false);
     m_removeAllGuidesAction->setVisible(false);
     m_removeGuideUnderMouseAction->setVisible(true);
     m_guideActionsSeparator->setVisible(false);

@@ -3173,13 +3173,8 @@ Debería elimnarlos del proyecto.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation type="unfinished"></translation>
+        <source>Add guide</source>
+        <translation>Añadir guía</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>

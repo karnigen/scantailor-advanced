@@ -3184,13 +3184,8 @@ Sie sollten sie aus dem Projekt entfernen.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Horizontale Hilfslinie hinzufügen</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Vertikale Hilfslinie hinzufügen</translation>
+        <source>Add guide</source>
+        <translation>Hilfslinie hinzufügen</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>

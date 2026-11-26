@@ -18,6 +18,7 @@ class TestMainWindowAsync : public QObject {
   void applySourceDpiCopiesSelectedAxesIndependently();
   void filterDockWidthRestoresFromConfiguration();
   void sourceDpiChangesPersistInMargins();
+  void marginsGuideContextMenuIsAvailableAcrossView();
   void sourceImageLocationDetection();
   void relinkingDialogShowsInitialPath();
   void relinkingBreadcrumbClearsHoverAfterClick();

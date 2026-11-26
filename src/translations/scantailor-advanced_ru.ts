@@ -3183,13 +3183,8 @@ You should remove them from the project.</source>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Добавить горизонтальн. направл.</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Добавить вертикальн. направл.</translation>
+        <source>Add guide</source>
+        <translation>Добавить направляющую</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>

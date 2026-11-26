@@ -3184,13 +3184,8 @@ Deve removê-los do projeto.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Inserir uma guia horizontal</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Inserir uma guia vertical</translation>
+        <source>Add guide</source>
+        <translation>Inserir guia</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>
