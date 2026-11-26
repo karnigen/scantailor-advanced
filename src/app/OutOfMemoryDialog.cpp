@@ -85,7 +85,7 @@ void OutOfMemoryDialog::saveProjectAs() {
 
     RecentProjects rp;
     rp.read();
-    rp.setMostRecent(m_projectFile);
+    rp.setMostRecent(core::toFileSystemPath(m_projectFile));
     rp.write();
   }
 }  // OutOfMemoryDialog::saveProjectAs

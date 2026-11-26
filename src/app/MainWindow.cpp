@@ -1937,7 +1937,7 @@ void MainWindow::saveProjectAsNow() {
 
     RecentProjects rp;
     rp.read();
-    rp.setMostRecent(m_projectFile);
+    rp.setMostRecent(core::toFileSystemPath(m_projectFile));
     rp.write();
   }
 }  // MainWindow::saveProjectAsTriggered
@@ -2031,7 +2031,7 @@ void MainWindow::reloadProject() {
 void MainWindow::projectOpened(ProjectOpeningContext* context) {
   RecentProjects rp;
   rp.read();
-  rp.setMostRecent(core::toQString(context->projectFile()));
+  rp.setMostRecent(context->projectFile());
   rp.write();
 
   SettingsStore().setValue("project/lastDir", QFileInfo(core::toQString(context->projectFile())).absolutePath());

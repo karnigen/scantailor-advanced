@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QPainter>
 
+#include <core/PathUtils.h>
 #include "ColorSchemeManager.h"
 #include "RecentProjects.h"
 #include "Utils.h"
@@ -28,7 +29,7 @@ NewOpenProjectPanel::NewOpenProjectPanel(QWidget* parent) : QWidget(parent) {
   if (rp.isEmpty()) {
     recentProjectsGroup->setVisible(false);
   } else {
-    rp.enumerate([this](const QString& filePath) { addRecentProject(filePath); });
+    rp.enumerate([this](const std::filesystem::path& filePath) { addRecentProject(core::toQString(filePath)); });
   }
 
   connect(newProjectLabel, SIGNAL(linkActivated(const QString&)), this, SIGNAL(newProject()));
