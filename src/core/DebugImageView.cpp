@@ -11,6 +11,7 @@
 #include "BasicImageView.h"
 #include "ErrorWidget.h"
 #include "ImageViewBase.h"
+#include "PathUtils.h"
 #include "ProcessingIndicationWidget.h"
 
 class DebugImageView::ImageLoadResult : public AbstractCommand<void> {
@@ -70,7 +71,7 @@ void DebugImageView::setLive(const bool live) {
   if (live && !m_isLive) {
     ++m_loadGeneration;
     ImageViewBase::backgroundExecutor().enqueueTask(
-        std::make_shared<ImageLoader>(this, m_loadGeneration, m_file.get()));
+        std::make_shared<ImageLoader>(this, m_loadGeneration, core::toQString(m_file.get())));
   } else if (!live && m_isLive) {
     ++m_loadGeneration;
     if (QWidget* wgt = currentWidget()) {

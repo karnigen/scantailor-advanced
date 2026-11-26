@@ -9,6 +9,7 @@
 #include <core/FontIconPack.h>
 #include <core/IconProvider.h>
 #include <core/ImageAllocationLimit.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 #include <core/StyledIconPack.h>
 
@@ -139,7 +140,7 @@ int main(int argc, char* argv[]) {
   }
   IconProvider::getInstance().setIconPack(StyledIconPack::createDefault());
 
-  auto* mainWnd = new MainWindow(initialDirectory);
+  auto* mainWnd = new MainWindow(core::toFileSystemPath(initialDirectory));
   mainWnd->setAttribute(Qt::WA_DeleteOnClose);
   if (!settings.boolValue("mainWindow/maximized", true)) {
     mainWnd->show();

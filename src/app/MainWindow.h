@@ -70,7 +70,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   Q_OBJECT
  public:
-  explicit MainWindow(const QString& initialDirectory = QString());
+  explicit MainWindow(std::filesystem::path initialDirectory = {});
 
   ~MainWindow() override;
 
@@ -381,7 +381,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QObjectCleanupHandler m_optionsWidgetCleanup;
   QObjectCleanupHandler m_imageWidgetCleanup;
   std::unique_ptr<OutOfMemoryDialog> m_outOfMemoryDialog;
-  QString m_initialDirectory;
+  std::filesystem::path m_initialDirectory;
   int m_curFilter;
   int m_pendingFilter = -1;
   bool m_waitingForCancelledTasks = false;

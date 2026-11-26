@@ -29,7 +29,7 @@ OutOfMemoryDialog::OutOfMemoryDialog(QWidget* parent) : QDialog(parent) {
 }
 
 void OutOfMemoryDialog::setParams(const std::filesystem::path& projectFile,
-                                  const QString& initialDirectory,
+                                  const std::filesystem::path& initialDirectory,
                                   std::shared_ptr<StageSequence> stages,
                                   std::shared_ptr<ProjectPages> pages,
                                   const SelectedPage& selectedPage,
@@ -60,7 +60,7 @@ void OutOfMemoryDialog::saveProjectAs() {
     projectDir = QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     SettingsStore settings;
-    projectDir = m_initialDirectory;
+    projectDir = core::toQString(m_initialDirectory);
     if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
       projectDir = settings.stringValue("project/lastDir");
     }

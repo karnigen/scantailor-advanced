@@ -10,6 +10,8 @@
 #include <QImageWriter>
 #include <QTemporaryFile>
 
+#include <core/PathUtils.h>
+
 void DebugImagesImpl::add(const QImage& image,
                           const QString& label,
                           const std::function<QWidget*(const QImage&)>& imageViewFactory) {
@@ -18,7 +20,7 @@ void DebugImagesImpl::add(const QImage& image,
     return;
   }
 
-  AutoRemovingFile aremFile(file.fileName());
+  AutoRemovingFile aremFile(core::toFileSystemPath(file.fileName()));
   file.setAutoRemove(false);
 
   QImageWriter writer(&file, "png");

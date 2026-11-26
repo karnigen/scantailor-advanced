@@ -4,7 +4,7 @@
 #ifndef SCANTAILOR_FOUNDATION_AUTOREMOVINGFILE_H_
 #define SCANTAILOR_FOUNDATION_AUTOREMOVINGFILE_H_
 
-#include <QString>
+#include <filesystem>
 
 /**
  * \brief Provides unique_ptr semantics for files.
@@ -23,7 +23,7 @@ class AutoRemovingFile {
  public:
   AutoRemovingFile();
 
-  explicit AutoRemovingFile(const QString& filePath);
+  explicit AutoRemovingFile(std::filesystem::path filePath);
 
   AutoRemovingFile(AutoRemovingFile& other);
 
@@ -37,14 +37,14 @@ class AutoRemovingFile {
 
   operator CopyHelper() { return CopyHelper(this); }
 
-  const QString& get() const { return m_file; }
+  const std::filesystem::path& get() const { return m_file; }
 
-  void reset(const QString& file);
+  void reset(const std::filesystem::path& file);
 
-  QString release();
+  std::filesystem::path release();
 
  private:
-  QString m_file;
+  std::filesystem::path m_file;
 };
 
 

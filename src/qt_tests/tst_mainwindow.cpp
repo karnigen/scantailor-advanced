@@ -1807,7 +1807,7 @@ void TestMainWindowAsync::batchProcessingBenchmark() {
 
   const QString stage = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_STAGE", "page-layout");
   QString batchWarning;
-  MainWindow window(QFileInfo(projectPath).absolutePath());
+  MainWindow window(core::toFileSystemPath(QFileInfo(projectPath).absolutePath()));
   int filterIndex = -1;
   if (stage == "fix-orientation") {
     filterIndex = window.m_stages->fixOrientationFilterIdx();
@@ -1868,7 +1868,7 @@ void TestMainWindowAsync::stageSwitchBenchmark() {
   }
   QVERIFY2(QFileInfo(projectPath).isFile(), qPrintable(QString("Project file does not exist: %1").arg(projectPath)));
 
-  MainWindow window(QFileInfo(projectPath).absolutePath());
+  MainWindow window(core::toFileSystemPath(QFileInfo(projectPath).absolutePath()));
   window.openProject(projectPath);
   QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 120000);
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);

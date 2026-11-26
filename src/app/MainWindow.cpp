@@ -200,7 +200,7 @@ class MainWindow::PageSelectionProviderImpl : public PageSelectionProvider {
 };
 
 
-MainWindow::MainWindow(const QString& initialDirectory)
+MainWindow::MainWindow(std::filesystem::path initialDirectory)
     : m_pages(std::make_shared<ProjectPages>()),
       m_stages(std::make_shared<StageSequence>(m_pages, newPageSelectionAccessor())),
       m_workerThreadPool(std::make_unique<WorkerThreadPool>()),
@@ -212,7 +212,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
       m_ignorePageOrderingChanges(0),
       m_debug(false),
       m_closing(false) {
-  m_initialDirectory = initialDirectory;
+  m_initialDirectory = std::move(initialDirectory);
   ApplicationSettings& settings = ApplicationSettings::getInstance();
 
   m_maxLogicalThumbSize = settings.getMaxLogicalThumbnailSize();
@@ -1006,7 +1006,7 @@ void MainWindow::setImageWidget(QWidget* widget, const Ownership ownership, Debu
     m_tabbedDebugImages->addTab(widget, "Main");
     AutoRemovingFile file;
     QString label;
-    while (!(file = debugImages->retrieveNext(&label)).get().isNull()) {
+    while (!(file = debugImages->retrieveNext(&label)).get().empty()) {
       QWidget* view = new DebugImageView(file);
       m_imageWidgetCleanup.add(view);
       m_tabbedDebugImages->addTab(view, label);
@@ -1057,7 +1057,7 @@ void MainWindow::showRelinkingDialog() {
     return;
   }
 
-  auto* dialog = new RelinkingDialog(core::toQString(m_projectFile), this, m_initialDirectory);
+  auto* dialog = new RelinkingDialog(core::toQString(m_projectFile), this, core::toQString(m_initialDirectory));
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowModality(Qt::WindowModal);
 
@@ -1913,7 +1913,7 @@ void MainWindow::saveProjectAsNow() {
     projectDir = QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     SettingsStore settings;
-    projectDir = m_initialDirectory;
+    projectDir = core::toQString(m_initialDirectory);
     if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
       projectDir = settings.stringValue("project/lastDir");
     }
@@ -1950,7 +1950,7 @@ void MainWindow::newProject() {
   }
 
   // It will delete itself when it's done.
-  auto* context = new ProjectCreationContext(this, core::toFileSystemPath(m_initialDirectory));
+  auto* context = new ProjectCreationContext(this, m_initialDirectory);
   connect(context, SIGNAL(done(ProjectCreationContext*)), this, SLOT(newProjectCreated(ProjectCreationContext*)));
 }
 
@@ -1964,7 +1964,7 @@ void MainWindow::openProject() {
     return;
   }
 
-  QString projectDir(m_initialDirectory);
+  QString projectDir(core::toQString(m_initialDirectory));
   if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
     projectDir = SettingsStore().stringValue("project/lastDir");
   }
@@ -2900,11 +2900,13 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
 
   QString dialogDir;
   if (existing.isNull()) {
-    dialogDir = m_projectFile.empty() ? m_initialDirectory : QFileInfo(core::toQString(m_projectFile)).absolutePath();
+    dialogDir = m_projectFile.empty() ? core::toQString(m_initialDirectory)
+                                      : QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     dialogDir = QFileInfo(existing.filePath()).absolutePath();
     if (dialogDir.isEmpty()) {
-      dialogDir = m_projectFile.empty() ? m_initialDirectory : QFileInfo(core::toQString(m_projectFile)).absolutePath();
+      dialogDir = m_projectFile.empty() ? core::toQString(m_initialDirectory)
+                                        : QFileInfo(core::toQString(m_projectFile)).absolutePath();
     }
   }
   if (dialogDir.isEmpty() || !QDir(dialogDir).exists()) {

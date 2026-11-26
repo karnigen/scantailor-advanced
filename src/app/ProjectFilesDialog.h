@@ -7,6 +7,7 @@
 #include <QDialog>
 #include <QSet>
 #include <QString>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -16,13 +17,13 @@
 class ProjectFilesDialog : public QDialog, private Ui::ProjectFilesDialog {
   Q_OBJECT
  public:
-  explicit ProjectFilesDialog(QWidget* parent = nullptr, const QString& initialDirectory = QString());
+  explicit ProjectFilesDialog(QWidget* parent = nullptr, std::filesystem::path initialDirectory = {});
 
   ~ProjectFilesDialog() override;
 
-  QString inputDirectory() const;
+  std::filesystem::path inputDirectory() const;
 
-  QString outputDirectory() const;
+  std::filesystem::path outputDirectory() const;
 
   std::vector<ImageFileInfo> inProjectFiles() const;
 
@@ -74,7 +75,7 @@ class ProjectFilesDialog : public QDialog, private Ui::ProjectFilesDialog {
   int m_loadTimerId;
   bool m_metadataLoadFailed;
   bool m_autoOutDir;
-  QString m_initialDirectory;
+  std::filesystem::path m_initialDirectory;
 };
 
 
