@@ -10,7 +10,12 @@
 #include <imageproc/Transform.h>
 
 #include <QColor>
+#include <QComboBox>
 #include <QCursor>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QIcon>
 #include <QKeyEvent>
@@ -746,10 +751,12 @@ void ImageView::setupContextMenuInteraction() {
   m_addVerticalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Vertical), tr("Add guide"));
   m_removeAllGuidesAction = m_contextMenu->addAction(tr("Remove all guides from the project"));
   m_removeGuideUnderMouseAction = m_contextMenu->addAction(tr("Remove this guide"));
+  m_setGuidePositionAction = m_contextMenu->addAction(tr("Set position..."));
   m_addHorizontalGuideAction->setToolTip(tr("Add a horizontal alignment guide at the cursor position."));
   m_addVerticalGuideAction->setToolTip(tr("Add a vertical alignment guide at the cursor position."));
   m_removeAllGuidesAction->setToolTip(tr("Remove every alignment guide from the project."));
   m_removeGuideUnderMouseAction->setToolTip(tr("Remove the alignment guide under the cursor."));
+  m_setGuidePositionAction->setToolTip(tr("Set the position of this guide precisely."));
   m_guideActionsSeparator = m_contextMenu->addSeparator();
   m_showMiddleRectAction = m_contextMenu->addAction(tr("Show hard margins rectangle"));
   m_showMiddleRectAction->setToolTip(tr("Show or hide the detected hard-margins boundary."));
@@ -762,6 +769,7 @@ void ImageView::setupContextMenuInteraction() {
           [this]() { addVerticalGuide(widgetToGuideCs().map(m_lastContextMenuPos).x()); });
   connect(m_removeAllGuidesAction, &QAction::triggered, std::bind(&ImageView::removeAllGuides, this));
   connect(m_removeGuideUnderMouseAction, &QAction::triggered, [this]() { removeGuide(m_guideUnderMouse); });
+  connect(m_setGuidePositionAction, &QAction::triggered, [this]() { setGuidePosition(m_guideUnderMouse); });
   connect(m_showMiddleRectAction, &QAction::toggled, [this](bool checked) {
     if (!m_alignment.isNull() && !m_nullContentRect) {
       enableMiddleRectInteraction(checked);
@@ -792,11 +800,13 @@ void ImageView::onContextMenuEvent(QContextMenuEvent* event, InteractionState& i
   if (m_guideUnderMouse == -1) {
     m_removeAllGuidesAction->setVisible(!m_guides.empty());
     m_removeGuideUnderMouseAction->setVisible(false);
+    m_setGuidePositionAction->setVisible(false);
     m_guideActionsSeparator->setVisible(!m_nullContentRect);
     m_showMiddleRectAction->setVisible(!m_nullContentRect);
   } else {
     m_removeAllGuidesAction->setVisible(false);
     m_removeGuideUnderMouseAction->setVisible(true);
+    m_setGuidePositionAction->setVisible(true);
     m_guideActionsSeparator->setVisible(false);
     m_showMiddleRectAction->setVisible(false);
   }
@@ -826,6 +836,95 @@ void ImageView::addDefaultGuidesIfNeeded() {
   const QPointF guideCenter(pageCenter - m_outerRect.center());
   addHorizontalGuide(guideCenter.y());
   addVerticalGuide(guideCenter.x());
+}
+
+void ImageView::setGuidePosition(const int index) {
+  const auto guideIt = m_guides.find(index);
+  if (guideIt == m_guides.end()) {
+    return;
+  }
+
+  const Guide& guide = guideIt->second;
+  const bool horizontalGuide = guide.getOrientation() == Qt::Horizontal;
+  const double extent = horizontalGuide ? m_outerRect.height() : m_outerRect.width();
+  if (extent <= 0.0) {
+    return;
+  }
+
+  const Units units = UnitsProvider::getInstance().getUnits();
+  const Dpi& dpi = m_xform.origDpi();
+  const auto pixelsToUnits = [this, horizontalGuide, &dpi](const double pixels) {
+    const QPointF pixelVector = horizontalGuide ? QPointF(0.0, pixels) : QPointF(pixels, 0.0);
+    const QPointF mmVector = m_pixelsToMmXform.map(pixelVector) - m_pixelsToMmXform.map(QPointF());
+    double horizontal = mmVector.x();
+    double vertical = mmVector.y();
+    UnitsProvider::getInstance().convertFrom(horizontal, vertical, MILLIMETRES, dpi);
+    return std::abs(horizontalGuide ? vertical : horizontal);
+  };
+  const auto unitsToPixels = [this, horizontalGuide, &dpi](const double value) {
+    double horizontal = horizontalGuide ? 0.0 : value;
+    double vertical = horizontalGuide ? value : 0.0;
+    UnitsProvider::getInstance().convertTo(horizontal, vertical, MILLIMETRES, dpi);
+    const QPointF mmVector(horizontal, vertical);
+    const QPointF pixelVector = m_mmToPixelsXform.map(mmVector) - m_mmToPixelsXform.map(QPointF());
+    return std::abs(horizontalGuide ? pixelVector.y() : pixelVector.x());
+  };
+
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("setGuidePositionDialog"));
+  dialog.setWindowTitle(tr("Set guide position"));
+
+  auto* sideCombo = new QComboBox(&dialog);
+  sideCombo->setObjectName(QStringLiteral("guidePositionSideCombo"));
+  sideCombo->addItem(horizontalGuide ? tr("Top") : tr("Left"), true);
+  sideCombo->addItem(horizontalGuide ? tr("Bottom") : tr("Right"), false);
+
+  auto* unitsCombo = new QComboBox(&dialog);
+  unitsCombo->setObjectName(QStringLiteral("guidePositionUnitsCombo"));
+  unitsCombo->addItem(tr("Units (%1)").arg(unitsToLocalizedString(units)), false);
+  unitsCombo->addItem(tr("Percent (%)"), true);
+
+  auto* valueSpinBox = new QDoubleSpinBox(&dialog);
+  valueSpinBox->setObjectName(QStringLiteral("guidePositionSpinBox"));
+  valueSpinBox->setDecimals(3);
+  valueSpinBox->setSingleStep(0.1);
+
+  QFormLayout* formLayout = new QFormLayout(&dialog);
+  formLayout->addRow(tr("Measure from:"), sideCombo);
+  formLayout->addRow(tr("Value type:"), unitsCombo);
+  formLayout->addRow(tr("Distance:"), valueSpinBox);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  formLayout->addRow(buttonBox);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  const double halfExtent = extent / 2.0;
+  const double firstDistance = halfExtent + guide.getPosition();
+  sideCombo->setCurrentIndex(firstDistance <= halfExtent ? 0 : 1);
+  const auto updateValue = [&, this]() {
+    const bool fromFirstSide = sideCombo->currentData().toBool();
+    const double currentDistance = fromFirstSide ? firstDistance : extent - firstDistance;
+    const bool usePercent = unitsCombo->currentData().toBool();
+    const double maxValue = usePercent ? 100.0 : pixelsToUnits(extent);
+    valueSpinBox->setRange(0.0, maxValue);
+    valueSpinBox->setSuffix(usePercent ? QStringLiteral(" %") : QStringLiteral(" ") + unitsToLocalizedString(units));
+    valueSpinBox->setValue(usePercent ? currentDistance / extent * 100.0 : pixelsToUnits(currentDistance));
+  };
+  connect(sideCombo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, updateValue);
+  connect(unitsCombo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, updateValue);
+  updateValue();
+
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  const double distance = unitsCombo->currentData().toBool() ? valueSpinBox->value() / 100.0 * extent
+                                                             : unitsToPixels(valueSpinBox->value());
+  const bool fromFirstSide = sideCombo->currentData().toBool();
+  guideIt->second.setPosition(fromFirstSide ? distance - halfExtent : halfExtent - distance);
+  update();
+  syncGuidesSettings();
 }
 
 void ImageView::addHorizontalGuide(double y) {

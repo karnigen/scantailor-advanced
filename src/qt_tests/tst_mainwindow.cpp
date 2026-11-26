@@ -36,6 +36,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDomDocument>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
@@ -1146,6 +1147,7 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   QVERIFY(menu);
   QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Add guide"));
   QCOMPARE(menu->actions().at(1)->text(), QStringLiteral("Add guide"));
+  QCOMPARE(menu->actions().at(4)->text(), QStringLiteral("Set position..."));
   QVERIFY(!menu->actions().at(0)->icon().isNull());
   QVERIFY(!menu->actions().at(1)->icon().isNull());
 
@@ -1227,6 +1229,30 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
 
   showContextMenuAt(center);
   QVERIFY(menu->actions().at(3)->isVisible());
+  QVERIFY(menu->actions().at(4)->isVisible());
+  bool positionDialogShown = false;
+  bool positionDialogControlsPresent = false;
+  QTimer::singleShot(0, view, [&]() {
+    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+
+    positionDialogShown = true;
+    auto* sideCombo = dialog->findChild<QComboBox*>(QStringLiteral("guidePositionSideCombo"));
+    auto* unitsCombo = dialog->findChild<QComboBox*>(QStringLiteral("guidePositionUnitsCombo"));
+    auto* valueSpinBox = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("guidePositionSpinBox"));
+    positionDialogControlsPresent = sideCombo && sideCombo->count() == 2 && unitsCombo && unitsCombo->count() == 2
+                                    && unitsCombo->itemText(1) == QStringLiteral("Percent (%)") && valueSpinBox
+                                    && valueSpinBox->maximum() > 0.0;
+    dialog->accept();
+  });
+  menu->actions().at(4)->trigger();
+  QVERIFY(positionDialogShown);
+  QVERIFY(positionDialogControlsPresent);
+
+  showContextMenuAt(center);
+  QVERIFY(menu->actions().at(3)->isVisible());
   menu->actions().at(3)->trigger();
   menu->close();
   showContextMenuAt(center);
@@ -1237,6 +1263,7 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   showContextMenuAt(center);
   QVERIFY(!menu->actions().at(2)->isVisible());
   QVERIFY(!menu->actions().at(3)->isVisible());
+  QVERIFY(!menu->actions().at(4)->isVisible());
   QVERIFY(menu->actions().at(0)->isEnabled());
   QVERIFY(menu->actions().at(1)->isEnabled());
   menu->actions().at(0)->trigger();

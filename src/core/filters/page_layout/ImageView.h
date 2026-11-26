@@ -149,6 +149,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void addDefaultGuidesIfNeeded();
 
+  void setGuidePosition(int index);
+
   void addHorizontalGuide(double y);
 
   void addVerticalGuide(double x);
@@ -285,6 +287,7 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   QAction* m_addVerticalGuideAction;
   QAction* m_removeAllGuidesAction;
   QAction* m_removeGuideUnderMouseAction;
+  QAction* m_setGuidePositionAction;
   QAction* m_guideActionsSeparator;
   QAction* m_showMiddleRectAction;
   QPointF m_lastContextMenuPos;
