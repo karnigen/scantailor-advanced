@@ -1850,6 +1850,13 @@ void MainWindow::fixedDpiSubmitted() {
       || (selectedPageBefore.metadata() != selectedPageAfter.metadata())) {
     reloadRequested();
   }
+
+  if (m_waitingForCancelledTasks) {
+    queueSave(PendingSave::Save);
+    QMainWindow::statusBar()->showMessage(tr("The project will be saved when cancelled tasks finish."));
+    return;
+  }
+  saveProjectInteractive();
 }
 
 void MainWindow::saveProjectTriggered() {

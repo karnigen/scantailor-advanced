@@ -7,6 +7,7 @@
 #include <QtXml>
 #include <catch2/catch_test_macros.hpp>
 
+#include "ImageFileInfo.h"
 #include "ImageInfo.h"
 #include "OutputFileNameGenerator.h"
 #include "ProjectBackup.h"
@@ -326,6 +327,60 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_
   CHECK(rootEl.attribute("outputDirectory") == "../output");
   const QDomElement directoryEl(rootEl.namedItem("directories").firstChildElement("directory"));
   CHECK(directoryEl.attribute("path") == "../source");
+}
+
+TEST_CASE("CoreProjectMigrationTestSuite / test_project_dpi_override_survives_save_and_reload") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QDir rootDir(tempDir.path());
+  const QString projectDirPath(rootDir.filePath("project"));
+  REQUIRE(QDir().mkpath(projectDirPath));
+  const QString sourcePath(QDir(projectDirPath).filePath("page.tif"));
+  const QString projectPath(QDir(projectDirPath).filePath("project.ScanTailor"));
+  REQUIRE(writeFile(sourcePath, QByteArray()));
+
+  const ImageId imageId(sourcePath, 0);
+  const ImageMetadata originalMetadata(QSize(100, 120), Dpi(300, 300));
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, originalMetadata, 1, false, false)}, Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(),
+                                                        rootDir.filePath("output"), Qt::LeftToRight);
+  const ProjectWriter initialWriter(pages, SelectedPage(), outputFileNameGenerator);
+  QString errorMessage;
+  REQUIRE(initialWriter.write(projectPath, {}, &errorMessage));
+
+  QDomDocument initialDoc;
+  {
+    QFile initialProject(projectPath);
+    REQUIRE(initialProject.open(QIODevice::ReadOnly));
+    REQUIRE(initialDoc.setContent(&initialProject));
+  }
+  CHECK(initialDoc.documentElement().namedItem("directories").firstChildElement("directory").attribute("path") == ".");
+  const ProjectReader loadedProject(initialDoc, projectPath);
+  REQUIRE(loadedProject.success());
+  const std::shared_ptr<ProjectPages>& loadedPages = loadedProject.pages();
+  std::vector<ImageFileInfo> files = loadedPages->toImageFileInfo();
+  REQUIRE(files.size() == 1);
+  files.front().imageInfo().front().setDpi(Dpi(400, 400));
+  loadedPages->updateMetadataFrom(files);
+  REQUIRE(loadedPages->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi() == Dpi(400, 400));
+
+  const ProjectWriter updatedWriter(loadedPages, loadedProject.selectedPage(), outputFileNameGenerator);
+  REQUIRE(updatedWriter.write(projectPath, {}, &errorMessage));
+
+  QFile savedProject(projectPath);
+  REQUIRE(savedProject.open(QIODevice::ReadOnly));
+  QDomDocument savedDoc;
+  REQUIRE(savedDoc.setContent(&savedProject));
+  const QDomElement dpiElement
+      = savedDoc.documentElement().namedItem("images").firstChildElement("image").firstChildElement("dpi");
+  REQUIRE_FALSE(dpiElement.isNull());
+  CHECK(dpiElement.attribute("horizontal") == "400");
+  CHECK(dpiElement.attribute("vertical") == "400");
+
+  const ProjectReader reader(savedDoc, projectPath);
+  REQUIRE(reader.success());
+  CHECK(reader.pages()->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi() == Dpi(400, 400));
 }
 
 #if defined(Q_OS_UNIX)

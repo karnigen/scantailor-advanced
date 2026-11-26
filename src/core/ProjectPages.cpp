@@ -305,10 +305,11 @@ namespace {
 struct File {
   QString fileName;
   mutable std::vector<ImageMetadata> metadata;
+  mutable std::vector<int> imageIndexes;
 
   explicit File(const QString& fname) : fileName(fname) {}
 
-  explicit operator ImageFileInfo() const { return ImageFileInfo(QFileInfo(fileName), metadata); }
+  explicit operator ImageFileInfo() const { return ImageFileInfo(QFileInfo(fileName), metadata, imageIndexes); }
 };
 }  // anonymous namespace
 
@@ -326,6 +327,7 @@ std::vector<ImageFileInfo> ProjectPages::toImageFileInfo() const {
         files.emplace_back(filePath);
       }
       files[it->second].metadata.push_back(image.metadata);
+      files[it->second].imageIndexes.push_back(image.id.page());
     }
   }
 
@@ -342,21 +344,27 @@ void ProjectPages::updateMetadataFrom(const std::vector<ImageFileInfo>& files) {
   MetadataMap metadataMap;
 
   for (const ImageFileInfo& file : files) {
-    const QString filePath(file.fileInfo().absoluteFilePath());
-    int page = 0;
-    for (const ImageMetadata& metadata : file.imageInfo()) {
-      metadataMap[ImageId(filePath, page)] = metadata;
-      ++page;
+    const QString filePath(file.fileInfo().filePath());
+    for (std::size_t imageIndex = 0; imageIndex < file.imageInfo().size(); ++imageIndex) {
+      metadataMap[ImageId(filePath, file.imageIndexes()[imageIndex])] = file.imageInfo()[imageIndex];
     }
   }
 
-  QMutexLocker locker(&m_mutex);
-  for (ImageDesc& image : m_images) {
-    const MetadataMap::const_iterator it(metadataMap.find(image.id));
-    if (it != metadataMap.end()) {
-      image.metadata = it->second;
-      image.layoutRevision = ++m_nextLayoutRevision;
+  bool wasModified = false;
+  {
+    QMutexLocker locker(&m_mutex);
+    for (ImageDesc& image : m_images) {
+      const MetadataMap::const_iterator it(metadataMap.find(image.id));
+      if (it != metadataMap.end() && image.metadata != it->second) {
+        image.metadata = it->second;
+        image.layoutRevision = ++m_nextLayoutRevision;
+        wasModified = true;
+      }
     }
+  }
+
+  if (wasModified) {
+    emit modified();
   }
 }
 

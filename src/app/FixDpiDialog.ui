@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>339</width>
-    <height>339</height>
+    <width>900</width>
+    <height>620</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,38 +15,20 @@
   </property>
   <layout class="QVBoxLayout">
    <item>
-    <widget class="QTabWidget" name="tabWidget">
-     <property name="currentIndex">
-      <number>0</number>
+    <widget class="QTableView" name="allPagesTable">
+     <property name="toolTip">
+      <string>All project pages and their current source DPI.</string>
      </property>
-     <widget class="QWidget" name="tab">
-      <attribute name="title">
-       <string>Tab 1</string>
-      </attribute>
-      <layout class="QVBoxLayout">
-       <item>
-        <widget class="QTreeView" name="undefinedDpiView">
-         <property name="toolTip">
-          <string>Pages whose resolution is missing or undefined.</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="tab_2">
-      <attribute name="title">
-       <string>Tab 2</string>
-      </attribute>
-      <layout class="QVBoxLayout">
-       <item>
-        <widget class="QTreeView" name="allPagesView">
-         <property name="toolTip">
-          <string>All project pages and their current resolution.</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="dpiStatsLabel">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
     </widget>
    </item>
    <item>
@@ -127,11 +109,24 @@
         <property name="enabled">
          <bool>false</bool>
         </property>
+        <property name="toolTip">
+         <string>Apply this DPI to the selected pages.</string>
+        </property>
         <property name="text">
-         <string>Apply</string>
+         <string>Apply to Selected</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="applyAllBtn">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="text">
+         <string>Apply to All Pages</string>
         </property>
         <property name="toolTip">
-         <string>Apply the selected resolution to the selected pages.</string>
+         <string>Replace the source DPI on every project page.</string>
         </property>
        </widget>
       </item>

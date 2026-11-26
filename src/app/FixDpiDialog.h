@@ -18,6 +18,7 @@
 #include "ui_FixDpiDialog.h"
 
 class QItemSelection;
+class QTableView;
 
 class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
   Q_OBJECT
@@ -30,8 +31,6 @@ class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
 
  private slots:
 
-  void tabChanged(int tab);
-
   void selectionChanged(const QItemSelection& selection);
 
   void dpiComboChangedByUser(int index);
@@ -40,17 +39,18 @@ class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
 
   void applyClicked();
 
- private:
-  class DpiCounts;
-  class SizeGroup;
-  class TreeModel;
-  class FilterModel;
+  void applyAllClicked();
 
-  enum Scope { ALL, NOT_OK };
+ private:
+  class PageTableModel;
 
   void enableDisableOkButton();
 
+  std::vector<int> selectedRows() const;
+
   void updateDpiFromSelection(const QItemSelection& selection);
+
+  void updateDpiStatistics();
 
   void resetDpiForm();
 
@@ -60,11 +60,8 @@ class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
 
   void decorateDpiInputField(QLineEdit* field, ImageMetadata::DpiStatus dpiStatus) const;
 
-  std::unique_ptr<TreeModel> m_pages;
-  std::unique_ptr<FilterModel> m_undefinedDpiPages;
-  QString m_xDpiInitialValue;
-  QString m_yDpiInitialValue;
-  QSize m_selectedItemPixelSize;
+  std::unique_ptr<PageTableModel> m_pages;
+  std::vector<QSize> m_selectedItemPixelSizes;
   QPalette m_normalPalette;
   QPalette m_errorPalette;
 };

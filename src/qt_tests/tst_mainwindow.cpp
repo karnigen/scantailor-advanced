@@ -2,6 +2,7 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include "tst_mainwindow.h"
+#include "FixDpiDialog.h"
 #include "MainWindow.h"
 
 #include <ApplicationSettings.h>
@@ -46,6 +47,8 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QImageWriter>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -58,7 +61,9 @@
 #include <QRadioButton>
 #include <QScrollBar>
 #include <QSemaphore>
+#include <QSignalSpy>
 #include <QStackedLayout>
+#include <QTableView>
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextCursor>
@@ -723,6 +728,163 @@ void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
   QCoreApplication::processEvents();
   QVERIFY(verticalScrollBar->value() > initialScrollPosition);
   QVERIFY(focusButton->isChecked());
+}
+
+void TestMainWindowAsync::fixDpiDialogListsAndUpdatesPageDpi() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString firstImagePath = directory.filePath(QStringLiteral("page-a.png"));
+  const QString secondImagePath = directory.filePath(QStringLiteral("page-b.png"));
+  QImage firstImage(QSize(100, 200), QImage::Format_RGB32);
+  firstImage.fill(Qt::white);
+  firstImage.setDotsPerMeterX(11811);
+  firstImage.setDotsPerMeterY(11811);
+  QImageWriter firstImageWriter(firstImagePath, "png");
+  QVERIFY(firstImageWriter.write(firstImage));
+  QImage secondImage(QSize(200, 100), QImage::Format_RGB32);
+  secondImage.fill(Qt::white);
+  secondImage.setDotsPerMeterX(11811);
+  secondImage.setDotsPerMeterY(11811);
+  QImageWriter secondImageWriter(secondImagePath, "png");
+  QVERIFY(secondImageWriter.write(secondImage));
+
+  const std::vector<ImageFileInfo> files{
+      ImageFileInfo(QFileInfo(firstImagePath), {ImageMetadata(QSize(100, 200), Dpi(300, 600))}),
+      ImageFileInfo(QFileInfo(secondImagePath), {ImageMetadata(QSize(200, 100), Dpi(300, 300))}),
+  };
+  FixDpiDialog dialog(files);
+
+  auto* allPagesTable = dialog.findChild<QTableView*>(QStringLiteral("allPagesTable"));
+  auto* xDpi = dialog.findChild<QLineEdit*>(QStringLiteral("xDpi"));
+  auto* yDpi = dialog.findChild<QLineEdit*>(QStringLiteral("yDpi"));
+  auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyBtn"));
+  auto* applyAllButton = dialog.findChild<QPushButton*>(QStringLiteral("applyAllBtn"));
+  auto* dpiStatsLabel = dialog.findChild<QLabel*>(QStringLiteral("dpiStatsLabel"));
+  QVERIFY(allPagesTable);
+  QVERIFY(xDpi);
+  QVERIFY(yDpi);
+  QVERIFY(applyButton);
+  QVERIFY(applyAllButton);
+  QVERIFY(dpiStatsLabel);
+
+  QCOMPARE(allPagesTable->model()->rowCount(), 2);
+  QCOMPARE(allPagesTable->model()->columnCount(), 3);
+  QCOMPARE(allPagesTable->model()->index(0, 0).data().toString(), QStringLiteral("page-a.png"));
+  QCOMPARE(allPagesTable->model()->index(0, 1).data().toString(), QStringLiteral("300 x 300"));
+  QCOMPARE(allPagesTable->model()->index(0, 2).data().toString(), QStringLiteral("300 x 600"));
+  QVERIFY(dpiStatsLabel->text().contains(QStringLiteral("Distinct DPI values: 2")));
+
+  allPagesTable->selectionModel()->select(allPagesTable->model()->index(0, 0),
+                                          QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+  allPagesTable->selectionModel()->select(allPagesTable->model()->index(1, 0),
+                                          QItemSelectionModel::Select | QItemSelectionModel::Rows);
+  xDpi->setText(QStringLiteral("400"));
+  yDpi->setText(QStringLiteral("500"));
+  QVERIFY(QMetaObject::invokeMethod(&dialog, "dpiValueChanged", Qt::DirectConnection));
+  QVERIFY(applyButton->isEnabled());
+  applyButton->click();
+
+  QCOMPARE(dialog.files()[0].imageInfo()[0].dpi().horizontal(), 400);
+  QCOMPARE(dialog.files()[0].imageInfo()[0].dpi().vertical(), 500);
+  QCOMPARE(dialog.files()[1].imageInfo()[0].dpi().horizontal(), 400);
+  QCOMPARE(dialog.files()[1].imageInfo()[0].dpi().vertical(), 500);
+  QCOMPARE(allPagesTable->model()->index(0, 1).data().toString(), QStringLiteral("300 x 300"));
+  QCOMPARE(allPagesTable->model()->index(0, 2).data().toString(), QStringLiteral("400 x 500"));
+  QVERIFY(dpiStatsLabel->text().contains(QStringLiteral("Distinct DPI values: 1")));
+
+  xDpi->setText(QStringLiteral("600"));
+  yDpi->setText(QStringLiteral("600"));
+  QVERIFY(QMetaObject::invokeMethod(&dialog, "dpiValueChanged", Qt::DirectConnection));
+  QVERIFY(applyAllButton->isEnabled());
+  applyAllButton->click();
+  for (const ImageFileInfo& file : dialog.files()) {
+    QCOMPARE(file.imageInfo()[0].dpi().horizontal(), 600);
+    QCOMPARE(file.imageInfo()[0].dpi().vertical(), 600);
+  }
+}
+
+void TestMainWindowAsync::fixDpiDialogRequiresDpiForEveryPage() {
+  const std::vector<ImageFileInfo> files{
+      ImageFileInfo(QFileInfo(QStringLiteral("page.png")), {ImageMetadata(QSize(100, 120), Dpi(0, 300))}),
+  };
+  FixDpiDialog dialog(files);
+  auto* buttonBox = dialog.findChild<QDialogButtonBox*>(QStringLiteral("buttonBox"));
+  QVERIFY(buttonBox);
+  QVERIFY(!buttonBox->button(QDialogButtonBox::Ok)->isEnabled());
+}
+
+void TestMainWindowAsync::updateProjectDpiMetadataMarksProjectModified() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+  const ImageId imageId(imagePath, 2);
+  const ImageMetadata originalMetadata(QSize(100, 120), Dpi(300, 300));
+  auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, originalMetadata, 1, false, false)}, Qt::LeftToRight);
+  QSignalSpy modifiedSpy(pages.get(), SIGNAL(modified()));
+
+  const std::vector<ImageFileInfo> updatedFiles{
+      ImageFileInfo(QFileInfo(imagePath), {ImageMetadata(QSize(100, 120), Dpi(400, 400))}, {2}),
+  };
+  pages->updateMetadataFrom(updatedFiles);
+  QCOMPARE(modifiedSpy.count(), 1);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi(), Dpi(400, 400));
+
+  pages->updateMetadataFrom(updatedFiles);
+  QCOMPARE(modifiedSpy.count(), 1);
+}
+
+void TestMainWindowAsync::fixDpiDialogPersistsProjectDpiOnAccept() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath(QStringLiteral("project.ScanTailor"));
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path(), projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  QVERIFY(QMetaObject::invokeMethod(&window, "fixDpiDialogRequested", Qt::DirectConnection));
+  auto* dialog = window.findChild<FixDpiDialog*>();
+  QVERIFY(dialog);
+  auto* table = dialog->findChild<QTableView*>(QStringLiteral("allPagesTable"));
+  auto* xDpi = dialog->findChild<QLineEdit*>(QStringLiteral("xDpi"));
+  auto* yDpi = dialog->findChild<QLineEdit*>(QStringLiteral("yDpi"));
+  auto* applyAllButton = dialog->findChild<QPushButton*>(QStringLiteral("applyAllBtn"));
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>(QStringLiteral("buttonBox"));
+  QVERIFY(table);
+  QVERIFY(xDpi);
+  QVERIFY(yDpi);
+  QVERIFY(applyAllButton);
+  QVERIFY(buttonBox);
+
+  table->selectRow(0);
+  xDpi->setText(QStringLiteral("400"));
+  yDpi->setText(QStringLiteral("400"));
+  QVERIFY(QMetaObject::invokeMethod(dialog, "dpiValueChanged", Qt::DirectConnection));
+  QVERIFY(applyAllButton->isEnabled());
+  applyAllButton->click();
+  QCOMPARE(table->model()->index(0, 2).data().toString(), QStringLiteral("400 x 400"));
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi(), Dpi(400, 400));
+
+  QFile savedProject(projectPath);
+  QVERIFY(savedProject.open(QIODevice::ReadOnly));
+  QDomDocument savedDoc;
+  QVERIFY(savedDoc.setContent(&savedProject));
+  const QDomElement dpiElement
+      = savedDoc.documentElement().namedItem("images").firstChildElement("image").firstChildElement("dpi");
+  QVERIFY(!dpiElement.isNull());
+  QCOMPARE(dpiElement.attribute("horizontal"), QStringLiteral("400"));
+  QCOMPARE(dpiElement.attribute("vertical"), QStringLiteral("400"));
 }
 
 void TestMainWindowAsync::processingIndicatorPreservesUnderlyingContent() {
