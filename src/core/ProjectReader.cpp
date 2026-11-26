@@ -292,13 +292,13 @@ ProjectReader::FileRecord ProjectReader::getFileRecord(int id) const {
   return FileRecord();
 }
 
-QString ProjectReader::expandFilePath(const QString& pathShorthand) const {
+std::filesystem::path ProjectReader::expandFilePath(const QString& pathShorthand) const {
   bool ok = false;
   const int fileId = pathShorthand.toInt(&ok);
   if (!ok) {
-    return QString();
+    return {};
   }
-  return core::toQString(getFileRecord(fileId).filePath);
+  return getFileRecord(fileId).filePath;
 }
 
 ImageInfo ProjectReader::getImageInfo(int id) const {

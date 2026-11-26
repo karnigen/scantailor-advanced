@@ -39,11 +39,11 @@ class FileNameDisambiguator {
    *
    * Supplying a file path unpacker allows storing shorthands rather than
    * full paths in XML.  Unpacker is a functor taking a shorthand and
-   * returning the full path.  If unpacker returns an empty string,
+   * returning the full path.  If unpacker returns an empty path,
    * the record will be skipped.
    */
   FileNameDisambiguator(const QDomElement& disambiguatorEl,
-                        const std::function<QString(const QString&)>& filePathUnpacker);
+                        const std::function<std::filesystem::path(const QString&)>& filePathUnpacker);
 
   virtual ~FileNameDisambiguator();
 
@@ -62,7 +62,7 @@ class FileNameDisambiguator {
    */
   QDomElement toXml(QDomDocument& doc,
                     const QString& name,
-                    const std::function<QString(const QString&)>& filePathPacker) const;
+                    const std::function<QString(const std::filesystem::path&)>& filePathPacker) const;
 
   int getLabel(const std::filesystem::path& filePath) const;
 

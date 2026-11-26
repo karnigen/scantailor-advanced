@@ -85,7 +85,7 @@ class ProjectReader {
 
   FileRecord getFileRecord(int id) const;
 
-  QString expandFilePath(const QString& pathShorthand) const;
+  std::filesystem::path expandFilePath(const QString& pathShorthand) const;
 
   ImageInfo getImageInfo(int id) const;
 

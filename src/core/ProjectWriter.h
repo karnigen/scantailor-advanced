@@ -152,7 +152,7 @@ class ProjectWriter {
 
   int fileId(const std::filesystem::path& filePath) const;
 
-  QString packFilePath(const QString& filePath) const;
+  QString packFilePath(const std::filesystem::path& filePath) const;
 
   int imageId(const ImageId& imageId) const;
 

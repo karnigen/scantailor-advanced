@@ -314,8 +314,8 @@ int ProjectWriter::fileId(const std::filesystem::path& filePath) const {
   }
 }
 
-QString ProjectWriter::packFilePath(const QString& filePath) const {
-  const Files::const_iterator it(m_files.find(core::toFileSystemPath(filePath)));
+QString ProjectWriter::packFilePath(const std::filesystem::path& filePath) const {
+  const Files::const_iterator it(m_files.find(filePath));
   if (it != m_files.end()) {
     return QString::number(it->numericId);
   } else {
