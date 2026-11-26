@@ -6,8 +6,8 @@
 
 #include <QObject>
 #include <QPointer>
-#include <QString>
 #include <Qt>
+#include <filesystem>
 #include <vector>
 
 #include "ImageFileInfo.h"
@@ -23,13 +23,13 @@ class ProjectOpeningContext : public QObject {
   DECLARE_NON_COPYABLE(ProjectOpeningContext)
 
  public:
-  ProjectOpeningContext(QWidget* parent, const QString& projectFile, const QDomDocument& doc);
+  ProjectOpeningContext(QWidget* parent, std::filesystem::path projectFile, const QDomDocument& doc);
 
   ~ProjectOpeningContext() override;
 
   void proceed();
 
-  const QString& projectFile() const { return m_projectFile; }
+  const std::filesystem::path& projectFile() const { return m_projectFile; }
 
   ProjectReader* projectReader() { return &m_reader; }
 
@@ -46,7 +46,7 @@ class ProjectOpeningContext : public QObject {
  private:
   void showFixDpiDialog();
 
-  QString m_projectFile;
+  std::filesystem::path m_projectFile;
   ProjectReader m_reader;
   QPointer<FixDpiDialog> m_fixDpiDialog;
   QWidget* m_parent;

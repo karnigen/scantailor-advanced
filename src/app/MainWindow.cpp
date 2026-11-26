@@ -1996,7 +1996,7 @@ void MainWindow::openProject(const QString& projectFile) {
 
   file.close();
 
-  auto* context = new ProjectOpeningContext(this, projectFile, doc);
+  auto* context = new ProjectOpeningContext(this, core::toFileSystemPath(projectFile), doc);
   connect(context, SIGNAL(done(ProjectOpeningContext*)), SLOT(projectOpened(ProjectOpeningContext*)));
   context->proceed();
 }
@@ -2031,13 +2031,13 @@ void MainWindow::reloadProject() {
 void MainWindow::projectOpened(ProjectOpeningContext* context) {
   RecentProjects rp;
   rp.read();
-  rp.setMostRecent(context->projectFile());
+  rp.setMostRecent(core::toQString(context->projectFile()));
   rp.write();
 
-  SettingsStore().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
+  SettingsStore().setValue("project/lastDir", QFileInfo(core::toQString(context->projectFile())).absolutePath());
 
   switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
-                     context->projectFile(), context->projectReader());
+                     core::toQString(context->projectFile()), context->projectReader());
   warnAboutExternalImages();
 }
 

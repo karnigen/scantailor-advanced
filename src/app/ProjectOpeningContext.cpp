@@ -9,13 +9,16 @@
 #include <QMessageBox>
 #include <QStringList>
 #include <cassert>
+#include <utility>
 
 #include "FixDpiDialog.h"
 #include "ProjectPages.h"
 #include "version.h"
 
-ProjectOpeningContext::ProjectOpeningContext(QWidget* parent, const QString& projectFile, const QDomDocument& doc)
-    : m_projectFile(projectFile), m_reader(doc, core::toFileSystemPath(projectFile)), m_parent(parent) {}
+ProjectOpeningContext::ProjectOpeningContext(QWidget* parent,
+                                             std::filesystem::path projectFile,
+                                             const QDomDocument& doc)
+    : m_projectFile(std::move(projectFile)), m_reader(doc, m_projectFile), m_parent(parent) {}
 
 ProjectOpeningContext::~ProjectOpeningContext() {
   // Deleting a null pointer is OK.
