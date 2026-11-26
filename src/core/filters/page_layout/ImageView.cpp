@@ -747,11 +747,11 @@ void ImageView::updatePhysSize() {
 }
 
 void ImageView::setupContextMenuInteraction() {
+  m_setGuidePositionAction = m_contextMenu->addAction(tr("Set position"));
   m_addHorizontalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Horizontal), tr("Add guide"));
   m_addVerticalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Vertical), tr("Add guide"));
   m_removeAllGuidesAction = m_contextMenu->addAction(tr("Remove all guides from the project"));
   m_removeGuideUnderMouseAction = m_contextMenu->addAction(tr("Remove this guide"));
-  m_setGuidePositionAction = m_contextMenu->addAction(tr("Set position..."));
   m_addHorizontalGuideAction->setToolTip(tr("Add a horizontal alignment guide at the cursor position."));
   m_addVerticalGuideAction->setToolTip(tr("Add a vertical alignment guide at the cursor position."));
   m_removeAllGuidesAction->setToolTip(tr("Remove every alignment guide from the project."));
@@ -879,6 +879,22 @@ void ImageView::setGuidePosition(const int index) {
   sideCombo->addItem(horizontalGuide ? tr("Top") : tr("Left"), true);
   sideCombo->addItem(horizontalGuide ? tr("Bottom") : tr("Right"), false);
 
+  const double halfExtent = extent / 2.0;
+  const double firstDistance = halfExtent + guide.getPosition();
+  const double secondDistance = extent - firstDistance;
+  const QString firstSide = horizontalGuide ? tr("Top") : tr("Left");
+  const QString secondSide = horizontalGuide ? tr("Bottom") : tr("Right");
+  const auto currentSideText = [&](const QString& side, const double distance) {
+    return tr("%1: %2 %3 (%4%)")
+        .arg(side, QLocale().toString(pixelsToUnits(distance), 'f', 2), unitsToLocalizedString(units),
+             QLocale().toString(distance / extent * 100.0, 'f', 2));
+  };
+  auto* currentPositionLabel = new QLabel(&dialog);
+  currentPositionLabel->setObjectName(QStringLiteral("guidePositionCurrentValues"));
+  currentPositionLabel->setWordWrap(false);
+  currentPositionLabel->setText(currentSideText(firstSide, firstDistance) + QLatin1Char('\n')
+                                + currentSideText(secondSide, secondDistance));
+
   auto* unitsCombo = new QComboBox(&dialog);
   unitsCombo->setObjectName(QStringLiteral("guidePositionUnitsCombo"));
   unitsCombo->addItem(tr("Units (%1)").arg(unitsToLocalizedString(units)), false);
@@ -890,6 +906,7 @@ void ImageView::setGuidePosition(const int index) {
   valueSpinBox->setSingleStep(0.1);
 
   QFormLayout* formLayout = new QFormLayout(&dialog);
+  formLayout->addRow(tr("Current position:"), currentPositionLabel);
   formLayout->addRow(tr("Measure from:"), sideCombo);
   formLayout->addRow(tr("Value type:"), unitsCombo);
   formLayout->addRow(tr("Distance:"), valueSpinBox);
@@ -899,8 +916,6 @@ void ImageView::setGuidePosition(const int index) {
   connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  const double halfExtent = extent / 2.0;
-  const double firstDistance = halfExtent + guide.getPosition();
   sideCombo->setCurrentIndex(firstDistance <= halfExtent ? 0 : 1);
   const auto updateValue = [&, this]() {
     const bool fromFirstSide = sideCombo->currentData().toBool();

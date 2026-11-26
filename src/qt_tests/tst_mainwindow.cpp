@@ -1145,11 +1145,11 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   QVERIFY(view);
   QMenu* menu = view->findChild<QMenu*>();
   QVERIFY(menu);
-  QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Add guide"));
+  QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Set position"));
   QCOMPARE(menu->actions().at(1)->text(), QStringLiteral("Add guide"));
-  QCOMPARE(menu->actions().at(4)->text(), QStringLiteral("Set position..."));
-  QVERIFY(!menu->actions().at(0)->icon().isNull());
+  QCOMPARE(menu->actions().at(2)->text(), QStringLiteral("Add guide"));
   QVERIFY(!menu->actions().at(1)->icon().isNull());
+  QVERIFY(!menu->actions().at(2)->icon().isNull());
 
   const QPoint center = view->imageToWidget().map(QPointF(image.width() / 2.0, image.height() / 2.0)).toPoint();
   const auto showContextMenuAt = [view, menu](const QPoint& pos) {
@@ -1167,11 +1167,11 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   };
   const QPoint horizontalGuideStart = center + QPoint(30, 50);
   showContextMenuAt(horizontalGuideStart);
-  QVERIFY(menu->actions().at(0)->isEnabled());
-  menu->actions().at(0)->trigger();
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  menu->actions().at(1)->trigger();
   menu->close();
   showContextMenuAt(horizontalGuideStart);
-  QVERIFY(menu->actions().at(3)->isVisible());
+  QVERIFY(menu->actions().at(4)->isVisible());
   menu->close();
   QCoreApplication::processEvents();
   QTest::keyPress(view, Qt::Key_Control, Qt::NoModifier);
@@ -1195,11 +1195,11 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
 
   const QPoint verticalGuideStart = center + QPoint(50, 30);
   showContextMenuAt(verticalGuideStart);
-  QVERIFY(menu->actions().at(1)->isEnabled());
-  menu->actions().at(1)->trigger();
+  QVERIFY(menu->actions().at(2)->isEnabled());
+  menu->actions().at(2)->trigger();
   menu->close();
   showContextMenuAt(verticalGuideStart);
-  QVERIFY(menu->actions().at(3)->isVisible());
+  QVERIFY(menu->actions().at(4)->isVisible());
   menu->close();
   QCoreApplication::processEvents();
   QTest::keyPress(view, Qt::Key_Control, Qt::NoModifier);
@@ -1219,17 +1219,17 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   QVERIFY(!measurementLabel->isVisible());
 
   showContextMenuAt(horizontalGuideStart + QPoint(0, 10));
-  QVERIFY(menu->actions().at(3)->isVisible());
-  menu->actions().at(3)->trigger();
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
   menu->close();
   showContextMenuAt(verticalGuideStart + QPoint(10, 0));
-  QVERIFY(menu->actions().at(3)->isVisible());
-  menu->actions().at(3)->trigger();
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
   menu->close();
 
   showContextMenuAt(center);
-  QVERIFY(menu->actions().at(3)->isVisible());
   QVERIFY(menu->actions().at(4)->isVisible());
+  QVERIFY(menu->actions().at(0)->isVisible());
   bool positionDialogShown = false;
   bool positionDialogControlsPresent = false;
   QTimer::singleShot(0, view, [&]() {
@@ -1242,47 +1242,55 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
     auto* sideCombo = dialog->findChild<QComboBox*>(QStringLiteral("guidePositionSideCombo"));
     auto* unitsCombo = dialog->findChild<QComboBox*>(QStringLiteral("guidePositionUnitsCombo"));
     auto* valueSpinBox = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("guidePositionSpinBox"));
+    auto* currentPositionLabel = dialog->findChild<QLabel*>(QStringLiteral("guidePositionCurrentValues"));
+    const bool showsBothHorizontalSides = currentPositionLabel && currentPositionLabel->text().contains("Top:")
+                                          && currentPositionLabel->text().contains("Bottom:");
+    const bool showsBothVerticalSides = currentPositionLabel && currentPositionLabel->text().contains("Left:")
+                                        && currentPositionLabel->text().contains("Right:");
     positionDialogControlsPresent = sideCombo && sideCombo->count() == 2 && unitsCombo && unitsCombo->count() == 2
                                     && unitsCombo->itemText(1) == QStringLiteral("Percent (%)") && valueSpinBox
-                                    && valueSpinBox->maximum() > 0.0;
+                                    && valueSpinBox->maximum() > 0.0 && currentPositionLabel
+                                    && currentPositionLabel->text().contains(QStringLiteral("%"))
+                                    && currentPositionLabel->text().contains(QLatin1Char('\n'))
+                                    && (showsBothHorizontalSides || showsBothVerticalSides);
     dialog->accept();
   });
-  menu->actions().at(4)->trigger();
+  menu->actions().at(0)->trigger();
   QVERIFY(positionDialogShown);
   QVERIFY(positionDialogControlsPresent);
 
   showContextMenuAt(center);
-  QVERIFY(menu->actions().at(3)->isVisible());
-  menu->actions().at(3)->trigger();
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
   menu->close();
   showContextMenuAt(center);
-  QVERIFY(menu->actions().at(3)->isVisible());
-  menu->actions().at(3)->trigger();
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
   menu->close();
 
   showContextMenuAt(center);
-  QVERIFY(!menu->actions().at(2)->isVisible());
+  QVERIFY(!menu->actions().at(0)->isVisible());
   QVERIFY(!menu->actions().at(3)->isVisible());
   QVERIFY(!menu->actions().at(4)->isVisible());
-  QVERIFY(menu->actions().at(0)->isEnabled());
   QVERIFY(menu->actions().at(1)->isEnabled());
-  menu->actions().at(0)->trigger();
+  QVERIFY(menu->actions().at(2)->isEnabled());
+  menu->actions().at(1)->trigger();
   menu->close();
 
   const QPoint outsideX(view->viewport()->rect().left(), center.y());
   showContextMenuAt(outsideX);
-  QVERIFY(menu->actions().at(0)->isVisible());
   QVERIFY(menu->actions().at(1)->isVisible());
-  QVERIFY(menu->actions().at(0)->isEnabled());
-  QVERIFY(!menu->actions().at(1)->isEnabled());
+  QVERIFY(menu->actions().at(2)->isVisible());
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  QVERIFY(!menu->actions().at(2)->isEnabled());
   menu->close();
 
   const QPoint outsideY(center.x(), view->viewport()->rect().top());
   showContextMenuAt(outsideY);
-  QVERIFY(!menu->actions().at(0)->isEnabled());
-  QVERIFY(menu->actions().at(1)->isEnabled());
-  QVERIFY(menu->actions().at(2)->isVisible());
-  menu->actions().at(2)->trigger();
+  QVERIFY(!menu->actions().at(1)->isEnabled());
+  QVERIFY(menu->actions().at(2)->isEnabled());
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->actions().at(3)->trigger();
   menu->close();
 
   window.saveProjectTriggered();
@@ -1311,8 +1319,9 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
                                   view->viewport()->mapToGlobal(reopenedCenter));
   QApplication::sendEvent(view->viewport(), &reopenedEvent);
   QTRY_VERIFY(menu->isVisible());
-  QVERIFY(!menu->actions().at(2)->isVisible());
+  QVERIFY(!menu->actions().at(0)->isVisible());
   QVERIFY(!menu->actions().at(3)->isVisible());
+  QVERIFY(!menu->actions().at(4)->isVisible());
 }
 
 void TestMainWindowAsync::batchProcessingBenchmark() {
