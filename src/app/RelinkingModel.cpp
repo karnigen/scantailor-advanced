@@ -9,10 +9,12 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QWaitCondition>
 
 #include <list>
 #include <unordered_map>
+#include <utility>
 
 #include "OutOfMemoryHandler.h"
 #include "PayloadEvent.h"
@@ -98,6 +100,8 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
       return item.type;
     case UncommittedStatusRole:
       return item.uncommittedStatus;
+    case EntryKindRole:
+      return item.entryKind;
     case UncommittedPathRole:
       return item.uncommittedPath;
     case Qt::ToolTipRole:
@@ -106,6 +110,12 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
       }
       break;
     case Qt::DisplayRole:
+      if (item.entryKind == CommonImageRoot) {
+        return tr("Common image root: %1").arg(QDir::toNativeSeparators(item.uncommittedPath));
+      }
+      if (item.entryKind == OutputDirectory) {
+        return tr("Output directory: %1").arg(QDir::toNativeSeparators(item.uncommittedPath));
+      }
       if (item.uncommittedPath.startsWith(QChar('/')) && !item.uncommittedPath.startsWith(QLatin1String("//"))) {
         // "//" indicates a network path
         return item.uncommittedPath;
@@ -123,6 +133,55 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
 }
 
 void RelinkingModel::addPath(const RelinkablePath& path) {
+  addPath(path, ImageFile);
+}
+
+void RelinkingModel::addCommonImageRoot() {
+  const auto isSameOrBelow = [](const QString& path, const QString& root) {
+    const QString relativePath = QDir::fromNativeSeparators(QDir(root).relativeFilePath(path));
+    return relativePath == "."
+           || (!QDir::isAbsolutePath(relativePath) && relativePath != ".." && !relativePath.startsWith("../"));
+  };
+
+  QString commonDirectory;
+  for (const Item& item : m_items) {
+    if (item.entryKind != ImageFile) {
+      continue;
+    }
+
+    const QString imageDirectory = QDir::cleanPath(QFileInfo(item.origPath).absolutePath());
+    if (commonDirectory.isEmpty()) {
+      commonDirectory = imageDirectory;
+      continue;
+    }
+
+    while (!isSameOrBelow(imageDirectory, commonDirectory)) {
+      QDir parentDirectory(commonDirectory);
+      if (!parentDirectory.cdUp()) {
+        return;
+      }
+      const QString parentPath = QDir::cleanPath(parentDirectory.absolutePath());
+      if (parentPath == commonDirectory) {
+        return;
+      }
+      commonDirectory = parentPath;
+    }
+  }
+
+  const RelinkablePath commonRoot(commonDirectory, RelinkablePath::Dir);
+  if (commonDirectory.isEmpty() || QDir::cleanPath(QDir(commonDirectory).rootPath()) == commonDirectory
+      || m_origPathSet.find(commonRoot.normalizedPath()) != m_origPathSet.end()) {
+    return;
+  }
+
+  addPath(commonRoot, CommonImageRoot);
+}
+
+void RelinkingModel::addOutputPath(const RelinkablePath& path) {
+  addPath(path, OutputDirectory);
+}
+
+void RelinkingModel::addPath(const RelinkablePath& path, const EntryKind entryKind) {
   const QString& normalizedPath(path.normalizedPath());
 
   const std::pair<std::set<QString>::iterator, bool> ins(m_origPathSet.insert(path.normalizedPath()));
@@ -132,13 +191,16 @@ void RelinkingModel::addPath(const RelinkablePath& path) {
   }
 
   beginInsertRows(QModelIndex(), static_cast<int>(m_items.size()), static_cast<int>(m_items.size()));
-  m_items.emplace_back(path);
+  m_items.emplace_back(path, entryKind);
   endInsertRows();
 
   requestStatusUpdate(index(static_cast<int>(m_items.size() - 1)));
 }
 
-void RelinkingModel::replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type) {
+void RelinkingModel::replacePrefix(const QString& prefix,
+                                   const QString& replacement,
+                                   const RelinkablePath::Type type,
+                                   const EntryKind entryKind) {
   QString slashTerminatedPrefix(prefix);
   ensureEndsWithSlash(slashTerminatedPrefix);
 
@@ -149,20 +211,22 @@ void RelinkingModel::replacePrefix(const QString& prefix, const QString& replace
     ++row;
     bool modified = false;
 
-    if (type == RelinkablePath::File) {
-      if ((item.type == RelinkablePath::File) && (item.uncommittedPath == prefix)) {
-        item.uncommittedPath = replacement;
-        modified = true;
-      }
-    } else {
-      assert(type == RelinkablePath::Dir);
-      if (item.uncommittedPath.startsWith(slashTerminatedPrefix)) {
-        const int suffixLen = item.uncommittedPath.length() - slashTerminatedPrefix.length() + 1;
-        item.uncommittedPath = replacement + item.uncommittedPath.right(suffixLen);
-        modified = true;
-      } else if (item.uncommittedPath == prefix) {
-        item.uncommittedPath = replacement;
-        modified = true;
+    if ((entryKind == OutputDirectory) == (item.entryKind == OutputDirectory)) {
+      if (type == RelinkablePath::File) {
+        if ((item.type == RelinkablePath::File) && (item.uncommittedPath == prefix)) {
+          item.uncommittedPath = replacement;
+          modified = true;
+        }
+      } else {
+        assert(type == RelinkablePath::Dir);
+        if (item.uncommittedPath.startsWith(slashTerminatedPrefix)) {
+          const int suffixLen = item.uncommittedPath.length() - slashTerminatedPrefix.length() + 1;
+          item.uncommittedPath = replacement + item.uncommittedPath.right(suffixLen);
+          modified = true;
+        } else if (item.uncommittedPath == prefix) {
+          item.uncommittedPath = replacement;
+          modified = true;
+        }
       }
     }
 
@@ -187,11 +251,13 @@ void RelinkingModel::replacePrefix(const QString& prefix, const QString& replace
 }  // RelinkingModel::replacePrefix
 
 bool RelinkingModel::checkForMerges() const {
-  std::vector<QString> newPaths;
+  std::vector<std::pair<bool, QString>> newPaths;
   newPaths.reserve(m_items.size());
 
   for (const Item& item : m_items) {
-    newPaths.push_back(item.uncommittedPath);
+    if (item.entryKind != CommonImageRoot) {
+      newPaths.emplace_back(item.entryKind == OutputDirectory, item.uncommittedPath);
+    }
   }
 
   std::sort(newPaths.begin(), newPaths.end());
@@ -213,7 +279,6 @@ void RelinkingModel::commitChanges() {
     if (item.committedPath != item.uncommittedPath) {
       item.committedPath = item.uncommittedPath;
       item.committedStatus = item.uncommittedStatus;
-      newRelinker.addMapping(item.origPath, item.committedPath);
       if (modifiedRowspanBegin == -1) {
         modifiedRowspanBegin = row;
       }
@@ -222,6 +287,10 @@ void RelinkingModel::commitChanges() {
         emit dataChanged(index(modifiedRowspanBegin), index(row));
         modifiedRowspanBegin = -1;
       }
+    }
+
+    if (item.entryKind != CommonImageRoot && item.committedPath != item.origPath) {
+      newRelinker.addMapping(item.origPath, item.committedPath);
     }
   }
 
@@ -419,13 +488,14 @@ catch (const std::bad_alloc&) {
 
 /*================================ Item =================================*/
 
-RelinkingModel::Item::Item(const RelinkablePath& path)
+RelinkingModel::Item::Item(const RelinkablePath& path, const EntryKind entryKind)
     : origPath(path.normalizedPath()),
       committedPath(path.normalizedPath()),
       uncommittedPath(path.normalizedPath()),
       type(path.type()),
       committedStatus(StatusUpdatePending),
-      uncommittedStatus(StatusUpdatePending) {}
+      uncommittedStatus(StatusUpdatePending),
+      entryKind(entryKind) {}
 
 /*============================== Relinker ================================*/
 

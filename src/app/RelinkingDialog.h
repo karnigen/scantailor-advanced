@@ -28,6 +28,10 @@ class RelinkingDialog : public QDialog {
     return ProxyFunction<RelinkingModel&, void, const RelinkablePath&>(m_model);
   }
 
+  void addCommonImageRoot() { m_model.addCommonImageRoot(); }
+
+  void addOutputPath(const RelinkablePath& path) { m_model.addOutputPath(path); }
+
   /**
    * This method guarantees that
    * \code
@@ -39,6 +43,8 @@ class RelinkingDialog : public QDialog {
    */
   std::shared_ptr<AbstractRelinker> relinker() const { return m_model.relinker(); }
 
+  void selectFirstPath();
+
  private slots:
 
   void selectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
@@ -46,11 +52,20 @@ class RelinkingDialog : public QDialog {
   /** \p type is either RelinkablePath::File or RelinkablePath::Dir */
   void pathButtonClicked(const QString& prefixPath, const QString& suffixPath, int type);
 
+  void useConfigPath();
+
   void undoButtonClicked();
 
   void commitChanges();
 
  private:
+  void applyReplacement(const QString& prefixPath,
+                        const QString& suffixPath,
+                        const QString& replacementPath,
+                        RelinkablePath::Type replacementType,
+                        RelinkablePath::Type resultingPathType,
+                        RelinkingModel::EntryKind entryKind);
+
   Ui::RelinkingDialog ui;
   RelinkingModel m_model;
   RelinkingSortingModel* m_sortingModel;

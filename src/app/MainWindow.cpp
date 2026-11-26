@@ -1014,7 +1014,9 @@ void MainWindow::showRelinkingDialog() {
   dialog->setWindowModality(Qt::WindowModal);
 
   m_pages->listRelinkablePaths(dialog->pathCollector());
-  dialog->pathCollector()(RelinkablePath(m_outFileNameGen.outDir(), RelinkablePath::Dir));
+  dialog->addOutputPath(RelinkablePath(m_outFileNameGen.outDir(), RelinkablePath::Dir));
+  dialog->addCommonImageRoot();
+  dialog->selectFirstPath();
 
   connect(dialog, &QDialog::accepted, [this, dialog]() { this->performRelinking(dialog->relinker()); });
 

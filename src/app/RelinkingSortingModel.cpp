@@ -11,6 +11,12 @@ RelinkingSortingModel::RelinkingSortingModel(QObject* parent) : QSortFilterProxy
 }
 
 bool RelinkingSortingModel::lessThan(const QModelIndex& left, const QModelIndex& right) const {
+  const int leftKind = left.data(RelinkingModel::EntryKindRole).toInt();
+  const int rightKind = right.data(RelinkingModel::EntryKindRole).toInt();
+  if (leftKind != rightKind) {
+    return leftKind < rightKind;
+  }
+
   const int leftStatus = left.data(RelinkingModel::UncommittedStatusRole).toInt();
   const int rightStatus = right.data(RelinkingModel::UncommittedStatusRole).toInt();
   if (leftStatus != rightStatus) {

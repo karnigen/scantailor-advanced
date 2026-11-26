@@ -19,6 +19,9 @@
 #include <filters/select_content/Dependencies.h>
 #include <filters/select_content/Settings.h>
 
+#include "RelinkablePathVisualization.h"
+#include "RelinkingDialog.h"
+
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
@@ -310,6 +313,122 @@ void TestMainWindowAsync::sourceImageLocationDetection() {
   QVERIFY(MainWindow::isPathWithinDirectory(nestedImage, projectDirectory));
   QVERIFY(MainWindow::isPathWithinDirectory(QDir(projectDirectory).filePath("missing.png"), projectDirectory));
   QVERIFY(!MainWindow::isPathWithinDirectory(siblingImage, projectDirectory));
+}
+
+void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  RelinkingDialog dialog(directory.filePath("project.ScanTailor"));
+  const QString imagePath = directory.filePath("input/page.png");
+  dialog.pathCollector()(RelinkablePath(imagePath, RelinkablePath::File));
+  dialog.selectFirstPath();
+  dialog.show();
+
+  auto* pathVisualization = dialog.findChild<RelinkablePathVisualization*>("pathVisualization");
+  QVERIFY(pathVisualization);
+  QTRY_VERIFY(pathVisualization->isVisible());
+  const QList<QPushButton*> pathButtons = pathVisualization->findChildren<QPushButton*>();
+  QVERIFY(!pathButtons.isEmpty());
+  QCOMPARE(pathButtons.last()->text(), QStringLiteral("page.png"));
+}
+
+void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString configDirectory = directory.filePath("project");
+  const QString sourceDirectory = directory.filePath("source");
+  QVERIFY(QDir().mkpath(configDirectory));
+  QVERIFY(QDir().mkpath(sourceDirectory));
+  const QString imagePath = QDir(sourceDirectory).filePath("page.png");
+  QFile imageFile(imagePath);
+  QVERIFY(imageFile.open(QIODevice::WriteOnly));
+  imageFile.close();
+
+  RelinkingDialog dialog(QDir(configDirectory).filePath("project.ScanTailor"));
+  dialog.pathCollector()(RelinkablePath(imagePath, RelinkablePath::File));
+  dialog.selectFirstPath();
+  auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
+  QVERIFY(useConfigPathButton);
+  QVERIFY(useConfigPathButton->isEnabled());
+  useConfigPathButton->click();
+
+  auto* buttonBox = dialog.findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(buttonBox);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  const std::shared_ptr<AbstractRelinker> relinker = dialog.relinker();
+  QCOMPARE(relinker->substitutionPathFor(RelinkablePath(imagePath, RelinkablePath::File)),
+           QDir(configDirectory).filePath("page.png"));
+}
+
+void TestMainWindowAsync::relinkingDialogDisablesConfigPathForOutput() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  RelinkingDialog dialog(directory.filePath("project.ScanTailor"));
+  dialog.addOutputPath(RelinkablePath(directory.filePath("out"), RelinkablePath::Dir));
+  dialog.selectFirstPath();
+
+  auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
+  QVERIFY(useConfigPathButton);
+  QVERIFY(!useConfigPathButton->isEnabled());
+}
+
+void TestMainWindowAsync::relinkingRetainsMultipleMappings() {
+  RelinkingModel model;
+  const RelinkablePath firstPath(QStringLiteral("/original-a/page.png"), RelinkablePath::File);
+  const RelinkablePath secondPath(QStringLiteral("/original-b/page.png"), RelinkablePath::File);
+  model.addPath(firstPath);
+  model.addPath(secondPath);
+  model.replacePrefix(firstPath.normalizedPath(), QStringLiteral("/replacement-a/page.png"), RelinkablePath::File,
+                      RelinkingModel::ImageFile);
+  model.commitChanges();
+  model.replacePrefix(secondPath.normalizedPath(), QStringLiteral("/replacement-b/page.png"), RelinkablePath::File,
+                      RelinkingModel::ImageFile);
+  model.commitChanges();
+
+  const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
+  QCOMPARE(relinker->substitutionPathFor(firstPath), QStringLiteral("/replacement-a/page.png"));
+  QCOMPARE(relinker->substitutionPathFor(secondPath), QStringLiteral("/replacement-b/page.png"));
+}
+
+void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imageRoot = directory.filePath("dataset");
+  const QString configDirectory = directory.filePath("project");
+  const QString outputDirectory = QDir(imageRoot).filePath("out");
+  const RelinkablePath firstImage(QDir(imageRoot).filePath("img1/page1.png"), RelinkablePath::File);
+  const RelinkablePath secondImage(QDir(imageRoot).filePath("img2/page2.png"), RelinkablePath::File);
+  QVERIFY(QDir().mkpath(QFileInfo(firstImage.normalizedPath()).absolutePath()));
+  QVERIFY(QDir().mkpath(QFileInfo(secondImage.normalizedPath()).absolutePath()));
+  QVERIFY(QDir().mkpath(outputDirectory));
+  QVERIFY(QDir().mkpath(configDirectory));
+
+  RelinkingModel model;
+  model.addPath(firstImage);
+  model.addPath(secondImage);
+  model.addOutputPath(RelinkablePath(outputDirectory, RelinkablePath::Dir));
+  model.addCommonImageRoot();
+
+  QString commonRootPath;
+  for (int row = 0; row < model.rowCount(); ++row) {
+    const QModelIndex index(model.index(row, 0));
+    if (index.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::CommonImageRoot) {
+      commonRootPath = index.data(RelinkingModel::UncommittedPathRole).toString();
+    }
+  }
+  QCOMPARE(commonRootPath, QDir::cleanPath(imageRoot));
+
+  model.replacePrefix(commonRootPath, configDirectory, RelinkablePath::Dir, RelinkingModel::CommonImageRoot);
+  model.commitChanges();
+
+  const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
+  QCOMPARE(relinker->substitutionPathFor(firstImage), QDir(configDirectory).filePath("img1/page1.png"));
+  QCOMPARE(relinker->substitutionPathFor(secondImage), QDir(configDirectory).filePath("img2/page2.png"));
+  QCOMPARE(relinker->substitutionPathFor(RelinkablePath(outputDirectory, RelinkablePath::Dir)), outputDirectory);
 }
 
 void TestMainWindowAsync::missingOutputDirectoryPrompt_data() {

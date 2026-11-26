@@ -27,7 +27,9 @@ class RelinkingModel : public QAbstractListModel {
  public:
   enum Status { Exists, Missing, StatusUpdatePending, StatusUpdateFailed };
 
-  enum { TypeRole = Qt::UserRole, UncommittedPathRole, UncommittedStatusRole };
+  enum EntryKind { CommonImageRoot, ImageFile, OutputDirectory };
+
+  enum { TypeRole = Qt::UserRole, UncommittedPathRole, UncommittedStatusRole, EntryKindRole };
 
   RelinkingModel();
 
@@ -52,7 +54,11 @@ class RelinkingModel : public QAbstractListModel {
 
   void addPath(const RelinkablePath& path);
 
-  void replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type);
+  void addCommonImageRoot();
+
+  void addOutputPath(const RelinkablePath& path);
+
+  void replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type, EntryKind entryKind);
 
   /**
    * Returns true if we have different original paths remapped to the same one.
@@ -70,6 +76,8 @@ class RelinkingModel : public QAbstractListModel {
   void customEvent(QEvent* event) override;
 
  private:
+  void addPath(const RelinkablePath& path, EntryKind entryKind);
+
   class StatusUpdateThread;
   class StatusUpdateResponse;
 
@@ -88,7 +96,9 @@ class RelinkingModel : public QAbstractListModel {
 
     /**< Same as committedStatus when m_haveUncommittedChanges == false. */
 
-    explicit Item(const RelinkablePath& path);
+    EntryKind entryKind;
+
+    Item(const RelinkablePath& path, EntryKind entryKind);
   };
 
   class Relinker : public AbstractRelinker {

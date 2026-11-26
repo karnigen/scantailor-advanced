@@ -19,6 +19,11 @@ class TestMainWindowAsync : public QObject {
   void filterDockWidthRestoresFromConfiguration();
   void sourceDpiChangesPersistInMargins();
   void sourceImageLocationDetection();
+  void relinkingDialogShowsInitialPath();
+  void relinkingDialogUsesConfigDirectoryAsBase();
+  void relinkingDialogDisablesConfigPathForOutput();
+  void relinkingCommonImageRootDoesNotChangeOutputDirectory();
+  void relinkingRetainsMultipleMappings();
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();
   void batchProcessingBenchmark();
