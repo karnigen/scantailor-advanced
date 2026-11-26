@@ -372,7 +372,7 @@ void RelinkingModel::commitChanges() {
     }
 
     if (item.entryKind != CommonImageRoot && item.committedPath != item.origPath) {
-      newRelinker.addMapping(item.origPath, item.committedPath);
+      newRelinker.addMapping(core::toFileSystemPath(item.origPath), core::toFileSystemPath(item.committedPath));
     }
   }
 
@@ -581,14 +581,14 @@ RelinkingModel::Item::Item(const RelinkablePath& path, const EntryKind entryKind
 
 /*============================== Relinker ================================*/
 
-void RelinkingModel::Relinker::addMapping(const QString& from, const QString& to) {
+void RelinkingModel::Relinker::addMapping(const std::filesystem::path& from, const std::filesystem::path& to) {
   m_mappings[from] = to;
 }
 
 std::filesystem::path RelinkingModel::Relinker::substitutionPathFor(const RelinkablePath& path) const {
-  const auto it(m_mappings.find(core::toQString(path.normalizedPath())));
+  const auto it(m_mappings.find(path.normalizedPath()));
   if (it != m_mappings.end()) {
-    return core::toFileSystemPath(it->second);
+    return it->second;
   } else {
     return path.normalizedPath();
   }

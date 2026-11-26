@@ -12,6 +12,7 @@
 #include <QStringList>
 #include <QThread>
 #include <Qt>
+#include <filesystem>
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -19,7 +20,6 @@
 #include <vector>
 
 #include "AbstractRelinker.h"
-#include "Hashes.h"
 #include "NonCopyable.h"
 #include "RelinkablePath.h"
 #include "VirtualFunction.h"
@@ -132,7 +132,7 @@ class RelinkingModel : public QAbstractListModel {
 
   class Relinker : public AbstractRelinker {
    public:
-    void addMapping(const QString& from, const QString& to);
+    void addMapping(const std::filesystem::path& from, const std::filesystem::path& to);
 
     /** Returns path.normalizedPath() if there is no mapping for it. */
     std::filesystem::path substitutionPathFor(const RelinkablePath& path) const override;
@@ -140,7 +140,7 @@ class RelinkingModel : public QAbstractListModel {
     void swap(Relinker& other);
 
    private:
-    std::unordered_map<QString, QString, hashes::hash<QString>> m_mappings;
+    std::unordered_map<std::filesystem::path, std::filesystem::path> m_mappings;
   };
 
 
