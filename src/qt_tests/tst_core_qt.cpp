@@ -445,6 +445,42 @@ void TestCoreQt::testPageSizePresetsApplyPhysicalDimensions() {
   QCOMPARE(pageSizeCombo->currentIndex(), 0);
 }
 
+void TestCoreQt::testPageDimensionsCommitAfterEditing() {
+  const Dpi dpi(300, 300);
+  const PageId pageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::SINGLE_PAGE);
+  const PageInfo page(pageId, ImageMetadata(QSize(1000, 1200), dpi), 1, false, false);
+  select_content::OptionsWidget widget(std::make_shared<select_content::Settings>(), PageSelectionAccessor(nullptr));
+  widget.preUpdateUI(page);
+
+  select_content::OptionsWidget::UiData uiData;
+  uiData.setPageRect(QRectF(10, 20, 800, 1000));
+  uiData.setPageDetectionMode(MODE_MANUAL);
+  widget.postUpdateUI(uiData);
+
+  auto* widthSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("widthSpinBox"));
+  auto* heightSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("heightSpinBox"));
+  QVERIFY(widthSpinBox);
+  QVERIFY(heightSpinBox);
+  QVERIFY(!widthSpinBox->keyboardTracking());
+  QVERIFY(!heightSpinBox->keyboardTracking());
+
+  QSignalSpy pageRectSpy(&widget, &select_content::OptionsWidget::pageRectChangedLocally);
+  const auto replaceValue = [&pageRectSpy](QDoubleSpinBox* spinBox) {
+    spinBox->setFocus();
+    spinBox->selectAll();
+    QTest::keyClick(spinBox, Qt::Key_Backspace);
+    QTest::keyClicks(spinBox, QStringLiteral("123"));
+    QCOMPARE(pageRectSpy.count(), 0);
+    QVERIFY(spinBox->text().contains(QStringLiteral("123")));
+
+    QTest::keyClick(spinBox, Qt::Key_Return);
+    QCOMPARE(pageRectSpy.count(), 1);
+    pageRectSpy.clear();
+  };
+  replaceValue(widthSpinBox);
+  replaceValue(heightSpinBox);
+}
+
 void TestCoreQt::testUtilsDoubleToString() {
   QCOMPARE(foundation::Utils::doubleToString(0.0), QString("0"));
   QVERIFY(foundation::Utils::doubleToString(123.456).contains("123"));

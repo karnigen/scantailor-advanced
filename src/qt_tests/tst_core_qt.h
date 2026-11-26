@@ -14,6 +14,7 @@ class TestCoreQt : public QObject {
   void testUnitsFromString();
   void testUnitsToLocalizedString();
   void testPageSizePresetsApplyPhysicalDimensions();
+  void testPageDimensionsCommitAfterEditing();
   void testUtilsDoubleToString();
   void testSmartFilenameOrdering();
   void testSignalSpy();
