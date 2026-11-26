@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>657</width>
-    <height>555</height>
+    <height>590</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -20,6 +20,32 @@
    <string>Default parameters</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="developmentWarningLabel">
+     <property name="font">
+      <font>
+       <pointsize>10</pointsize>
+       <weight>75</weight>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QLabel#developmentWarningLabel {
+  color: #704000;
+  background-color: #fff2cc;
+  border: 1px solid #d6a400;
+  border-radius: 3px;
+  padding: 7px;
+}</string>
+     </property>
+     <property name="text">
+      <string>UNDER HEAVY DEVELOPMENT: This dialog is provisional and will be reworked and refined in a future update.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
