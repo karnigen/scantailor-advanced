@@ -53,6 +53,7 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTextBrowser>
@@ -700,6 +701,23 @@ void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
 
   sendWheelEvent(Qt::ShiftModifier, 120);
   QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(5).id());
+
+  auto* focusButton = window.findChild<QAbstractButton*>(QStringLiteral("focusButton"));
+  QVERIFY(focusButton);
+  focusButton->setChecked(true);
+  QScrollBar* verticalScrollBar = window.thumbView->verticalScrollBar();
+  QVERIFY(verticalScrollBar->maximum() > verticalScrollBar->minimum());
+  const int initialScrollPosition = verticalScrollBar->value();
+  for (int step = 0; step < 30; ++step) {
+    const QPoint localPosition(10, 10);
+    const QPoint globalPosition = window.thumbView->viewport()->mapToGlobal(localPosition);
+    QWheelEvent event(localPosition, globalPosition, QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier,
+                      Qt::NoScrollPhase, false);
+    QApplication::sendEvent(window.thumbView->viewport(), &event);
+  }
+  QCoreApplication::processEvents();
+  QVERIFY(verticalScrollBar->value() > initialScrollPosition);
+  QVERIFY(focusButton->isChecked());
 }
 
 void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {

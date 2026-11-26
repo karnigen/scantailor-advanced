@@ -130,8 +130,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void thumbViewFocusToggled(bool checked);
 
-  void thumbViewScrolled();
-
   void filterSelectionChanged(const QItemSelection& selected);
 
   void switchFilter1();

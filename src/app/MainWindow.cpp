@@ -394,9 +394,6 @@ MainWindow::MainWindow(const QString& initialDirectory)
           SLOT(pastLastPageContextMenuRequested(const QPoint&)));
   connect(selectionModeBtn, SIGNAL(clicked(bool)), m_thumbSequence.get(), SLOT(setSelectionModeEnabled(bool)));
 
-  connect(thumbView->verticalScrollBar(), SIGNAL(sliderMoved(int)), this, SLOT(thumbViewScrolled()));
-  connect(thumbView->verticalScrollBar(), &QScrollBar::actionTriggered, this,
-          [this](int) { QTimer::singleShot(0, this, [this]() { thumbViewScrolled(); }); });
   connect(focusButton, &QToolButton::clicked, this, [this](bool checked) {
     SettingsStore().setValue("mainWindow/keepCurrentPageInView", checked);
     thumbViewFocusToggled(checked);
@@ -1358,28 +1355,6 @@ void MainWindow::thumbViewFocusToggled(const bool checked) {
   if (checked) {
     const int scrollMargin = 20;  // Follow Page: keep thumbnail visible with padding (issue #51).
     thumbView->ensureVisible(rect, scrollMargin, scrollMargin);
-  }
-}
-
-void MainWindow::thumbViewScrolled() {
-  const QRectF rect(m_thumbSequence->selectionLeaderSceneRect());
-  if (rect.isNull()) {
-    // No items selected.
-    return;
-  }
-
-  const QRectF viewportRect(thumbView->viewport()->rect());
-  const QRectF viewportItemRect(thumbView->viewportTransform().mapRect(rect));
-
-  const double intersectionThreshold = 0.5;
-  if ((viewportItemRect.top() >= viewportRect.top())
-      && (viewportItemRect.top() + viewportItemRect.height() * intersectionThreshold <= viewportRect.bottom())) {
-    // Item is visible.
-  } else if ((viewportItemRect.bottom() <= viewportRect.bottom())
-             && (viewportItemRect.bottom() - viewportItemRect.height() * intersectionThreshold >= viewportRect.top())) {
-    // Item is visible.
-  } else {
-    focusButton->setChecked(false);
   }
 }
 
