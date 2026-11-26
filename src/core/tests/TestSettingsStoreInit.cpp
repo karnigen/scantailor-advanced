@@ -4,6 +4,7 @@
 #include <config.h>
 #include <core/DefaultParams.h>
 #include <core/DefaultParamsProfileManager.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <toml++/toml.h>
@@ -478,7 +479,7 @@ TEST_CASE("SettingsStoreTestSuite / test_concurrent_migration_processes", "[sett
 TEST_CASE("SettingsStoreTestSuite / test_concurrent_process_writes_preserve_both_updates",
           "[settings-store-concurrent-write]") {
   if (qEnvironmentVariable("SETTINGS_STORE_WRITE_CHILD") == QStringLiteral("1")) {
-    SettingsStore settings(qEnvironmentVariable("SETTINGS_STORE_WRITE_PATH"));
+    SettingsStore settings(core::toFileSystemPath(qEnvironmentVariable("SETTINGS_STORE_WRITE_PATH")));
     const QString readyPath = qEnvironmentVariable("SETTINGS_STORE_WRITE_READY");
     const QString releasePath = qEnvironmentVariable("SETTINGS_STORE_WRITE_RELEASE");
     QFile ready(readyPath);
@@ -501,10 +502,10 @@ TEST_CASE("SettingsStoreTestSuite / test_concurrent_process_writes_preserve_both
   REQUIRE(tempDir.isValid());
   const QString tomlPath = tempDir.filePath(QStringLiteral("config.toml"));
   {
-    SettingsStore settings(tomlPath);
+    SettingsStore settings(core::toFileSystemPath(tomlPath));
     settings.setValue(QStringLiteral("settings/initialized"), true);
   }
-  SettingsStore observer(tomlPath);
+  SettingsStore observer(core::toFileSystemPath(tomlPath));
 
   const QString releasePath = tempDir.filePath(QStringLiteral("write-release"));
   QProcess processes[2];

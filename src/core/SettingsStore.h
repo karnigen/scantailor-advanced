@@ -10,6 +10,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <filesystem>
 #include <functional>
 #include <memory>
 
@@ -20,7 +21,7 @@ class SettingsStore {
   using WriteErrorHandler = std::function<void(const QString&)>;
 
   SettingsStore();
-  explicit SettingsStore(const QString& filePath);
+  explicit SettingsStore(std::filesystem::path filePath);
   ~SettingsStore();
 
   SettingsStore(SettingsStore&&) noexcept;
@@ -63,7 +64,7 @@ class SettingsStore {
   void sync();
 
  private:
-  QString m_filePath;
+  std::filesystem::path m_filePath;
   std::unique_ptr<Backend> m_backend;
 };
 

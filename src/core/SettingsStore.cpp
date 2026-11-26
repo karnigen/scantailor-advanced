@@ -21,6 +21,8 @@
 
 #include <toml++/toml.h>
 
+#include <core/PathUtils.h>
+
 #include <atomic>
 #include <cmath>
 #include <limits>
@@ -1278,12 +1280,12 @@ SettingsStore::SettingsStore() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
-  m_filePath = configFilePath();
-  m_backend = std::make_unique<TomlBackend>(m_filePath);
+  m_filePath = core::toFileSystemPath(configFilePath());
+  m_backend = std::make_unique<TomlBackend>(core::toQString(m_filePath));
 }
 
-SettingsStore::SettingsStore(const QString& filePath)
-    : m_filePath(filePath), m_backend(std::make_unique<TomlBackend>(filePath)) {}
+SettingsStore::SettingsStore(std::filesystem::path filePath)
+    : m_filePath(std::move(filePath)), m_backend(std::make_unique<TomlBackend>(core::toQString(m_filePath))) {}
 
 SettingsStore::~SettingsStore() = default;
 SettingsStore::SettingsStore(SettingsStore&&) noexcept = default;
@@ -1377,6 +1379,6 @@ void SettingsStore::remove(const QString& key) {
 void SettingsStore::sync() {
   const QString error = m_backend->sync();
   if (!error.isEmpty()) {
-    reportWriteError(m_filePath, error);
+    reportWriteError(core::toQString(m_filePath), error);
   }
 }
