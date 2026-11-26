@@ -35,8 +35,8 @@ using namespace imageproc;
 class LoadFileTask::ErrorResult : public FilterResult {
   Q_DECLARE_TR_FUNCTIONS(LoadFileTask)
  public:
-  ErrorResult(const QString& filePath, bool dimensionsKnown);
-  ErrorResult(const QString& filePath, const QString& errorDetails);
+  ErrorResult(const std::filesystem::path& filePath, bool dimensionsKnown);
+  ErrorResult(const std::filesystem::path& filePath, const QString& errorDetails);
 
   void updateUI(FilterUiInterface* ui) override;
   QString failureDescription() const override;
@@ -44,7 +44,7 @@ class LoadFileTask::ErrorResult : public FilterResult {
   std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
 
  private:
-  QString m_filePath;
+  std::filesystem::path m_filePath;
   QString m_errorDetails;
   bool m_fileExists;
   bool m_dimensionsKnown;
@@ -64,7 +64,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
   Q_DECLARE_TR_FUNCTIONS(LoadFileTask)
 
  public:
-  LargeImageOptionsWidget(QString filePath, ImageAllocationLimitInfo limitInfo)
+  LargeImageOptionsWidget(std::filesystem::path filePath, ImageAllocationLimitInfo limitInfo)
       : m_filePath(std::move(filePath)), m_limitInfo(limitInfo) {
     auto* layout = new QVBoxLayout(this);
     const bool environmentOverride = ImageAllocationLimit::hasEnvironmentOverride();
@@ -120,7 +120,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     QString message = tr("The image %1 (%2 x %3 pixels) requires an estimated allocation limit of at least %4 MiB. "
                          "The current limit is %5 MiB. This application-wide limit applies to each image. Raising "
                          "it can cause memory exhaustion or make the system unresponsive.")
-                          .arg(QDir::toNativeSeparators(m_filePath))
+                          .arg(QDir::toNativeSeparators(core::toQString(m_filePath)))
                           .arg(m_limitInfo.imageSize.width())
                           .arg(m_limitInfo.imageSize.height())
                           .arg(m_limitInfo.requiredLimitMb)
@@ -209,7 +209,7 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
     emit reloadRequested();
   }
 
-  QString m_filePath;
+  std::filesystem::path m_filePath;
   ImageAllocationLimitInfo m_limitInfo;
   QString m_initialExplanation;
   QLabel* m_explanation = nullptr;
@@ -224,7 +224,7 @@ class LargeImageResult : public FilterResult {
   Q_DECLARE_TR_FUNCTIONS(LoadFileTask)
 
  public:
-  LargeImageResult(const QString& filePath, const ImageAllocationLimitInfo& limitInfo)
+  LargeImageResult(const std::filesystem::path& filePath, const ImageAllocationLimitInfo& limitInfo)
       : m_filePath(filePath), m_limitInfo(limitInfo) {}
 
   void updateUI(FilterUiInterface* ui) override {
@@ -253,7 +253,7 @@ class LargeImageResult : public FilterResult {
         "panel to allow loading it.");
   }
 
-  QString m_filePath;
+  std::filesystem::path m_filePath;
   ImageAllocationLimitInfo m_limitInfo;
 };
 
@@ -307,9 +307,9 @@ FilterResultPtr LoadFileTask::operator()() {
 
     if (image.isNull()) {
       if (limitInfo.exceeded) {
-        return std::make_shared<LargeImageResult>(core::toQString(m_imageId.filePath()), limitInfo);
+        return std::make_shared<LargeImageResult>(m_imageId.filePath(), limitInfo);
       }
-      return std::make_shared<ErrorResult>(core::toQString(m_imageId.filePath()), limitInfo.dimensionsKnown);
+      return std::make_shared<ErrorResult>(m_imageId.filePath(), limitInfo.dimensionsKnown);
     } else {
       convertToSupportedFormat(image);
       updateImageSizeIfChanged(image);
@@ -327,7 +327,7 @@ FilterResultPtr LoadFileTask::operator()() {
 }
 
 FilterResultPtr LoadFileTask::exceptionResult(const QString& message) {
-  return std::make_shared<ErrorResult>(core::toQString(m_imageId.filePath()), message);
+  return std::make_shared<ErrorResult>(m_imageId.filePath(), message);
 }
 
 void LoadFileTask::updateImageSizeIfChanged(const QImage& image) {
@@ -364,15 +364,15 @@ void LoadFileTask::convertToSupportedFormat(QImage& image) const {
 
 /*======================= LoadFileTask::ErrorResult ======================*/
 
-LoadFileTask::ErrorResult::ErrorResult(const QString& filePath, const bool dimensionsKnown)
-    : m_filePath(QDir::toNativeSeparators(filePath)),
-      m_fileExists(QFile::exists(filePath)),
+LoadFileTask::ErrorResult::ErrorResult(const std::filesystem::path& filePath, const bool dimensionsKnown)
+    : m_filePath(filePath),
+      m_fileExists(QFile::exists(core::toQString(filePath))),
       m_dimensionsKnown(dimensionsKnown) {}
 
-LoadFileTask::ErrorResult::ErrorResult(const QString& filePath, const QString& errorDetails)
-    : m_filePath(QDir::toNativeSeparators(filePath)),
+LoadFileTask::ErrorResult::ErrorResult(const std::filesystem::path& filePath, const QString& errorDetails)
+    : m_filePath(filePath),
       m_errorDetails(errorDetails),
-      m_fileExists(QFile::exists(filePath)),
+      m_fileExists(QFile::exists(core::toQString(filePath))),
       m_dimensionsKnown(false),
       m_processingError(true) {}
 
@@ -403,7 +403,7 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
     errMsg = tr("The following file doesn't exist:<br>%1<br>"
                 "<br>"
                 "Use the <a href=\"#relink\">Relinking Tool</a> to locate it.")
-                 .arg(m_filePath.toHtmlEscaped());
+                 .arg(QDir::toNativeSeparators(core::toQString(m_filePath)).toHtmlEscaped());
     fmt = Qt::RichText;
   }
   ui->setImageWidget(new ErrWidget(ui->relinkingDialogRequester(), errMsg, fmt), ui->TRANSFER_OWNERSHIP);
@@ -413,16 +413,17 @@ void LoadFileTask::ErrorResult::updateUI(FilterUiInterface* ui) {
 QString LoadFileTask::ErrorResult::failureDescription() const {
   if (m_processingError) {
     const QString details = m_errorDetails.isEmpty() ? tr("An unknown error occurred.") : m_errorDetails;
-    return tr("An error occurred while processing this page:\n%1\n\nFile: %2").arg(details, m_filePath);
+    return tr("An error occurred while processing this page:\n%1\n\nFile: %2")
+        .arg(details, QDir::toNativeSeparators(core::toQString(m_filePath)));
   }
   if (m_fileExists && m_dimensionsKnown) {
-    return tr("The following file could not be loaded:\n%1").arg(m_filePath);
+    return tr("The following file could not be loaded:\n%1").arg(QDir::toNativeSeparators(core::toQString(m_filePath)));
   }
   if (m_fileExists) {
     return tr("The image could not be loaded because its dimensions were unavailable for allocation checking:\n%1"
               "\nVerify that the file is valid. If you suspect it exceeds Qt's allocation limit, you can increase "
               "the saved image limit in Settings and restart.")
-        .arg(m_filePath);
+        .arg(QDir::toNativeSeparators(core::toQString(m_filePath)));
   }
-  return tr("The following file doesn't exist:\n%1").arg(m_filePath);
+  return tr("The following file doesn't exist:\n%1").arg(QDir::toNativeSeparators(core::toQString(m_filePath)));
 }
