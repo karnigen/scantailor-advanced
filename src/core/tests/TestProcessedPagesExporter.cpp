@@ -15,6 +15,7 @@
 #include <OutputFileNameGenerator.h>
 #include <PageInfo.h>
 #include <PageSequence.h>
+#include <PathUtils.h>
 #include <ProcessedPagesExporter.h>
 #include <TiffWriter.h>
 #include <filters/output/Params.h>
@@ -39,7 +40,7 @@ struct ExportFixture {
     processedImage.setDotsPerMeterX(qRound(150.0 / 0.0254));
     processedImage.setDotsPerMeterY(qRound(150.0 / 0.0254));
 
-    const PageInfo page(PageId(ImageId(sourcePath), PageId::SINGLE_PAGE),
+    const PageInfo page(PageId(ImageId(core::toFileSystemPath(sourcePath)), PageId::SINGLE_PAGE),
                         ImageMetadata(processedImage.size(), Dpi(150, 150)), 1, false, false);
     REQUIRE(TiffWriter::writeImage(generator.filePathFor(page.id()), processedImage));
     pages.append(page);

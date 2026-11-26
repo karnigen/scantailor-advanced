@@ -4,6 +4,7 @@
 #include "ProjectFilesDialog.h"
 
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QFileDialog>
@@ -583,7 +584,7 @@ ProjectFilesDialog::FileList::LoadStatus ProjectFilesDialog::FileList::loadNextF
   const int itemIdx = m_itemsToLoad.front();
   Item& item = m_items[itemIdx];
   std::vector<ImageMetadata> perPageMetadata;
-  const QString filePath(item.fileInfo().absoluteFilePath());
+  const std::filesystem::path filePath(core::toFileSystemPath(item.fileInfo().absoluteFilePath()));
   const ImageMetadataLoader::Status st = ImageMetadataLoader::load(
       filePath, [&](const ImageMetadata& metadata) { perPageMetadata.push_back(metadata); });
 

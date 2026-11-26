@@ -39,6 +39,7 @@
 #include "TaskStatus.h"
 #include "ThumbnailPixmapCache.h"
 #include "Utils.h"
+#include "core/PathUtils.h"
 
 using namespace imageproc;
 using namespace dewarping;
@@ -119,7 +120,7 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
   ImageTransformation newXform(data.xform());
   newXform.postScaleToDpi(params.outputDpi());
 
-  const QFileInfo sourceFileInfo(m_pageId.imageId().filePath());
+  const QFileInfo sourceFileInfo(core::toQString(m_pageId.imageId().filePath()));
   const QString outFilePath(m_outFileNameGen.filePathFor(m_pageId));
   const QFileInfo outFileInfo(outFilePath);
   const QString foregroundDir(Utils::foregroundDir(m_outFileNameGen.outDir()));
@@ -422,7 +423,7 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
       m_settings->setOutputParams(m_pageId, outParams);
     }
 
-    m_thumbnailCache->recreateThumbnail(ImageId(outFilePath), outImg);
+    m_thumbnailCache->recreateThumbnail(ImageId(core::toFileSystemPath(outFilePath)), outImg);
   }
 
   const DespeckleState despeckleState(outImg, specklesImg, params.despeckleLevel(), params.outputDpi());

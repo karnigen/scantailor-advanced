@@ -4,6 +4,7 @@
 #include "tst_mainwindow.h"
 #include "FixDpiDialog.h"
 #include "MainWindow.h"
+#include "core/PathUtils.h"
 
 #include <ApplicationSettings.h>
 #include <FilterOptionsWidget.h>
@@ -164,7 +165,7 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QImage image(100, 120, QImage::Format_RGB32);
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -249,7 +250,7 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QImage image(100, 120, QImage::Format_RGB32);
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -356,7 +357,7 @@ void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
 
   RelinkingDialog dialog(directory.filePath("project.ScanTailor"));
   const QString imagePath = directory.filePath("input/page.png");
-  dialog.pathCollector()(RelinkablePath(imagePath, RelinkablePath::File));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File));
   dialog.selectFirstPath();
   dialog.show();
 
@@ -374,7 +375,7 @@ void TestMainWindowAsync::relinkingBreadcrumbClearsHoverAfterClick() {
 
   RelinkablePathVisualization breadcrumb;
   breadcrumb.resize(800, 50);
-  breadcrumb.setPath(RelinkablePath(directory.path(), RelinkablePath::Dir), true);
+  breadcrumb.setPath(RelinkablePath(core::toFileSystemPath(directory.path()), RelinkablePath::Dir), true);
   breadcrumb.show();
   const QList<QPushButton*> buttons = breadcrumb.findChildren<QPushButton*>();
   QVERIFY(!buttons.isEmpty());
@@ -405,7 +406,7 @@ void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
   imageFile.close();
 
   RelinkingDialog dialog(QDir(configDirectory).filePath("project.ScanTailor"));
-  dialog.pathCollector()(RelinkablePath(imagePath, RelinkablePath::File));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File));
   dialog.addCommonImageRoot();
   dialog.selectFirstPath();
   auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
@@ -420,7 +421,8 @@ void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
   buttonBox->button(QDialogButtonBox::Ok)->click();
 
   const std::shared_ptr<AbstractRelinker> relinker = dialog.relinker();
-  QCOMPARE(relinker->substitutionPathFor(RelinkablePath(imagePath, RelinkablePath::File)),
+  QCOMPARE(core::toQString(
+               relinker->substitutionPathFor(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File))),
            QDir(configDirectory).filePath("page.png"));
 }
 
@@ -429,7 +431,7 @@ void TestMainWindowAsync::relinkingDialogDisablesConfigPathForOutput() {
   QVERIFY(directory.isValid());
 
   RelinkingDialog dialog(directory.filePath("project.ScanTailor"));
-  dialog.addOutputPath(RelinkablePath(directory.filePath("out"), RelinkablePath::Dir));
+  dialog.addOutputPath(RelinkablePath(core::toFileSystemPath(directory.filePath("out")), RelinkablePath::Dir));
   dialog.selectFirstPath();
 
   auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
@@ -462,20 +464,20 @@ void TestMainWindowAsync::relinkingStatusColorsFollowPalette() {
 
 void TestMainWindowAsync::relinkingRetainsMultipleMappings() {
   RelinkingModel model;
-  const RelinkablePath firstPath(QStringLiteral("/original-a/page.png"), RelinkablePath::File);
-  const RelinkablePath secondPath(QStringLiteral("/original-b/page.png"), RelinkablePath::File);
+  const RelinkablePath firstPath(core::toFileSystemPath(QStringLiteral("/original-a/page.png")), RelinkablePath::File);
+  const RelinkablePath secondPath(core::toFileSystemPath(QStringLiteral("/original-b/page.png")), RelinkablePath::File);
   model.addPath(firstPath);
   model.addPath(secondPath);
-  model.replacePrefix(firstPath.normalizedPath(), QStringLiteral("/replacement-a/page.png"), RelinkablePath::File,
-                      RelinkingModel::ImageFile);
+  model.replacePrefix(core::toQString(firstPath.normalizedPath()), QStringLiteral("/replacement-a/page.png"),
+                      RelinkablePath::File, RelinkingModel::ImageFile);
   model.commitChanges();
-  model.replacePrefix(secondPath.normalizedPath(), QStringLiteral("/replacement-b/page.png"), RelinkablePath::File,
-                      RelinkingModel::ImageFile);
+  model.replacePrefix(core::toQString(secondPath.normalizedPath()), QStringLiteral("/replacement-b/page.png"),
+                      RelinkablePath::File, RelinkingModel::ImageFile);
   model.commitChanges();
 
   const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
-  QCOMPARE(relinker->substitutionPathFor(firstPath), QStringLiteral("/replacement-a/page.png"));
-  QCOMPARE(relinker->substitutionPathFor(secondPath), QStringLiteral("/replacement-b/page.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(firstPath)), QStringLiteral("/replacement-a/page.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(secondPath)), QStringLiteral("/replacement-b/page.png"));
 }
 
 void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory() {
@@ -485,17 +487,19 @@ void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory()
   const QString imageRoot = directory.filePath("dataset");
   const QString configDirectory = directory.filePath("project");
   const QString outputDirectory = QDir(imageRoot).filePath("out");
-  const RelinkablePath firstImage(QDir(imageRoot).filePath("img1/page1.png"), RelinkablePath::File);
-  const RelinkablePath secondImage(QDir(imageRoot).filePath("img2/page2.png"), RelinkablePath::File);
-  QVERIFY(QDir().mkpath(QFileInfo(firstImage.normalizedPath()).absolutePath()));
-  QVERIFY(QDir().mkpath(QFileInfo(secondImage.normalizedPath()).absolutePath()));
+  const RelinkablePath firstImage(core::toFileSystemPath(QDir(imageRoot).filePath("img1/page1.png")),
+                                  RelinkablePath::File);
+  const RelinkablePath secondImage(core::toFileSystemPath(QDir(imageRoot).filePath("img2/page2.png")),
+                                   RelinkablePath::File);
+  QVERIFY(QDir().mkpath(QFileInfo(core::toQString(firstImage.normalizedPath())).absolutePath()));
+  QVERIFY(QDir().mkpath(QFileInfo(core::toQString(secondImage.normalizedPath())).absolutePath()));
   QVERIFY(QDir().mkpath(outputDirectory));
   QVERIFY(QDir().mkpath(configDirectory));
 
   RelinkingModel model;
   model.addPath(firstImage);
   model.addPath(secondImage);
-  model.addOutputPath(RelinkablePath(outputDirectory, RelinkablePath::Dir));
+  model.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));
   model.addCommonImageRoot();
 
   QString commonRootPath;
@@ -522,9 +526,12 @@ void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory()
   model.commitChanges();
 
   const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
-  QCOMPARE(relinker->substitutionPathFor(firstImage), QDir(configDirectory).filePath("img1/page1.png"));
-  QCOMPARE(relinker->substitutionPathFor(secondImage), QDir(configDirectory).filePath("img2/page2.png"));
-  QCOMPARE(relinker->substitutionPathFor(RelinkablePath(outputDirectory, RelinkablePath::Dir)),
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(firstImage)),
+           QDir(configDirectory).filePath("img1/page1.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(secondImage)),
+           QDir(configDirectory).filePath("img2/page2.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(
+               RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir))),
            QDir(configDirectory).filePath("out"));
 }
 
@@ -535,23 +542,25 @@ void TestMainWindowAsync::relinkingCommonImageRootLeavesExternalOutputAlone() {
   const QString imageRoot = directory.filePath("dataset");
   const QString replacementRoot = directory.filePath("relocated");
   const QString outputDirectory = directory.filePath("separate-output");
-  const RelinkablePath image(QDir(imageRoot).filePath("batch/page.png"), RelinkablePath::File);
-  QVERIFY(QDir().mkpath(QFileInfo(image.normalizedPath()).absolutePath()));
+  const RelinkablePath image(core::toFileSystemPath(QDir(imageRoot).filePath("batch/page.png")), RelinkablePath::File);
+  QVERIFY(QDir().mkpath(QFileInfo(core::toQString(image.normalizedPath())).absolutePath()));
   QVERIFY(QDir().mkpath(outputDirectory));
   QVERIFY(QDir().mkpath(replacementRoot));
 
   RelinkingModel model;
   model.addPath(image);
-  model.addOutputPath(RelinkablePath(outputDirectory, RelinkablePath::Dir));
+  model.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));
   model.addCommonImageRoot();
 
-  const QString commonRoot = RelinkingModel::findCommonImageRoot({image.normalizedPath()});
+  const QString commonRoot = RelinkingModel::findCommonImageRoot({core::toQString(image.normalizedPath())});
   model.replacePrefix(commonRoot, replacementRoot, RelinkablePath::Dir, RelinkingModel::CommonImageRoot);
   model.commitChanges();
 
   const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
-  QCOMPARE(relinker->substitutionPathFor(image), QDir(replacementRoot).filePath("page.png"));
-  QCOMPARE(relinker->substitutionPathFor(RelinkablePath(outputDirectory, RelinkablePath::Dir)), outputDirectory);
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(image)), QDir(replacementRoot).filePath("page.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(
+               RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir))),
+           outputDirectory);
 }
 
 void TestMainWindowAsync::relinkingDialogGroupsPathsInDirectoryTree() {
@@ -568,9 +577,9 @@ void TestMainWindowAsync::relinkingDialogGroupsPathsInDirectoryTree() {
   QVERIFY(QDir().mkpath(outputDirectory));
 
   RelinkingDialog dialog(projectFile);
-  dialog.pathCollector()(RelinkablePath(firstImage, RelinkablePath::File));
-  dialog.pathCollector()(RelinkablePath(secondImage, RelinkablePath::File));
-  dialog.addOutputPath(RelinkablePath(outputDirectory, RelinkablePath::Dir));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(firstImage), RelinkablePath::File));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(secondImage), RelinkablePath::File));
+  dialog.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));
   dialog.addCommonImageRoot();
   dialog.selectFirstPath();
 
@@ -623,7 +632,7 @@ void TestMainWindowAsync::missingOutputDirectoryPrompt() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -686,7 +695,8 @@ void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
   for (int index = 0; index < 25; ++index) {
     const QString imagePath = directory.filePath(QStringLiteral("page%1.png").arg(index));
     QVERIFY(image.save(imagePath));
-    imageInfos.emplace_back(ImageId(imagePath, 0), ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false);
+    imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)),
+                            1, false, false);
   }
   const auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
 
@@ -847,7 +857,7 @@ void TestMainWindowAsync::updateProjectDpiMetadataMarksProjectModified() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
   const QString imagePath = directory.filePath(QStringLiteral("page.png"));
-  const ImageId imageId(imagePath, 2);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 2);
   const ImageMetadata originalMetadata(QSize(100, 120), Dpi(300, 300));
   auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, originalMetadata, 1, false, false)}, Qt::LeftToRight);
@@ -872,7 +882,7 @@ void TestMainWindowAsync::fixDpiDialogPersistsProjectDpiOnAccept() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -1022,7 +1032,7 @@ void TestMainWindowAsync::reloadProjectConfirmsDiscardWithoutOfferingSave() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -1064,7 +1074,7 @@ void TestMainWindowAsync::closeProjectSaveCreatesHistoryBackup() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -1133,7 +1143,7 @@ void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -1195,8 +1205,8 @@ void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
   QVERIFY(image.save(firstImagePath));
   QVERIFY(image.save(secondImagePath));
 
-  const ImageId firstImageId(firstImagePath, 0);
-  const ImageId secondImageId(secondImagePath, 0);
+  const ImageId firstImageId(core::toFileSystemPath(firstImagePath), 0);
+  const ImageId secondImageId(core::toFileSystemPath(secondImagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(firstImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false),
                              ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
@@ -1355,8 +1365,8 @@ void TestMainWindowAsync::applySourceDpiCopiesSelectedAxesIndependently() {
   QVERIFY(image.save(firstImagePath));
   QVERIFY(image.save(secondImagePath));
 
-  const ImageId firstImageId(firstImagePath, 0);
-  const ImageId secondImageId(secondImagePath, 0);
+  const ImageId firstImageId(core::toFileSystemPath(firstImagePath), 0);
+  const ImageId secondImageId(core::toFileSystemPath(secondImagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(firstImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false),
                              ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(600, 700)), 1, false, false)},
@@ -1511,7 +1521,7 @@ void TestMainWindowAsync::sourceDpiChangesPersistInMargins() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -1568,7 +1578,7 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
 
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);

@@ -4,6 +4,7 @@
 #include "StatusBarPanel.h"
 
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 
 #include <QtCore/QFileInfo>
 #include <cmath>
@@ -40,7 +41,7 @@ void StatusBarPanel::updatePage(int pageNumber, size_t pageCount, const PageId& 
   ui.pageNoLabel->setText(tr("p. %1 / %2").arg(pageNumber).arg(pageCount));
   ui.pageNoLabel->setVisible(true);
 
-  QString pageFileInfo = QFileInfo(pageId.imageId().filePath()).completeBaseName();
+  QString pageFileInfo = QFileInfo(core::toQString(pageId.imageId().filePath())).completeBaseName();
   if (pageFileInfo.size() > 15) {
     pageFileInfo = "..." + pageFileInfo.right(13);
   }

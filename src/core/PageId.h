@@ -6,7 +6,7 @@
 
 #include "ImageId.h"
 
-class QString;
+#include <QString>
 
 /**
  * \brief A logical page on an image.

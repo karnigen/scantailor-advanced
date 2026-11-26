@@ -4,9 +4,9 @@
 #ifndef SCANTAILOR_CORE_ABSTRACTRELINKER_H_
 #define SCANTAILOR_CORE_ABSTRACTRELINKER_H_
 
+#include <filesystem>
 
 class RelinkablePath;
-class QString;
 
 class AbstractRelinker {
  public:
@@ -16,7 +16,7 @@ class AbstractRelinker {
    * Returns the path to be used instead of the given path.
    * The same path will be returned if no substitution is to be made.
    */
-  virtual QString substitutionPathFor(const RelinkablePath& origPath) const = 0;
+  virtual std::filesystem::path substitutionPathFor(const RelinkablePath& origPath) const = 0;
 };
 
 

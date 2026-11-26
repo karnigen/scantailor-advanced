@@ -4,6 +4,7 @@
 #ifndef SCANTAILOR_CORE_IMAGEMETADATALOADER_H_
 #define SCANTAILOR_CORE_IMAGEMETADATALOADER_H_
 
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -34,7 +35,7 @@ class ImageMetadataLoader {
   static Status load(QIODevice& ioDevice, OutFunc out);
 
   template <typename OutFunc>
-  static Status load(const QString& filePath, OutFunc out);
+  static Status load(const std::filesystem::path& filePath, OutFunc out);
 
  protected:
   virtual ~ImageMetadataLoader() = default;
@@ -57,7 +58,7 @@ class ImageMetadataLoader {
  private:
   static Status loadImpl(QIODevice& ioDevice, const VirtualFunction<void, const ImageMetadata&>& out);
 
-  static Status loadImpl(const QString& filePath, const VirtualFunction<void, const ImageMetadata&>& out);
+  static Status loadImpl(const std::filesystem::path& filePath, const VirtualFunction<void, const ImageMetadata&>& out);
 
   using LoaderList = std::vector<std::shared_ptr<ImageMetadataLoader>>;
 
@@ -76,7 +77,7 @@ ImageMetadataLoader::Status ImageMetadataLoader::load(QIODevice& ioDevice, Calla
 }
 
 template <typename Callable>
-ImageMetadataLoader::Status ImageMetadataLoader::load(const QString& filePath, Callable out) {
+ImageMetadataLoader::Status ImageMetadataLoader::load(const std::filesystem::path& filePath, Callable out) {
   return loadImpl(filePath, ProxyFunction<Callable, void, const ImageMetadata&>(out));
 }
 

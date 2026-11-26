@@ -36,6 +36,7 @@ set(common_sources
     PageOrientationPropagator.cpp PageOrientationPropagator.h
     DebugImagesImpl.cpp DebugImagesImpl.h
     ImageId.cpp ImageId.h
+    PathUtils.h
     PageId.cpp PageId.h
     PageInfo.cpp PageInfo.h
     BackgroundTask.cpp BackgroundTask.h

@@ -8,6 +8,7 @@
 
 #include <QString>
 #include <Qt>
+#include <filesystem>
 #include <list>
 #include <memory>
 #include <unordered_map>
@@ -39,7 +40,7 @@ class ProjectWriter {
 
   ~ProjectWriter();
 
-  bool write(const QString& filePath,
+  bool write(const std::filesystem::path& filePath,
              const std::vector<FilterPtr>& filters,
              QString* errorMessage = nullptr,
              int backupCount = 0) const;

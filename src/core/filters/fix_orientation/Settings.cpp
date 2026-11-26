@@ -6,6 +6,7 @@
 #include "../../Utils.h"
 #include "AbstractRelinker.h"
 #include "RelinkablePath.h"
+#include "core/PathUtils.h"
 
 using namespace core;
 

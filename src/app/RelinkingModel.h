@@ -135,7 +135,7 @@ class RelinkingModel : public QAbstractListModel {
     void addMapping(const QString& from, const QString& to);
 
     /** Returns path.normalizedPath() if there is no mapping for it. */
-    QString substitutionPathFor(const RelinkablePath& path) const override;
+    std::filesystem::path substitutionPathFor(const RelinkablePath& path) const override;
 
     void swap(Relinker& other);
 

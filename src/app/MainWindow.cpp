@@ -5,6 +5,7 @@
 
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QActionGroup>
@@ -1060,7 +1061,7 @@ void MainWindow::showRelinkingDialog() {
   dialog->setWindowModality(Qt::WindowModal);
 
   m_pages->listRelinkablePaths(dialog->pathCollector());
-  dialog->addOutputPath(RelinkablePath(m_outFileNameGen.outDir(), RelinkablePath::Dir));
+  dialog->addOutputPath(RelinkablePath(core::toFileSystemPath(m_outFileNameGen.outDir()), RelinkablePath::Dir));
   dialog->addCommonImageRoot();
   dialog->selectFirstPath();
 
@@ -1685,7 +1686,7 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 
   try {
     if (isBatchTask) {
-      batchPageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+      batchPageName = batchPage.isNull() ? tr("Unknown page") : core::toQString(batchPage.imageId().filePath());
       if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
         batchPageName += tr(" (page %1)").arg(batchPage.imageId().page());
       }
@@ -2035,7 +2036,7 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
 
   SettingsStore().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
 
-  switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
+  switchToNewProject(context->projectReader()->pages(), core::toQString(context->projectReader()->outputDirectory()),
                      context->projectFile(), context->projectReader());
   warnAboutExternalImages();
 }
@@ -2723,7 +2724,7 @@ void MainWindow::updateProjectModifiedState() {
 
         ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
         QString errorMessage;
-        if (!writer.write(snapshotPath, m_stages->filters(), &errorMessage)) {
+        if (!writer.write(core::toFileSystemPath(snapshotPath), m_stages->filters(), &errorMessage)) {
           qWarning().noquote() << "Unable to check whether the project has unsaved changes:" << errorMessage;
           modified = true;
         } else {
@@ -2773,7 +2774,7 @@ bool MainWindow::closeProjectInteractive() {
 
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
-  if (!writer.write(backupFilePath, m_stages->filters())) {
+  if (!writer.write(core::toFileSystemPath(backupFilePath), m_stages->filters())) {
     // Backup file could not be written???
     QFile::remove(backupFilePath);
     switch (promptProjectSave()) {
@@ -2843,7 +2844,7 @@ bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
   QString errorMessage;
-  if (!writer.write(projectFile, m_stages->filters(), &errorMessage,
+  if (!writer.write(core::toFileSystemPath(projectFile), m_stages->filters(), &errorMessage,
                     ApplicationSettings::getInstance().getProjectBackupCount())) {
     const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
                                                    : tr("Error saving the project file!\n\n%1").arg(errorMessage);
@@ -2871,7 +2872,7 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
 
       const PageSequence sequence(pages.toPageSequence(IMAGE_VIEW));
       for (const PageInfo& page : sequence) {
-        const QString path(QFileInfo(page.imageId().filePath()).absoluteFilePath());
+        const QString path(QFileInfo(core::toQString(page.imageId().filePath())).absoluteFilePath());
         if (!path.isEmpty()) {
           m_inProjectPaths.insert(QDir::cleanPath(path));
         }
@@ -2941,7 +2942,8 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
     ImageFileInfo imageFileInfo(fileInfo, std::vector<ImageMetadata>());
 
     const ImageMetadataLoader::Status status = ImageMetadataLoader::load(
-        files.at(i), [&](const ImageMetadata& metadata) { imageFileInfo.imageInfo().push_back(metadata); });
+        core::toFileSystemPath(files.at(i)),
+        [&](const ImageMetadata& metadata) { imageFileInfo.imageInfo().push_back(metadata); });
 
     if (status == ImageMetadataLoader::LOADED) {
       newFiles.push_back(imageFileInfo);
@@ -2980,7 +2982,8 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
       ++imageNum;
 
       const int numSubPages = ProjectPages::adviseNumberOfLogicalPages(metadata, OrthogonalRotation());
-      const ImageInfo imageInfo(ImageId(file.fileInfo(), imageNum), metadata, numSubPages, false, false);
+      const ImageInfo imageInfo(ImageId(core::toFileSystemPath(file.fileInfo().absoluteFilePath()), imageNum), metadata,
+                                numSubPages, false, false);
       insertImage(imageInfo, beforeOrAfter, existing);
     }
   }
@@ -3017,7 +3020,7 @@ void MainWindow::insertImage(const ImageInfo& newImage, BeforeOrAfter beforeOrAf
   }
 
   for (const PageInfo& pageInfo : pages) {
-    m_outFileNameGen.disambiguator()->registerFile(pageInfo.imageId().filePath());
+    m_outFileNameGen.disambiguator()->registerFile(core::toQString(pageInfo.imageId().filePath()));
     m_thumbSequence->insert(pageInfo, beforeOrAfter, existing);
     existing = pageInfo.imageId();
   }
@@ -3179,7 +3182,7 @@ std::shared_ptr<CompositeCacheDrivenTask> MainWindow::createCompositeCacheDriven
 
 void MainWindow::updateDisambiguationRecords(const PageSequence& pages) {
   for (const PageInfo& page : pages) {
-    m_outFileNameGen.disambiguator()->registerFile(page.imageId().filePath());
+    m_outFileNameGen.disambiguator()->registerFile(core::toQString(page.imageId().filePath()));
   }
 }
 

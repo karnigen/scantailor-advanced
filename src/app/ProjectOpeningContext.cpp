@@ -3,6 +3,7 @@
 
 #include "ProjectOpeningContext.h"
 
+#include <core/PathUtils.h>
 #include <QDir>
 #include <QFileInfo>
 #include <QMessageBox>
@@ -14,7 +15,7 @@
 #include "version.h"
 
 ProjectOpeningContext::ProjectOpeningContext(QWidget* parent, const QString& projectFile, const QDomDocument& doc)
-    : m_projectFile(projectFile), m_reader(doc, projectFile), m_parent(parent) {}
+    : m_projectFile(projectFile), m_reader(doc, core::toFileSystemPath(projectFile)), m_parent(parent) {}
 
 ProjectOpeningContext::~ProjectOpeningContext() {
   // Deleting a null pointer is OK.
@@ -93,13 +94,14 @@ void ProjectOpeningContext::proceed() {
     }
   }
 
-  const QString& outputDirectory = m_reader.outputDirectory();
-  if (outputDirectory.isEmpty()) {
+  const std::filesystem::path& outputDirectoryPath = m_reader.outputDirectory();
+  if (outputDirectoryPath.empty()) {
     QMessageBox::warning(m_parent, tr("Error"), tr("The project has no output directory configured."));
     deleteLater();
     return;
   }
 
+  const QString outputDirectory = core::toQString(outputDirectoryPath);
   QFileInfo outputDirectoryInfo(outputDirectory);
   if (!outputDirectoryInfo.exists()) {
     const QString message(tr("Output directory \"%1\" does not exist. Create it?").arg(outputDirectory));

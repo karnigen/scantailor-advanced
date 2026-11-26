@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "AbstractRelinker.h"
+#include "PathUtils.h"
 #include "RelinkablePath.h"
 
 class FileNameDisambiguator::Impl {
@@ -229,8 +230,8 @@ void FileNameDisambiguator::Impl::performRelinking(const AbstractRelinker& relin
   ItemsByFileNameLabel newItemsByFileNameLabel;
 
   for (const Item& item : m_items) {
-    const RelinkablePath oldPath(item.filePath, RelinkablePath::File);
-    Item newItem(relinker.substitutionPathFor(oldPath), item.label);
+    const RelinkablePath oldPath(core::toFileSystemPath(item.filePath), RelinkablePath::File);
+    Item newItem(core::toQString(relinker.substitutionPathFor(oldPath)), item.label);
     insertItem(newItems, newItemsByFilePath, newItemsByFileNameLabel, newItem);
   }
 

@@ -18,6 +18,7 @@
 #include "PageId.h"
 #include "PageInfo.h"
 #include "PageView.h"
+#include "PathUtils.h"
 #include "ProjectBackup.h"
 #include "ProjectMigration.h"
 #include "ProjectPages.h"
@@ -43,7 +44,7 @@ ProjectWriter::ProjectWriter(const std::shared_ptr<ProjectPages>& pageSequence,
   for (const PageInfo& page : m_pageSequence) {
     const PageId& pageId = page.id();
     const ImageId& imageId = pageId.imageId();
-    const QString& filePath = imageId.filePath();
+    const QString filePath(core::toQString(imageId.filePath()));
     const QFileInfo fileInfo(filePath);
     const QString dirPath(fileInfo.absolutePath());
 
@@ -87,20 +88,21 @@ static QString toRelativeIfPossible(const QString& projectDirPath, const QString
   return rel;
 }
 
-bool ProjectWriter::write(const QString& filePath,
+bool ProjectWriter::write(const std::filesystem::path& filePath,
                           const std::vector<FilterPtr>& filters,
                           QString* errorMessage,
                           const int backupCount) const {
+  const QString qtFilePath(core::toQString(filePath));
   if (errorMessage) {
     errorMessage->clear();
   }
 
   QString backupFilePath;
-  if (!ProjectMigration::createBackupForFormat3(filePath, &backupFilePath, errorMessage)) {
+  if (!ProjectMigration::createBackupForFormat3(qtFilePath, &backupFilePath, errorMessage)) {
     return false;
   }
 
-  const QString projectDirPath(QFileInfo(filePath).absolutePath());
+  const QString projectDirPath(QFileInfo(qtFilePath).absolutePath());
 
   QDomDocument doc;
   QDomElement rootEl(doc.createElement("project"));
@@ -143,15 +145,15 @@ bool ProjectWriter::write(const QString& filePath,
   }
   buffer.close();
 
-  QSaveFile file(filePath);
+  QSaveFile file(qtFilePath);
   if (!file.open(QIODevice::WriteOnly)) {
     if (errorMessage) {
       *errorMessage = file.errorString();
     }
     return false;
   }
-  if (backupCount > 0 && QFileInfo::exists(filePath)) {
-    QFile existingProject(filePath);
+  if (backupCount > 0 && QFileInfo::exists(qtFilePath)) {
+    QFile existingProject(qtFilePath);
     if (!existingProject.open(QIODevice::ReadOnly)) {
       file.cancelWriting();
       if (errorMessage) {
@@ -180,7 +182,7 @@ bool ProjectWriter::write(const QString& filePath,
     }
     if (projectChanged) {
       QString backupError;
-      if (!createProjectBackup(filePath, backupCount, &backupError)) {
+      if (!createProjectBackup(qtFilePath, backupCount, &backupError)) {
         file.cancelWriting();
         if (errorMessage) {
           *errorMessage = backupError;
@@ -239,7 +241,7 @@ QDomElement ProjectWriter::processImages(QDomDocument& doc) const {
     QDomElement imageEl(doc.createElement("image"));
     imageEl.setAttribute("id", image.numericId);
     imageEl.setAttribute("subPages", image.numSubPages);
-    imageEl.setAttribute("fileId", fileId(image.id.filePath()));
+    imageEl.setAttribute("fileId", fileId(core::toQString(image.id.filePath())));
     imageEl.setAttribute("fileImage", image.id.page());
     if (image.leftHalfRemoved != image.rightHalfRemoved) {
       // Both are not supposed to be removed.

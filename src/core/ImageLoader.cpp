@@ -10,14 +10,15 @@
 #include <QtGui/QImageReader>
 
 #include "ImageId.h"
+#include "PathUtils.h"
 #include "TiffReader.h"
 
 QImage ImageLoader::load(const ImageId& imageId) {
-  return load(imageId.filePath(), imageId.zeroBasedPage());
+  return load(core::toQString(imageId.filePath()), imageId.zeroBasedPage());
 }
 
 QImage ImageLoader::load(const ImageId& imageId, ImageAllocationLimitInfo* limitInfo) {
-  return load(imageId.filePath(), imageId.zeroBasedPage(), limitInfo);
+  return load(core::toQString(imageId.filePath()), imageId.zeroBasedPage(), limitInfo);
 }
 
 QImage ImageLoader::load(const QString& filePath, const int pageNum) {

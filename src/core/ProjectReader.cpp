@@ -3,31 +3,31 @@
 
 #include "ProjectReader.h"
 
-#include <QDir>
 #include <QFileInfo>
 #include <functional>
 
 #include "AbstractFilter.h"
 #include "FileNameDisambiguator.h"
+#include "PathUtils.h"
 #include "ProjectPages.h"
 #include "XmlUnmarshaller.h"
 #include "version.h"
 
-ProjectReader::ProjectReader(const QDomDocument& doc, const QString& projectFilePath)
+ProjectReader::ProjectReader(const QDomDocument& doc, std::filesystem::path projectFilePath)
     : m_doc(doc), m_disambiguator(std::make_shared<FileNameDisambiguator>()) {
-  if (!projectFilePath.isEmpty()) {
-    m_projectDirPath = QFileInfo(projectFilePath).absolutePath();
+  if (!projectFilePath.empty()) {
+    m_projectDirPath = core::toFileSystemPath(QFileInfo(core::toQString(projectFilePath)).absolutePath());
   }
 
   QDomElement projectEl(m_doc.documentElement());
 
   m_version = projectEl.attribute("version");
-  m_migrationReport = ProjectMigration::analyze(m_doc, projectFilePath);
+  m_migrationReport = ProjectMigration::analyze(m_doc, core::toQString(projectFilePath));
   if (!isVersionReadable(m_version)) {
     return;
   }
 
-  m_outDir = resolvePath(projectEl.attribute("outputDirectory"));
+  m_outDir = resolvePath(core::toFileSystemPath(projectEl.attribute("outputDirectory")));
 
   Qt::LayoutDirection layoutDirection = Qt::LeftToRight;
   if (projectEl.attribute("layoutDirection") == "RTL") {
@@ -71,14 +71,14 @@ bool ProjectReader::isVersionReadable(const QString& version) {
   return versionOk && versionNumber >= MIN_READABLE_PROJECT_VERSION && versionNumber <= PROJECT_VERSION;
 }
 
-QString ProjectReader::resolvePath(const QString& path) const {
-  if (path.isEmpty()) {
+std::filesystem::path ProjectReader::resolvePath(const std::filesystem::path& path) const {
+  if (path.empty()) {
+    return {};
+  }
+  if (m_projectDirPath.empty() || path.is_absolute()) {
     return path;
   }
-  if (m_projectDirPath.isEmpty() || QDir::isAbsolutePath(path)) {
-    return path;
-  }
-  return QDir(m_projectDirPath).absoluteFilePath(path);
+  return m_projectDirPath / path;
 }
 
 void ProjectReader::readFilterSettings(const std::vector<FilterPtr>& filters) const {
@@ -111,8 +111,8 @@ void ProjectReader::processDirectories(const QDomElement& dirsEl) {
       continue;
     }
 
-    QString path(el.attribute("path"));
-    if (path.isEmpty()) {
+    std::filesystem::path path = core::toFileSystemPath(el.attribute("path"));
+    if (path.empty()) {
       continue;
     }
     path = resolvePath(path);
@@ -149,15 +149,15 @@ void ProjectReader::processFiles(const QDomElement& filesEl) {
       continue;
     }
 
-    const QString dirPath(getDirPath(dirId));
-    if (dirPath.isEmpty()) {
+    const std::filesystem::path dirPath(getDirPath(dirId));
+    if (dirPath.empty()) {
       continue;
     }
 
     // Backwards compatibility.
     const bool compatMultiPage = (el.attribute("multiPage") == "1");
 
-    const QString filePath(QDir(dirPath).filePath(name));
+    const std::filesystem::path filePath(dirPath / core::toFileSystemPath(name));
     const FileRecord rec(filePath, compatMultiPage);
     m_fileMap.insert(FileMap::value_type(id, rec));
   }
@@ -201,7 +201,7 @@ void ProjectReader::processImages(const QDomElement& imagesEl, const Qt::LayoutD
     const bool rightHalfRemoved = (removed == "R");
 
     const FileRecord fileRecord(getFileRecord(fileId));
-    if (fileRecord.filePath.isEmpty()) {
+    if (fileRecord.filePath.empty()) {
       continue;
     }
     const ImageId imageId(fileRecord.filePath, fileImage + int(fileRecord.compatMultiPage));
@@ -263,7 +263,7 @@ void ProjectReader::processPages(const QDomElement& pagesEl) {
     }
 
     const ImageInfo image(getImageInfo(imageId));
-    if (image.id().filePath().isEmpty()) {
+    if (image.id().filePath().empty()) {
       continue;
     }
 
@@ -276,12 +276,12 @@ void ProjectReader::processPages(const QDomElement& pagesEl) {
   }
 }  // ProjectReader::processPages
 
-QString ProjectReader::getDirPath(const int id) const {
+std::filesystem::path ProjectReader::getDirPath(const int id) const {
   const auto it(m_dirMap.find(id));
   if (it != m_dirMap.end()) {
     return it->second;
   }
-  return QString();
+  return {};
 }
 
 ProjectReader::FileRecord ProjectReader::getFileRecord(int id) const {
@@ -298,7 +298,7 @@ QString ProjectReader::expandFilePath(const QString& pathShorthand) const {
   if (!ok) {
     return QString();
   }
-  return getFileRecord(fileId).filePath;
+  return core::toQString(getFileRecord(fileId).filePath);
 }
 
 ImageInfo ProjectReader::getImageInfo(int id) const {

@@ -7,14 +7,17 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <filesystem>
 #include <map>
 #include <unordered_map>
+#include <utility>
 
 #include "AbstractRelinker.h"
 #include "ImageFileInfo.h"
 #include "ImageInfo.h"
 #include "OrthogonalRotation.h"
 #include "PageSequence.h"
+#include "PathUtils.h"
 #include "RelinkablePath.h"
 
 ProjectPages::ProjectPages(const Qt::LayoutDirection layoutDirection) {
@@ -47,7 +50,7 @@ ProjectPages::ProjectPages(const std::vector<ImageFileInfo>& files,
   initSubPagesInOrder(layoutDirection);
 
   for (const ImageFileInfo& file : files) {
-    const QString& filePath = file.fileInfo().absoluteFilePath();
+    const std::filesystem::path filePath = core::toFileSystemPath(file.fileInfo().absoluteFilePath());
     const std::vector<ImageMetadata>& images = file.imageInfo();
     const auto numImages = static_cast<int>(images.size());
     const int multiPageBase = numImages > 1 ? 1 : 0;
@@ -122,7 +125,7 @@ PageSequence ProjectPages::toPageSequence(const PageView view) const {
 void ProjectPages::listRelinkablePaths(const VirtualFunction<void, const RelinkablePath&>& sink) const {
   // It's generally a bad idea to do callbacks while holding an internal mutex,
   // so we accumulate results into this vector first.
-  std::vector<QString> files;
+  std::vector<std::filesystem::path> files;
 
   {
     QMutexLocker locker(&m_mutex);
@@ -133,7 +136,7 @@ void ProjectPages::listRelinkablePaths(const VirtualFunction<void, const Relinka
     }
   }
 
-  for (const QString& file : files) {
+  for (const std::filesystem::path& file : files) {
     sink(RelinkablePath(file, RelinkablePath::File));
   }
 }
@@ -142,8 +145,7 @@ void ProjectPages::performRelinking(const AbstractRelinker& relinker) {
   QMutexLocker locker(&m_mutex);
   for (ImageDesc& image : m_images) {
     const RelinkablePath oldPath(image.id.filePath(), RelinkablePath::File);
-    const QString newPath(relinker.substitutionPathFor(oldPath));
-    image.id.setFilePath(newPath);
+    image.id.setFilePath(relinker.substitutionPathFor(oldPath));
     image.layoutRevision = ++m_nextLayoutRevision;
   }
 }
@@ -303,25 +305,27 @@ bool ProjectPages::validateDpis() const {
 
 namespace {
 struct File {
-  QString fileName;
+  std::filesystem::path fileName;
   mutable std::vector<ImageMetadata> metadata;
   mutable std::vector<int> imageIndexes;
 
-  explicit File(const QString& fname) : fileName(fname) {}
+  explicit File(std::filesystem::path fname) : fileName(std::move(fname)) {}
 
-  explicit operator ImageFileInfo() const { return ImageFileInfo(QFileInfo(fileName), metadata, imageIndexes); }
+  explicit operator ImageFileInfo() const {
+    return ImageFileInfo(QFileInfo(core::toQString(fileName)), metadata, imageIndexes);
+  }
 };
 }  // anonymous namespace
 
 std::vector<ImageFileInfo> ProjectPages::toImageFileInfo() const {
   std::vector<File> files;
-  std::map<QString, std::size_t> filesByName;
+  std::map<std::filesystem::path, std::size_t> filesByName;
 
   {
     QMutexLocker locker(&m_mutex);
 
     for (const ImageDesc& image : m_images) {
-      const QString filePath(image.id.filePath());
+      const std::filesystem::path& filePath = image.id.filePath();
       const auto [it, inserted] = filesByName.emplace(filePath, files.size());
       if (inserted) {
         files.emplace_back(filePath);
@@ -344,7 +348,7 @@ void ProjectPages::updateMetadataFrom(const std::vector<ImageFileInfo>& files) {
   MetadataMap metadataMap;
 
   for (const ImageFileInfo& file : files) {
-    const QString filePath(file.fileInfo().filePath());
+    const std::filesystem::path filePath = core::toFileSystemPath(file.fileInfo().filePath());
     for (std::size_t imageIndex = 0; imageIndex < file.imageInfo().size(); ++imageIndex) {
       metadataMap[ImageId(filePath, file.imageIndexes()[imageIndex])] = file.imageInfo()[imageIndex];
     }

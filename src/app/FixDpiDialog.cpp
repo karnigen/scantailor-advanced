@@ -14,6 +14,7 @@
 #include <optional>
 #include <utility>
 
+#include <core/PathUtils.h>
 #include "ColorSchemeManager.h"
 #include "ImageMetadataLoader.h"
 
@@ -29,7 +30,7 @@ class FixDpiDialog::PageTableModel : public QAbstractTableModel {
     for (int fileIndex = 0; fileIndex < numFiles; ++fileIndex) {
       std::vector<ImageMetadata> sourceMetadata;
       const auto status = ImageMetadataLoader::load(
-          m_files[fileIndex].fileInfo().absoluteFilePath(),
+          core::toFileSystemPath(m_files[fileIndex].fileInfo().absoluteFilePath()),
           [&sourceMetadata](const ImageMetadata& metadata) { sourceMetadata.push_back(metadata); });
       const auto numImages = static_cast<int>(m_files[fileIndex].imageInfo().size());
       for (int imageIndex = 0; imageIndex < numImages; ++imageIndex) {

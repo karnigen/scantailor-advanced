@@ -4,26 +4,22 @@
 #ifndef SCANTAILOR_CORE_IMAGEID_H_
 #define SCANTAILOR_CORE_IMAGEID_H_
 
-#include <foundation/Hashes.h>
-
-#include <QString>
-
-class QFileInfo;
+#include <filesystem>
+#include <functional>
+#include <utility>
 
 class ImageId {
   // Member-wise copying is OK.
  public:
   ImageId() : m_filePath(), m_page(0) {}
 
-  explicit ImageId(const QString& filePath, int page = 0);
+  explicit ImageId(std::filesystem::path filePath, int page = 0);
 
-  explicit ImageId(const QFileInfo& fileInfo, int page = 0);
+  bool isNull() const { return m_filePath.empty(); }
 
-  bool isNull() const { return m_filePath.isNull(); }
+  const std::filesystem::path& filePath() const { return m_filePath; }
 
-  const QString& filePath() const { return m_filePath; }
-
-  void setFilePath(const QString& path) { m_filePath = path; }
+  void setFilePath(std::filesystem::path path) { m_filePath = std::move(path); }
 
   int page() const { return m_page; }
 
@@ -34,7 +30,7 @@ class ImageId {
   bool isMultiPageFile() const { return m_page > 0; }
 
  private:
-  QString m_filePath;
+  std::filesystem::path m_filePath;
 
   /**
    * If zero, indicates the file is not multipage.
@@ -54,7 +50,7 @@ namespace std {
 template <>
 struct hash<ImageId> {
   size_t operator()(const ImageId& imageId) const noexcept {
-    return (hashes::hash<QString>()(imageId.filePath()) ^ hash<int>()(imageId.page()) << 1);
+    return (hash<std::filesystem::path>()(imageId.filePath()) ^ hash<int>()(imageId.page()) << 1);
   }
 };
 }  // namespace std

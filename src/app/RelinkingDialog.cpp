@@ -4,6 +4,7 @@
 #include "RelinkingDialog.h"
 
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 
 #include <QApplication>
 #include <QDir>
@@ -120,7 +121,8 @@ void RelinkingDialog::selectionChanged(const QItemSelection& selected, const QIt
     updateConfigPathButtonAppearance();
     const QString path(index.data(m_model.UncommittedPathRole).toString());
     const int type = index.data(m_model.TypeRole).toInt();
-    ui.pathVisualization->setPath(RelinkablePath(path, (RelinkablePath::Type) type), /*clickable=*/true);
+    ui.pathVisualization->setPath(RelinkablePath(core::toFileSystemPath(path), (RelinkablePath::Type) type),
+                                  /*clickable=*/true);
     ui.pathVisualization->setVisible(true);
 
     if (!rollback) {
@@ -152,7 +154,7 @@ void RelinkingDialog::pathButtonClicked(const QString& prefixPath, const QString
   // at all (if you ask it to, the non-native dialog will appear), which is inconvenient
   // in this situation. So, if one of them has to be non-native, the other was made
   // non-native as well, for consistency reasons.
-  replacementPath = RelinkablePath::normalize(replacementPath);
+  replacementPath = core::toQString(RelinkablePath::normalize(core::toFileSystemPath(replacementPath)));
 
   if (replacementPath.isEmpty()) {
     return;
@@ -222,7 +224,8 @@ void RelinkingDialog::applyReplacement(const QString& prefixPath,
     ui.pathVisualization->clear();
     ui.pathVisualization->setVisible(false);
   } else {
-    ui.pathVisualization->setPath(RelinkablePath(newPath, resultingPathType), /*clickable=*/true);
+    ui.pathVisualization->setPath(RelinkablePath(core::toFileSystemPath(newPath), resultingPathType),
+                                  /*clickable=*/true);
     ui.pathVisualization->setVisible(true);
   }
 

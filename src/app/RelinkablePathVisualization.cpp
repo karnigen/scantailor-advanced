@@ -3,6 +3,8 @@
 
 #include "RelinkablePathVisualization.h"
 
+#include <core/PathUtils.h>
+
 #include <QCursor>
 #include <QEvent>
 #include <QFile>
@@ -60,8 +62,9 @@ void RelinkablePathVisualization::clear() {
 
 void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool clickable) {
   clear();
+  const QString normalizedPath(core::toQString(path.normalizedPath()));
   auto opt = Qt::SkipEmptyParts;
-  QStringList components(path.normalizedPath().split(QChar('/'), opt));
+  QStringList components(normalizedPath.split(QChar('/'), opt));
   if (components.empty()) {
     return;
   }
@@ -69,10 +72,10 @@ void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool click
   // prefixPath is the path up to and including the current component.
   QString prefixPath;
 
-  if (path.normalizedPath().startsWith(QLatin1String("//"))) {
+  if (normalizedPath.startsWith(QLatin1String("//"))) {
     // That's the Windows \\host\path thing.
     components.front().prepend(QLatin1String("//"));
-  } else if (path.normalizedPath().startsWith(QChar('/'))) {
+  } else if (normalizedPath.startsWith(QChar('/'))) {
     // Unix paths start with a slash.
     prefixPath += QChar('/');
   }

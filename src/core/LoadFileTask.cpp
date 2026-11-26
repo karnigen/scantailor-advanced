@@ -25,6 +25,7 @@
 #include "FilterOptionsWidget.h"
 #include "FilterUiInterface.h"
 #include "ImageLoader.h"
+#include "PathUtils.h"
 #include "ProjectPages.h"
 #include "ThumbnailPixmapCache.h"
 #include "filters/fix_orientation/Task.h"
@@ -156,16 +157,14 @@ class LargeImageOptionsWidget : public FilterOptionsWidget {
   void cancelLimitUpdate() {
     m_waitingForLimitUpdate = false;
     m_limitButton->setText(tr("Review image allocation limit..."));
-    m_limitButton->setToolTip(
-        tr("Review the image allocation limit and optionally increase it for this application."));
+    m_limitButton->setToolTip(tr("Review the image allocation limit and optionally increase it for this application."));
     m_explanation->setText(m_initialExplanation);
   }
 
   void finishLimitUpdate(const QString& message) {
     m_waitingForLimitUpdate = false;
     m_limitButton->setText(tr("Review image allocation limit..."));
-    m_limitButton->setToolTip(
-        tr("Review the image allocation limit and optionally increase it for this application."));
+    m_limitButton->setToolTip(tr("Review the image allocation limit and optionally increase it for this application."));
     m_explanation->setText(message);
   }
 
@@ -308,9 +307,9 @@ FilterResultPtr LoadFileTask::operator()() {
 
     if (image.isNull()) {
       if (limitInfo.exceeded) {
-        return std::make_shared<LargeImageResult>(m_imageId.filePath(), limitInfo);
+        return std::make_shared<LargeImageResult>(core::toQString(m_imageId.filePath()), limitInfo);
       }
-      return std::make_shared<ErrorResult>(m_imageId.filePath(), limitInfo.dimensionsKnown);
+      return std::make_shared<ErrorResult>(core::toQString(m_imageId.filePath()), limitInfo.dimensionsKnown);
     } else {
       convertToSupportedFormat(image);
       updateImageSizeIfChanged(image);
@@ -328,7 +327,7 @@ FilterResultPtr LoadFileTask::operator()() {
 }
 
 FilterResultPtr LoadFileTask::exceptionResult(const QString& message) {
-  return std::make_shared<ErrorResult>(m_imageId.filePath(), message);
+  return std::make_shared<ErrorResult>(core::toQString(m_imageId.filePath()), message);
 }
 
 void LoadFileTask::updateImageSizeIfChanged(const QImage& image) {

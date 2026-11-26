@@ -25,6 +25,7 @@
 #include "PageSequence.h"
 #include "Params.h"
 #include "RelinkablePath.h"
+#include "core/PathUtils.h"
 
 
 namespace page_layout {

@@ -3,12 +3,15 @@
 
 #include "RelinkablePath.h"
 
+#include "PathUtils.h"
+
 #include <QStringList>
 
-RelinkablePath::RelinkablePath(const QString& path, Type type) : m_normalizedPath(normalize(path)), m_type(type) {}
+RelinkablePath::RelinkablePath(std::filesystem::path path, Type type)
+    : m_normalizedPath(normalize(path)), m_type(type) {}
 
-QString RelinkablePath::normalize(const QString& path) {
-  QString frontSlashes(path);
+std::filesystem::path RelinkablePath::normalize(const std::filesystem::path& path) {
+  QString frontSlashes(core::toQString(path));
   frontSlashes.replace(QChar('\\'), QLatin1String("/"));
 
   QStringList newComponents;
@@ -29,16 +32,16 @@ QString RelinkablePath::normalize(const QString& path) {
       continue;
     } else if (comp == "..") {
       if (newComponents.isEmpty()) {
-        return QString();  // Error.
+        return {};
       }
       const QString& lastComp = newComponents.back();
       if (lastComp.isEmpty() || lastComp.endsWith(QChar(':'))) {
-        return QString();  // Error.
+        return {};
       }
       newComponents.pop_back();
     } else {
       newComponents.push_back(comp);
     }
   }
-  return newComponents.join(QChar('/'));
+  return core::toFileSystemPath(newComponents.join(QChar('/')));
 }  // RelinkablePath::normalize

@@ -4,6 +4,7 @@
 #include "tst_core_qt.h"
 
 #include <Dpi.h>
+#include <PathUtils.h>
 #include <SmartFilenameOrdering.h>
 #include <Units.h>
 #include <UnitsConverter.h>
@@ -272,7 +273,7 @@ void TestCoreQt::testCancelledContentUpdateIsPropagatedBeforeSave() {
   const ProjectWriter writer(pages, SelectedPage(), output);
   const QString projectPath = directory.filePath("project.scan");
   QString error;
-  QVERIFY2(writer.write(projectPath, {filter}, &error), qPrintable(error));
+  QVERIFY2(writer.write(core::toFileSystemPath(projectPath), {filter}, &error), qPrintable(error));
   QFile file(projectPath);
   QVERIFY(file.open(QIODevice::ReadOnly));
   QDomDocument document;
@@ -313,7 +314,7 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
   const ProjectWriter writer(pages, SelectedPage(), output);
   const QString projectPath = directory.filePath("project.scan");
   QString error;
-  QVERIFY2(writer.write(projectPath, {filter}, &error), qPrintable(error));
+  QVERIFY2(writer.write(core::toFileSystemPath(projectPath), {filter}, &error), qPrintable(error));
   QFile file(projectPath);
   QVERIFY(file.open(QIODevice::ReadOnly));
   QDomDocument document;
@@ -401,7 +402,7 @@ void TestCoreQt::testUnitsToLocalizedString() {
 
 void TestCoreQt::testPageSizePresetsApplyPhysicalDimensions() {
   const Dpi dpi(300, 300);
-  const PageId pageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::SINGLE_PAGE);
+  const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/page.tif"))), PageId::SINGLE_PAGE);
   const PageInfo page(pageId, ImageMetadata(QSize(1000, 1200), dpi), 1, false, false);
   select_content::OptionsWidget widget(std::make_shared<select_content::Settings>(), PageSelectionAccessor(nullptr));
   widget.preUpdateUI(page);
@@ -447,7 +448,7 @@ void TestCoreQt::testPageSizePresetsApplyPhysicalDimensions() {
 
 void TestCoreQt::testPageDimensionsCommitAfterEditing() {
   const Dpi dpi(300, 300);
-  const PageId pageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::SINGLE_PAGE);
+  const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/page.tif"))), PageId::SINGLE_PAGE);
   const PageInfo page(pageId, ImageMetadata(QSize(1000, 1200), dpi), 1, false, false);
   select_content::OptionsWidget widget(std::make_shared<select_content::Settings>(), PageSelectionAccessor(nullptr));
   widget.preUpdateUI(page);
@@ -541,8 +542,8 @@ void TestCoreQt::testBackgroundExecutorContainsWorkerAndResultExceptions() {
 void TestCoreQt::testProcessingTaskQueueReturnsPageInfoForTask() {
   AsyncTaskState state;
   const BackgroundTaskPtr task = std::make_shared<FailingBackgroundTask>(state);
-  const PageInfo page(PageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::RIGHT_PAGE), ImageMetadata(), 1, false,
-                      false);
+  const PageInfo page(PageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/page.tif"))), PageId::RIGHT_PAGE),
+                      ImageMetadata(), 1, false, false);
   ProcessingTaskQueue queue;
   queue.addProcessingTask(page, task);
   QCOMPARE(queue.takeForProcessing(), task);

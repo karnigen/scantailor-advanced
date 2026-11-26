@@ -4,6 +4,7 @@
 #include "ImageSettings.h"
 
 #include "AbstractRelinker.h"
+#include "PathUtils.h"
 #include "RelinkablePath.h"
 #include "Utils.h"
 

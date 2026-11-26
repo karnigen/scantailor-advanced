@@ -19,6 +19,7 @@
 #include "Thumbnail.h"
 #include "Utils.h"
 #include "core/AbstractFilterDataCollector.h"
+#include "core/PathUtils.h"
 #include "core/ThumbnailCollector.h"
 
 namespace output {
@@ -32,7 +33,7 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
                               const ImageTransformation& xform,
                               const QPolygonF& contentRectPhys) {
   if (auto* thumbCol = dynamic_cast<ThumbnailCollector*>(collector)) {
-    const QFileInfo sourceFileInfo(pageInfo.id().imageId().filePath());
+    const QFileInfo sourceFileInfo(core::toQString(pageInfo.id().imageId().filePath()));
     const QString outFilePath(m_outFileNameGen.filePathFor(pageInfo.id()));
     const QFileInfo outFileInfo(outFilePath);
     const QString foregroundDir(Utils::foregroundDir(m_outFileNameGen.outDir()));
@@ -128,8 +129,9 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
     } else {
       const ImageTransformation outXform(newXform.resultingRect(), params.outputDpi());
 
-      thumbCol->processThumbnail(std::unique_ptr<QGraphicsItem>(
-          new Thumbnail(thumbCol->thumbnailCache(), thumbCol->maxLogicalThumbSize(), ImageId(outFilePath), outXform)));
+      thumbCol->processThumbnail(
+          std::unique_ptr<QGraphicsItem>(new Thumbnail(thumbCol->thumbnailCache(), thumbCol->maxLogicalThumbSize(),
+                                                       ImageId(core::toFileSystemPath(outFilePath)), outXform)));
     }
   }
 }  // CacheDrivenTask::process

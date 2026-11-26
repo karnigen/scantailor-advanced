@@ -4,6 +4,7 @@
 #include "RelinkingModel.h"
 
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 #include <foundation/Hashes.h>
 
 #include <QApplication>
@@ -165,9 +166,10 @@ void RelinkingModel::addCommonImageRoot() {
   }
 
   const QString commonDirectory = findCommonImageRoot(imagePaths);
-  const RelinkablePath commonRoot(commonDirectory, RelinkablePath::Dir);
+  const RelinkablePath commonRoot(core::toFileSystemPath(commonDirectory), RelinkablePath::Dir);
   if (commonDirectory.isEmpty() || QDir::cleanPath(QDir(commonDirectory).rootPath()) == commonDirectory
-      || m_origPathSet.find(std::make_pair(commonRoot.normalizedPath(), CommonImageRoot)) != m_origPathSet.end()) {
+      || m_origPathSet.find(std::make_pair(core::toQString(commonRoot.normalizedPath()), CommonImageRoot))
+             != m_origPathSet.end()) {
     return;
   }
 
@@ -260,10 +262,10 @@ QString RelinkingModel::commonImageRootPath() const {
 }
 
 void RelinkingModel::addPath(const RelinkablePath& path, const EntryKind entryKind) {
-  const QString& normalizedPath(path.normalizedPath());
+  const QString normalizedPath(core::toQString(path.normalizedPath()));
 
   const std::pair<std::set<std::pair<QString, EntryKind>>::iterator, bool> ins(
-      m_origPathSet.insert(std::make_pair(path.normalizedPath(), entryKind)));
+      m_origPathSet.insert(std::make_pair(normalizedPath, entryKind)));
   if (!ins.second) {
     // Not inserted because identical path is already there.
     return;
@@ -569,9 +571,9 @@ catch (const std::bad_alloc&) {
 /*================================ Item =================================*/
 
 RelinkingModel::Item::Item(const RelinkablePath& path, const EntryKind entryKind)
-    : origPath(path.normalizedPath()),
-      committedPath(path.normalizedPath()),
-      uncommittedPath(path.normalizedPath()),
+    : origPath(core::toQString(path.normalizedPath())),
+      committedPath(core::toQString(path.normalizedPath())),
+      uncommittedPath(core::toQString(path.normalizedPath())),
       type(path.type()),
       committedStatus(StatusUpdatePending),
       uncommittedStatus(StatusUpdatePending),
@@ -583,10 +585,10 @@ void RelinkingModel::Relinker::addMapping(const QString& from, const QString& to
   m_mappings[from] = to;
 }
 
-QString RelinkingModel::Relinker::substitutionPathFor(const RelinkablePath& path) const {
-  const auto it(m_mappings.find(path.normalizedPath()));
+std::filesystem::path RelinkingModel::Relinker::substitutionPathFor(const RelinkablePath& path) const {
+  const auto it(m_mappings.find(core::toQString(path.normalizedPath())));
   if (it != m_mappings.end()) {
-    return it->second;
+    return core::toFileSystemPath(it->second);
   } else {
     return path.normalizedPath();
   }

@@ -3,6 +3,8 @@
 
 #include "ThumbnailPixmapCache.h"
 
+#include "PathUtils.h"
+
 #include <GrayImage.h>
 #include <Scale.h>
 
@@ -263,7 +265,7 @@ ThumbnailPixmapCache::ThumbnailPixmapCache(const QString& thumbDir,
                                            const QSize& maxThumbSize,
                                            const int maxCachedPixmaps,
                                            const int expirationThreshold)
-    : m_impl(std::make_unique<Impl>(RelinkablePath::normalize(thumbDir),
+    : m_impl(std::make_unique<Impl>(core::toQString(RelinkablePath::normalize(core::toFileSystemPath(thumbDir))),
                                     maxThumbSize,
                                     maxCachedPixmaps,
                                     expirationThreshold)) {}
@@ -271,7 +273,7 @@ ThumbnailPixmapCache::ThumbnailPixmapCache(const QString& thumbDir,
 ThumbnailPixmapCache::~ThumbnailPixmapCache() = default;
 
 void ThumbnailPixmapCache::setThumbDir(const QString& thumbDir) {
-  m_impl->setThumbDir(RelinkablePath::normalize(thumbDir));
+  m_impl->setThumbDir(core::toQString(RelinkablePath::normalize(core::toFileSystemPath(thumbDir))));
 }
 
 ThumbnailPixmapCache::Status ThumbnailPixmapCache::loadFromCache(const ImageId& imageId, QPixmap& pixmap) {
@@ -706,12 +708,13 @@ QString ThumbnailPixmapCache::Impl::getThumbFilePath(const ImageId& imageId,
   // Because a project may have several files with the same name (from
   // different directories), we add a hash of the original image path
   // to the thumbnail file name.
-  const QByteArray origPathHash = QCryptographicHash::hash(imageId.filePath().toUtf8(), QCryptographicHash::Md5)
+  const QString imagePath = core::toQString(imageId.filePath());
+  const QByteArray origPathHash = QCryptographicHash::hash(imagePath.toUtf8(), QCryptographicHash::Md5)
                                       .toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
   const QString origPathHashStr = QString::fromLatin1(origPathHash.data(), origPathHash.size());
   const QString thumbnailQualityStr = QChar('q') + QString::number(maxThumbSize.width());
 
-  const QFileInfo origImgPath(imageId.filePath());
+  const QFileInfo origImgPath(imagePath);
   QString thumbFilePath(thumbDir);
   thumbFilePath += QChar('/');
   thumbFilePath += origImgPath.completeBaseName();
