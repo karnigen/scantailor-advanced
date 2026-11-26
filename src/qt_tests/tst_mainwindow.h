@@ -20,7 +20,7 @@ class TestMainWindowAsync : public QObject {
   void sourceDpiChangesPersistInMargins();
   void sourceImageLocationDetection();
   void relinkingDialogShowsInitialPath();
-  void relinkingBreadcrumbClearsStaleHoverState();
+  void relinkingBreadcrumbClearsHoverAfterClick();
   void relinkingDialogUsesConfigDirectoryAsBase();
   void relinkingDialogDisablesConfigPathForOutput();
   void relinkingStatusColorsFollowPalette();

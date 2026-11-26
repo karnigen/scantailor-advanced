@@ -20,6 +20,16 @@ bool RelinkingSortingModel::lessThan(const QModelIndex& left, const QModelIndex&
     return leftIsCommonRoot;
   }
 
+  const bool leftIsOutputDirectory
+      = left.data(RelinkingModel::EntryKindRole).isValid()
+        && left.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::OutputDirectory;
+  const bool rightIsOutputDirectory
+      = right.data(RelinkingModel::EntryKindRole).isValid()
+        && right.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::OutputDirectory;
+  if (leftIsOutputDirectory != rightIsOutputDirectory) {
+    return leftIsOutputDirectory;
+  }
+
   const bool leftIsGroup = left.data(RelinkingModel::TreeGroupRole).toBool();
   const bool rightIsGroup = right.data(RelinkingModel::TreeGroupRole).toBool();
   if (leftIsGroup != rightIsGroup) {

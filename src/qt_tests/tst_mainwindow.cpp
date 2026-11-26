@@ -339,25 +339,28 @@ void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
   QCOMPARE(pathButtons.last()->text(), QStringLiteral("page.png"));
 }
 
-void TestMainWindowAsync::relinkingBreadcrumbClearsStaleHoverState() {
+void TestMainWindowAsync::relinkingBreadcrumbClearsHoverAfterClick() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
   RelinkablePathVisualization breadcrumb;
-  breadcrumb.setPath(RelinkablePath(QStringLiteral("/old/root/page.png"), RelinkablePath::File), true);
-  const QList<QPushButton*> oldButtons = breadcrumb.findChildren<QPushButton*>();
-  QVERIFY(!oldButtons.isEmpty());
-  for (QPushButton* button : oldButtons) {
-    button->setProperty("forceHighlight", true);
-    button->setProperty("stickHighlight", true);
-  }
+  breadcrumb.resize(800, 50);
+  breadcrumb.setPath(RelinkablePath(directory.path(), RelinkablePath::Dir), true);
+  breadcrumb.show();
+  const QList<QPushButton*> buttons = breadcrumb.findChildren<QPushButton*>();
+  QVERIFY(!buttons.isEmpty());
+  QPushButton* lastButton = buttons.last();
+  QTRY_VERIFY(lastButton->isVisible());
 
-  breadcrumb.setPath(RelinkablePath(QStringLiteral("/new/root/page.png"), RelinkablePath::File), true);
-  QCoreApplication::processEvents();
+  const QPoint buttonCenter(lastButton->rect().center());
+  QTest::mouseMove(lastButton, buttonCenter);
+  QTRY_VERIFY(lastButton->property("forceHighlight").toBool());
+  QTest::mouseClick(lastButton, Qt::LeftButton, Qt::NoModifier, buttonCenter);
+  QTRY_VERIFY(!lastButton->property("forceHighlight").toBool());
+  QVERIFY(!lastButton->property("stickHighlight").toBool());
 
-  const QList<QPushButton*> currentButtons = breadcrumb.findChildren<QPushButton*>();
-  QVERIFY(!currentButtons.isEmpty());
-  for (QPushButton* button : currentButtons) {
-    QVERIFY(!button->property("forceHighlight").toBool());
-    QVERIFY(!button->property("stickHighlight").toBool());
-  }
+  QTest::mouseMove(lastButton, buttonCenter + QPoint(1, 0));
+  QTRY_VERIFY(lastButton->property("forceHighlight").toBool());
 }
 
 void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
@@ -549,6 +552,10 @@ void TestMainWindowAsync::relinkingDialogGroupsPathsInDirectoryTree() {
   QCOMPARE(rootIndex.data(RelinkingModel::EntryKindRole).toInt(), RelinkingModel::CommonImageRoot);
   QCOMPARE(rootIndex.data(RelinkingModel::UncommittedPathRole).toString(), QDir::cleanPath(imageRoot));
   QCOMPARE(treeView->model()->rowCount(rootIndex), 3);
+
+  const QModelIndex firstChild = treeView->model()->index(0, 0, rootIndex);
+  QVERIFY(firstChild.isValid());
+  QCOMPARE(firstChild.data(RelinkingModel::EntryKindRole).toInt(), RelinkingModel::OutputDirectory);
 
   int directoryGroups = 0;
   int outputEntries = 0;

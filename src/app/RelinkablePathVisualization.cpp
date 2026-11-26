@@ -114,6 +114,7 @@ void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool click
     if (clickable) {
       btn->setCursor(QCursor(Qt::PointingHandCursor));
     }
+    btn->setMouseTracking(true);
     stylePathComponentButton(btn, pathComponent.exists);
     btn->installEventFilter(this);
 
@@ -170,7 +171,10 @@ void RelinkablePathVisualization::paintEvent(QPaintEvent* evt) {
 }
 
 bool RelinkablePathVisualization::eventFilter(QObject* watched, QEvent* event) {
-  if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
+  if (event->type() == QEvent::MouseMove) {
+    m_hoverSuppressedUntilMove = false;
+    refreshHoverHighlight();
+  } else if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
     QTimer::singleShot(0, this, [this]() { refreshHoverHighlight(); });
   }
   return QWidget::eventFilter(watched, event);
@@ -180,11 +184,13 @@ void RelinkablePathVisualization::refreshHoverHighlight() {
   const int totalItems = m_layout->count();  // Note that there is an extra stretch item.
   const QPoint cursorPosition = mapFromGlobal(QCursor::pos());
   int hoveredIndex = -1;
-  for (int i = 0; i < totalItems; ++i) {
-    QWidget* widget = m_layout->itemAt(i)->widget();
-    if (widget && widget->isVisible() && widget->geometry().contains(cursorPosition)) {
-      hoveredIndex = i;
-      break;
+  if (!m_hoverSuppressedUntilMove) {
+    for (int i = 0; i < totalItems; ++i) {
+      QWidget* widget = m_layout->itemAt(i)->widget();
+      if (widget && widget->isVisible() && widget->geometry().contains(cursorPosition)) {
+        hoveredIndex = i;
+        break;
+      }
     }
   }
 
@@ -214,14 +220,17 @@ void RelinkablePathVisualization::onClicked(int componentIdx,
       widget->setProperty("stickHighlight", true);
     }
   }
-
   emit clicked(prefixPath, suffixPath, type);
+  // The modal chooser may close while the cursor is still over this component.
+  m_hoverSuppressedUntilMove = true;
   // Note that clear() or setPath() might have been called by a signal handler.
   const int totalItems = m_layout->count();  // Note that there is an extra stretch item.
-  for (int i = 0; i <= componentIdx && i < totalItems; ++i) {
+  for (int i = 0; i < totalItems; ++i) {
     QWidget* widget = m_layout->itemAt(i)->widget();
     if (widget) {
       widget->setProperty("stickHighlight", false);
+      widget->setProperty("forceHighlight", false);
+      widget->update();
     }
   }
   QTimer::singleShot(0, this, [this]() { refreshHoverHighlight(); });

@@ -45,6 +45,7 @@ class RelinkablePathVisualization : public QWidget {
   static void checkForExistence(std::vector<PathComponent>& components);
 
   QHBoxLayout* m_layout;
+  bool m_hoverSuppressedUntilMove = false;
 };
 
 
