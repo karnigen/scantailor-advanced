@@ -1893,9 +1893,8 @@ void MainWindow::saveProjectAsNow() {
     }
   }
 
-  QString projectFile(QFileDialog::getSaveFileName(this, QString(), projectDir,
-                                                   tr("Scan Tailor Projects") + " (*.ScanTailor)", nullptr,
-                                                   QFileDialog::DontUseNativeDialog));
+  QString projectFile(QFileDialog::getSaveFileName(this, tr("Save Project"), projectDir,
+                                                   tr("Scan Tailor Projects") + " (*.ScanTailor)"));
   if (projectFile.isEmpty()) {
     return;
   }
