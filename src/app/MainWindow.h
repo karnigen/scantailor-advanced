@@ -289,6 +289,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   bool isProjectLoaded() const;
 
+  void updateProjectModifiedState();
+
   bool isBelowSelectContent() const;
 
   bool isBelowSelectContent(int filterIdx) const;
@@ -392,6 +394,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   bool m_debug;
   bool m_closing;
   QTimer m_autoSaveTimer;
+  QTimer m_projectModifiedTimer;
+  bool m_projectModified = false;
   StatusBarPanel* m_statusBarPanel;
   QActionGroup* m_unitsMenuActionGroup;
   int m_thumbnailNavigationWheelDelta = 0;

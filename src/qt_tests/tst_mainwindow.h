@@ -15,6 +15,7 @@ class TestMainWindowAsync : public QObject {
   void keyboardShortcutsShowConciseStageNames();
   void saveProjectPromptUsesActionButtons();
   void compareFilesDetectsSameSizeChanges();
+  void windowTitleShowsUnsavedProjectChanges();
   void supportedImageFormatsHelpShowsOutputAndCompression();
   void applyAlignmentCopiesSelectedSettingsIndependently();
   void applySourceDpiCopiesSelectedAxesIndependently();

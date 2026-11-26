@@ -769,6 +769,44 @@ void TestMainWindowAsync::compareFilesDetectsSameSizeChanges() {
   QVERIFY(MainWindow::compareFiles(firstPath, firstPath));
 }
 
+void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path(), projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QVERIFY(window.windowTitle().startsWith(QStringLiteral("[*] project")));
+  QVERIFY(window.saveProjectWithFeedback(projectPath));
+  QVERIFY(!window.isWindowModified());
+  QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
+
+  pages->setLayoutDirection(Qt::RightToLeft);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
+  QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
+
+  QVERIFY(window.saveProjectWithFeedback(projectPath));
+  QVERIFY(!window.isWindowModified());
+  QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
+
+  const PageInfo page = pages->toPageSequence(PAGE_VIEW).pageAt(0);
+  const ImageTransformation xform(QRectF(0, 0, 100, 120), Dpi(300, 300));
+  window.m_stages->pageLayoutFilter()->setContentBox(page.id(), xform, QRectF(0, 0, 100, 120), QRectF(10, 10, 80, 100));
+  QMouseEvent mouseRelease(QEvent::MouseButtonRelease, QPointF(), QPointF(), Qt::LeftButton, Qt::NoButton,
+                           Qt::NoModifier);
+  QApplication::sendEvent(&window, &mouseRelease);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
+}
+
 void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
   MainWindow window;
   QVERIFY(QMetaObject::invokeMethod(&window, "showSupportedImageFormats", Qt::DirectConnection));

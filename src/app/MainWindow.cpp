@@ -10,6 +10,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -32,6 +33,7 @@
 #include <QSortFilterProxyModel>
 #include <QStackedLayout>
 #include <QStringList>
+#include <QTemporaryFile>
 #include <QTextBrowser>
 #include <QThread>
 #include <QTimer>
@@ -456,9 +458,14 @@ MainWindow::MainWindow(const QString& initialDirectory)
 
   m_sceneItemsPosUpdater.setSingleShot(true);
   connect(&m_sceneItemsPosUpdater, &QTimer::timeout, m_thumbSequence.get(), &ThumbnailSequence::updateSceneItemsPos);
+
+  m_projectModifiedTimer.setSingleShot(true);
+  connect(&m_projectModifiedTimer, &QTimer::timeout, this, &MainWindow::updateProjectModifiedState);
+  qApp->installEventFilter(this);
 }
 
 MainWindow::~MainWindow() {
+  qApp->removeEventFilter(this);
   m_interactiveQueue->cancelAndClear();
   if (m_batchQueue) {
     m_batchQueue->cancelAndClear();
@@ -548,8 +555,18 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
 
   removeFilterOptionsWidget();
   updateProjectActions();
+  m_projectModified = isProjectLoaded() && (m_projectFile.isEmpty() || !QFileInfo::exists(m_projectFile));
   updateWindowTitle();
+  if (isProjectLoaded() && !m_projectModified) {
+    updateProjectModifiedState();
+  }
   updateMainArea();
+
+  connect(m_pages.get(), &ProjectPages::modified, this, [this]() {
+    if (isProjectLoaded()) {
+      m_projectModifiedTimer.start(300);
+    }
+  });
 }  // MainWindow::switchToNewProject
 
 void MainWindow::showNewOpenProjectPanel() {
@@ -629,6 +646,11 @@ void MainWindow::setupThumbView() {
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
+  if (isProjectLoaded() && !m_closing
+      && (ev->type() == QEvent::MouseButtonRelease || ev->type() == QEvent::KeyRelease)) {
+    m_projectModifiedTimer.start(300);
+  }
+
   if ((obj == thumbView) && (ev->type() == QEvent::Resize)) {
     if (!m_sceneItemsPosUpdater.isActive()) {
       m_sceneItemsPosUpdater.start(150);
@@ -2644,7 +2666,40 @@ void MainWindow::updateWindowTitle() {
     projectName = QFileInfo(m_projectFile).completeBaseName();
   }
   const QString version(QString::fromUtf8(VERSION));
-  setWindowTitle(tr("%2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
+  setWindowTitle(tr("[*] %2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
+  setWindowModified(m_projectModified);
+}
+
+void MainWindow::updateProjectModifiedState() {
+  bool modified = false;
+  if (isProjectLoaded()) {
+    if (m_projectFile.isEmpty() || !QFileInfo::exists(m_projectFile)) {
+      modified = true;
+    } else {
+      const QString snapshotTemplate
+          = QDir(QFileInfo(m_projectFile).absolutePath()).filePath(QStringLiteral(".scantailor-dirty-XXXXXX"));
+      QTemporaryFile snapshot(snapshotTemplate);
+      if (!snapshot.open()) {
+        qWarning().noquote() << "Unable to create a temporary project snapshot:" << snapshot.errorString();
+        modified = true;
+      } else {
+        const QString snapshotPath(snapshot.fileName());
+        snapshot.close();
+
+        ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
+        QString errorMessage;
+        if (!writer.write(snapshotPath, m_stages->filters(), &errorMessage)) {
+          qWarning().noquote() << "Unable to check whether the project has unsaved changes:" << errorMessage;
+          modified = true;
+        } else {
+          modified = !compareFiles(m_projectFile, snapshotPath);
+        }
+      }
+    }
+  }
+
+  m_projectModified = modified;
+  setWindowModified(m_projectModified);
 }
 
 /**
@@ -2751,6 +2806,8 @@ bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {
     QMessageBox::warning(this, tr("Error"), message);
     return false;
   }
+  m_projectModified = false;
+  setWindowModified(false);
   return true;
 }
 
