@@ -202,8 +202,8 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_migration_report_covers_legacy_d
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
 
-  const ProjectMigrationReport report(
-      ProjectMigration::analyze(makeMigrationProject(tempDir.path()), tempDir.filePath("project.ScanTailor")));
+  const ProjectMigrationReport report(ProjectMigration::analyze(
+      makeMigrationProject(tempDir.path()), core::toFileSystemPath(tempDir.filePath("project.ScanTailor"))));
 
   CHECK((report.sourceVersion) == (3));
   CHECK((report.imagesWithDefaultTrim) == (1));
@@ -226,19 +226,19 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_backup_preserves_original_and_av
   const QByteArray projectContents("<project version=\"3\"/>");
   REQUIRE(writeFile(projectPath, projectContents));
 
-  QString firstBackup;
+  std::filesystem::path firstBackup;
   QString errorMessage;
-  REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &firstBackup, &errorMessage));
-  CHECK(readFile(firstBackup) == projectContents);
+  REQUIRE(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(projectPath), &firstBackup, &errorMessage));
+  CHECK(readFile(core::toQString(firstBackup)) == projectContents);
 
   const QByteArray sentinel("keep this backup");
-  REQUIRE(writeFile(firstBackup, sentinel));
-  QString secondBackup;
-  REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &secondBackup, &errorMessage));
+  REQUIRE(writeFile(core::toQString(firstBackup), sentinel));
+  std::filesystem::path secondBackup;
+  REQUIRE(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(projectPath), &secondBackup, &errorMessage));
 
   CHECK(firstBackup != secondBackup);
-  CHECK(readFile(firstBackup) == sentinel);
-  CHECK(readFile(secondBackup) == projectContents);
+  CHECK(readFile(core::toQString(firstBackup)) == sentinel);
+  CHECK(readFile(core::toQString(secondBackup)) == projectContents);
 }
 
 TEST_CASE("CoreProjectMigrationTestSuite / test_backup_skips_non_v3_and_nonexistent_targets") {
@@ -247,14 +247,14 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_backup_skips_non_v3_and_nonexist
 
   const QString currentPath(tempDir.filePath("current.ScanTailor"));
   REQUIRE(writeFile(currentPath, QByteArray("<project version=\"4\"/>")));
-  QString backupPath("unexpected");
+  std::filesystem::path backupPath("unexpected");
   QString errorMessage;
-  CHECK(ProjectMigration::createBackupForFormat3(currentPath, &backupPath, &errorMessage));
-  CHECK(backupPath.isEmpty());
+  CHECK(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(currentPath), &backupPath, &errorMessage));
+  CHECK(backupPath.empty());
 
   const QString nonexistentPath(tempDir.filePath("new.ScanTailor"));
-  CHECK(ProjectMigration::createBackupForFormat3(nonexistentPath, &backupPath, &errorMessage));
-  CHECK(backupPath.isEmpty());
+  CHECK(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(nonexistentPath), &backupPath, &errorMessage));
+  CHECK(backupPath.empty());
 }
 
 TEST_CASE("CoreProjectMigrationTestSuite / test_project_backup_retention_keeps_latest_versions") {
@@ -265,7 +265,7 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_project_backup_retention_keeps_l
   QString errorMessage;
   for (int version = 0; version < 3; ++version) {
     REQUIRE(writeFile(projectPath, QByteArray("version-") + QByteArray::number(version)));
-    REQUIRE(createProjectBackup(projectPath, 2, &errorMessage));
+    REQUIRE(createProjectBackup(core::toFileSystemPath(projectPath), 2, &errorMessage));
   }
 
   const QDir backupsDirectory(projectPath + QStringLiteral(".backups"));
@@ -275,7 +275,7 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_project_backup_retention_keeps_l
   CHECK(readFile(backupsDirectory.filePath(backups.at(1))) == QByteArray("version-2"));
 
   REQUIRE(writeFile(projectPath, QByteArray("version-3")));
-  REQUIRE(createProjectBackup(projectPath, 0, &errorMessage));
+  REQUIRE(createProjectBackup(core::toFileSystemPath(projectPath), 0, &errorMessage));
   CHECK(backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name).size() == 2);
 }
 

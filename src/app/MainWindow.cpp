@@ -497,7 +497,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
   m_interactiveQueue->cancelAndClear();
 
   if (!outDir.isEmpty()) {
-    Utils::maybeCreateCacheDir(outDir);
+    Utils::maybeCreateCacheDir(core::toFileSystemPath(outDir));
   }
   m_pages = pages;
   m_projectFile = projectFilePath;
@@ -549,7 +549,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
   if (outDir.isEmpty()) {
     m_thumbnailCache.reset();
   } else {
-    m_thumbnailCache = Utils::createThumbnailCache(core::toQString(m_outFileNameGen.outDir()));
+    m_thumbnailCache = Utils::createThumbnailCache(m_outFileNameGen.outDir());
   }
   resetThumbSequence(currentPageOrderProvider());
 
@@ -1155,9 +1155,9 @@ void MainWindow::performRelinking(const std::shared_ptr<AbstractRelinker>& relin
   m_stages->performRelinking(*relinker);
   m_outFileNameGen.performRelinking(*relinker);
 
-  Utils::maybeCreateCacheDir(core::toQString(m_outFileNameGen.outDir()));
+  Utils::maybeCreateCacheDir(m_outFileNameGen.outDir());
 
-  m_thumbnailCache->setThumbDir(Utils::outputDirToThumbDir(core::toQString(m_outFileNameGen.outDir())));
+  m_thumbnailCache->setThumbDir(Utils::outputDirToThumbDir(m_outFileNameGen.outDir()));
   resetThumbSequence(currentPageOrderProvider());
   m_selectedPage.set(m_thumbSequence->selectionLeader().id(), getCurrentView());
 
@@ -2801,17 +2801,18 @@ bool MainWindow::closeProjectInteractive() {
 
   switch (promptProjectSave()) {
     case SAVE: {
-      QString backupPath;
+      std::filesystem::path backupPath;
       QString errorMessage;
-      if (!ProjectMigration::createBackupForFormat3(m_projectFile, &backupPath, &errorMessage)) {
+      if (!ProjectMigration::createBackupForFormat3(core::toFileSystemPath(m_projectFile), &backupPath,
+                                                    &errorMessage)) {
         QMessageBox::warning(
             this, tr("Error"),
             tr("The original format-3 project could not be preserved, so it was not overwritten.\n\n%1")
                 .arg(errorMessage));
         return false;
       }
-      if (!createProjectBackup(m_projectFile, ApplicationSettings::getInstance().getProjectBackupCount(),
-                               &errorMessage)) {
+      if (!createProjectBackup(core::toFileSystemPath(m_projectFile),
+                               ApplicationSettings::getInstance().getProjectBackupCount(), &errorMessage)) {
         QFile::remove(backupFilePath);
         QMessageBox::warning(this, tr("Error"),
                              tr("The previous project version could not be preserved, so it was not overwritten.\n\n%1")

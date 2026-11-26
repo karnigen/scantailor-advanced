@@ -6,6 +6,7 @@
 
 #include <QDomDocument>
 #include <QString>
+#include <filesystem>
 
 struct ProjectMigrationReport {
   int sourceVersion = 0;
@@ -23,10 +24,10 @@ struct ProjectMigrationReport {
 
 class ProjectMigration {
  public:
-  static ProjectMigrationReport analyze(const QDomDocument& doc, const QString& projectFilePath);
+  static ProjectMigrationReport analyze(const QDomDocument& doc, const std::filesystem::path& projectFilePath);
 
-  static bool createBackupForFormat3(const QString& projectFilePath,
-                                     QString* backupFilePath,
+  static bool createBackupForFormat3(const std::filesystem::path& projectFilePath,
+                                     std::filesystem::path* backupFilePath,
                                      QString* errorMessage = nullptr);
 };
 

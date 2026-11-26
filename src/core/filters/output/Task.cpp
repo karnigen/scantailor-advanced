@@ -121,26 +121,27 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
   newXform.postScaleToDpi(params.outputDpi());
 
   const QFileInfo sourceFileInfo(core::toQString(m_pageId.imageId().filePath()));
-  const QString outFilePath(core::toQString(m_outFileNameGen.filePathFor(m_pageId)));
-  const QFileInfo outFileInfo(outFilePath);
-  const QString outputDir(core::toQString(m_outFileNameGen.outDir()));
-  const QString foregroundDir(Utils::foregroundDir(outputDir));
-  const QString backgroundDir(Utils::backgroundDir(outputDir));
-  const QString originalBackgroundDir(Utils::originalBackgroundDir(outputDir));
-  const QString foregroundFilePath(QDir(foregroundDir).absoluteFilePath(outFileInfo.fileName()));
-  const QFileInfo foregroundFileInfo(foregroundFilePath);
-  const QString backgroundFilePath(QDir(backgroundDir).absoluteFilePath(outFileInfo.fileName()));
-  const QFileInfo backgroundFileInfo(backgroundFilePath);
-  const QString originalBackgroundFilePath(QDir(originalBackgroundDir).absoluteFilePath(outFileInfo.fileName()));
-  const QFileInfo originalBackgroundFileInfo(originalBackgroundFilePath);
+  const std::filesystem::path outFilePath(m_outFileNameGen.filePathFor(m_pageId));
+  const QFileInfo outFileInfo(core::toQString(outFilePath));
+  const std::filesystem::path outputDir(m_outFileNameGen.outDir());
+  const std::filesystem::path foregroundDir(Utils::foregroundDir(outputDir));
+  const std::filesystem::path backgroundDir(Utils::backgroundDir(outputDir));
+  const std::filesystem::path originalBackgroundDir(Utils::originalBackgroundDir(outputDir));
+  const std::filesystem::path outputFileName(core::toFileSystemPath(outFileInfo.fileName()));
+  const std::filesystem::path foregroundFilePath(foregroundDir / outputFileName);
+  const QFileInfo foregroundFileInfo(core::toQString(foregroundFilePath));
+  const std::filesystem::path backgroundFilePath(backgroundDir / outputFileName);
+  const QFileInfo backgroundFileInfo(core::toQString(backgroundFilePath));
+  const std::filesystem::path originalBackgroundFilePath(originalBackgroundDir / outputFileName);
+  const QFileInfo originalBackgroundFileInfo(core::toQString(originalBackgroundFilePath));
 
-  const QString automaskDir(Utils::automaskDir(outputDir));
-  const QString automaskFilePath(QDir(automaskDir).absoluteFilePath(outFileInfo.fileName()));
-  QFileInfo automaskFileInfo(automaskFilePath);
+  const std::filesystem::path automaskDir(Utils::automaskDir(outputDir));
+  const std::filesystem::path automaskFilePath(automaskDir / outputFileName);
+  QFileInfo automaskFileInfo(core::toQString(automaskFilePath));
 
-  const QString specklesDir(Utils::specklesDir(outputDir));
-  const QString specklesFilePath(QDir(specklesDir).absoluteFilePath(outFileInfo.fileName()));
-  QFileInfo specklesFileInfo(specklesFilePath);
+  const std::filesystem::path specklesDir(Utils::specklesDir(outputDir));
+  const std::filesystem::path specklesFilePath(specklesDir / outputFileName);
+  QFileInfo specklesFileInfo(core::toQString(specklesFilePath));
 
   const bool needPictureEditor = renderParams.mixedOutput() && !m_batchProcessing;
   const bool needSpecklesImage
@@ -258,22 +259,22 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
   BinaryImage specklesImg;
 
   if (!needReprocess) {
-    QFile outFile(outFilePath);
+    QFile outFile(core::toQString(outFilePath));
     if (outFile.open(QIODevice::ReadOnly)) {
       outImg = ImageLoader::load(outFile, 0);
     }
     if (outImg.isNull() && renderParams.splitOutput()) {
       OutputImageBuilder imageBuilder;
-      QFile foregroundFile(foregroundFilePath);
+      QFile foregroundFile(core::toQString(foregroundFilePath));
       if (foregroundFile.open(QIODevice::ReadOnly)) {
         imageBuilder.setForegroundImage(ImageLoader::load(foregroundFile, 0));
       }
-      QFile backgroundFile(backgroundFilePath);
+      QFile backgroundFile(core::toQString(backgroundFilePath));
       if (backgroundFile.open(QIODevice::ReadOnly)) {
         imageBuilder.setBackgroundImage(ImageLoader::load(backgroundFile, 0));
       }
       if (renderParams.originalBackground()) {
-        QFile originalBackgroundFile(originalBackgroundFilePath);
+        QFile originalBackgroundFile(core::toQString(originalBackgroundFilePath));
         if (originalBackgroundFile.open(QIODevice::ReadOnly)) {
           imageBuilder.setOriginalBackgroundImage(ImageLoader::load(originalBackgroundFile, 0));
         }
@@ -283,7 +284,7 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
     needReprocess = outImg.isNull();
 
     if (needPictureEditor && !needReprocess) {
-      QFile automaskFile(automaskFilePath);
+      QFile automaskFile(core::toQString(automaskFilePath));
       if (automaskFile.open(QIODevice::ReadOnly)) {
         automaskImg = BinaryImage(ImageLoader::load(automaskFile, 0));
       }
@@ -291,7 +292,7 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
     }
 
     if (needSpecklesImage && !needReprocess) {
-      QFile specklesFile(specklesFilePath);
+      QFile specklesFile(core::toQString(specklesFilePath));
       if (specklesFile.open(QIODevice::ReadOnly)) {
         specklesImg = BinaryImage(ImageLoader::load(specklesFile, 0));
       }
@@ -344,18 +345,20 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
       if (renderParams.splitOutput()) {
         auto* outputImageWithForeground = dynamic_cast<OutputImageWithForeground*>(outputImage.get());
 
-        QDir().mkdir(foregroundDir);
-        QDir().mkdir(backgroundDir);
-        if (!TiffWriter::writeImage(foregroundFilePath, outputImageWithForeground->getForegroundImage())
-            || !TiffWriter::writeImage(backgroundFilePath, outputImageWithForeground->getBackgroundImage())) {
+        QDir().mkdir(core::toQString(foregroundDir));
+        QDir().mkdir(core::toQString(backgroundDir));
+        if (!TiffWriter::writeImage(core::toQString(foregroundFilePath),
+                                    outputImageWithForeground->getForegroundImage())
+            || !TiffWriter::writeImage(core::toQString(backgroundFilePath),
+                                       outputImageWithForeground->getBackgroundImage())) {
           invalidateParams = true;
         }
 
         if (renderParams.originalBackground()) {
           auto* outputImageWithOrigBg = dynamic_cast<OutputImageWithOriginalBackground*>(outputImage.get());
 
-          QDir().mkdir(originalBackgroundDir);
-          if (!TiffWriter::writeImage(originalBackgroundFilePath,
+          QDir().mkdir(core::toQString(originalBackgroundDir));
+          if (!TiffWriter::writeImage(core::toQString(originalBackgroundFilePath),
                                       outputImageWithOrigBg->getOriginalBackgroundImage())) {
             invalidateParams = true;
           }
@@ -366,14 +369,14 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
     }
 
     if (!renderParams.originalBackground()) {
-      QFile::remove(originalBackgroundFilePath);
+      QFile::remove(core::toQString(originalBackgroundFilePath));
     }
     if (!renderParams.splitOutput()) {
-      QFile::remove(foregroundFilePath);
-      QFile::remove(backgroundFilePath);
+      QFile::remove(core::toQString(foregroundFilePath));
+      QFile::remove(core::toQString(backgroundFilePath));
     }
 
-    if (!TiffWriter::writeImage(outFilePath, outImg)) {
+    if (!TiffWriter::writeImage(core::toQString(outFilePath), outImg)) {
       invalidateParams = true;
     } else {
       deleteMutuallyExclusiveOutputFiles();
@@ -391,17 +394,17 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
       // that is $OUT/cache doesn't exist. We want that behaviour,
       // as otherwise when loading a project from a different machine,
       // a whole bunch of bogus directories would be created.
-      QDir().mkdir(automaskDir);
+      QDir().mkdir(core::toQString(automaskDir));
       // Also note that QDir::mkdir() will fail if the directory already exists,
       // so we ignore its return value here.
-      if (!TiffWriter::writeImage(automaskFilePath, automaskImg.toQImage())) {
+      if (!TiffWriter::writeImage(core::toQString(automaskFilePath), automaskImg.toQImage())) {
         invalidateParams = true;
       }
     }
     if (writeSpecklesFile) {
-      if (!QDir().mkpath(specklesDir)) {
+      if (!QDir().mkpath(core::toQString(specklesDir))) {
         invalidateParams = true;
-      } else if (!TiffWriter::writeImage(specklesFilePath, specklesImg.toQImage())) {
+      } else if (!TiffWriter::writeImage(core::toQString(specklesFilePath), specklesImg.toQImage())) {
         invalidateParams = true;
       }
     }
@@ -412,19 +415,22 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data, 
       // Note that we can't reuse *_file_info objects
       // as we've just overwritten those files.
       const OutputParams outParams(
-          newOutputImageParams, OutputFileParams(sourceFileInfo), OutputFileParams(QFileInfo(outFilePath)),
-          renderParams.splitOutput() ? OutputFileParams(QFileInfo(foregroundFilePath)) : OutputFileParams(),
-          renderParams.splitOutput() ? OutputFileParams(QFileInfo(backgroundFilePath)) : OutputFileParams(),
-          renderParams.originalBackground() ? OutputFileParams(QFileInfo(originalBackgroundFilePath))
+          newOutputImageParams, OutputFileParams(sourceFileInfo),
+          OutputFileParams(QFileInfo(core::toQString(outFilePath))),
+          renderParams.splitOutput() ? OutputFileParams(QFileInfo(core::toQString(foregroundFilePath)))
+                                     : OutputFileParams(),
+          renderParams.splitOutput() ? OutputFileParams(QFileInfo(core::toQString(backgroundFilePath)))
+                                     : OutputFileParams(),
+          renderParams.originalBackground() ? OutputFileParams(QFileInfo(core::toQString(originalBackgroundFilePath)))
                                             : OutputFileParams(),
-          writeAutomask ? OutputFileParams(QFileInfo(automaskFilePath)) : OutputFileParams(),
-          writeSpecklesFile ? OutputFileParams(QFileInfo(specklesFilePath)) : OutputFileParams(), newPictureZones,
-          newFillZones);
+          writeAutomask ? OutputFileParams(QFileInfo(core::toQString(automaskFilePath))) : OutputFileParams(),
+          writeSpecklesFile ? OutputFileParams(QFileInfo(core::toQString(specklesFilePath))) : OutputFileParams(),
+          newPictureZones, newFillZones);
 
       m_settings->setOutputParams(m_pageId, outParams);
     }
 
-    m_thumbnailCache->recreateThumbnail(ImageId(core::toFileSystemPath(outFilePath)), outImg);
+    m_thumbnailCache->recreateThumbnail(ImageId(outFilePath), outImg);
   }
 
   const DespeckleState despeckleState(outImg, specklesImg, params.despeckleLevel(), params.outputDpi());

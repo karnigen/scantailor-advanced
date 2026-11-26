@@ -9,6 +9,7 @@
 #include <cmath>
 
 #include "ApplicationSettings.h"
+#include "PathUtils.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -36,20 +37,23 @@ QString Utils::richTextForLink(const QString& label, const QString& target) {
       .arg(target.toHtmlEscaped(), label.toHtmlEscaped());
 }
 
-void Utils::maybeCreateCacheDir(const QString& outputDir) {
-  QDir(outputDir).mkdir(QString::fromLatin1("cache"));
+void Utils::maybeCreateCacheDir(const std::filesystem::path& outputDir) {
+  QDir(core::toQString(outputDir)).mkdir(QString::fromLatin1("cache"));
 
   // QDir::mkdir() returns false if the directory already exists,
   // so to prevent confusion this function return void.
 }
 
-QString Utils::outputDirToThumbDir(const QString& outputDir) {
-  return outputDir + QLatin1String("/cache/thumbs");
+std::filesystem::path Utils::outputDirToThumbDir(const std::filesystem::path& outputDir) {
+  if (outputDir.empty()) {
+    return std::filesystem::path("/cache/thumbs");
+  }
+  return outputDir / "cache" / "thumbs";
 }
 
-std::shared_ptr<ThumbnailPixmapCache> Utils::createThumbnailCache(const QString& outputDir) {
+std::shared_ptr<ThumbnailPixmapCache> Utils::createThumbnailCache(const std::filesystem::path& outputDir) {
   const QSize maxPixmapSize = ApplicationSettings::getInstance().getThumbnailQuality();
-  const QString thumbsCachePath(outputDirToThumbDir(outputDir));
+  const std::filesystem::path thumbsCachePath(outputDirToThumbDir(outputDir));
   return std::make_shared<ThumbnailPixmapCache>(thumbsCachePath, maxPixmapSize, 40, 5);
 }
 

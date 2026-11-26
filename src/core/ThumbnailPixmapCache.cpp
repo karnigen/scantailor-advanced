@@ -110,11 +110,11 @@ class ThumbnailPixmapCache::Item {
 
 class ThumbnailPixmapCache::Impl : public QThread {
  public:
-  Impl(const QString& thumbDir, const QSize& maxThumbSize, int maxCachedPixmaps, int expirationThreshold);
+  Impl(const std::filesystem::path& thumbDir, const QSize& maxThumbSize, int maxCachedPixmaps, int expirationThreshold);
 
   ~Impl() override;
 
-  void setThumbDir(const QString& thumbDir);
+  void setThumbDir(const std::filesystem::path& thumbDir);
 
   const QSize& getMaxThumbSize() const;
 
@@ -154,9 +154,13 @@ class ThumbnailPixmapCache::Impl : public QThread {
 
   void backgroundProcessing();
 
-  static QImage loadSaveThumbnail(const ImageId& imageId, const QString& thumbDir, const QSize& maxThumbSize);
+  static QImage loadSaveThumbnail(const ImageId& imageId,
+                                  const std::filesystem::path& thumbDir,
+                                  const QSize& maxThumbSize);
 
-  static QString getThumbFilePath(const ImageId& imageId, const QString& thumbDir, const QSize& maxThumbSize);
+  static std::filesystem::path getThumbFilePath(const ImageId& imageId,
+                                                const std::filesystem::path& thumbDir,
+                                                const QSize& maxThumbSize);
 
   static QImage makeThumbnail(const QImage& image, const QSize& maxThumbSize);
 
@@ -215,7 +219,7 @@ class ThumbnailPixmapCache::Impl : public QThread {
    */
   RemoveQueue::iterator m_endOfLoadedItems;
 
-  QString m_thumbDir;
+  std::filesystem::path m_thumbDir;
   QSize m_maxThumbSize;
   int m_maxCachedPixmaps;
 
@@ -261,19 +265,19 @@ class ThumbnailPixmapCache::Impl::LoadResultEvent : public QEvent {
 
 /*========================== ThumbnailPixmapCache ===========================*/
 
-ThumbnailPixmapCache::ThumbnailPixmapCache(const QString& thumbDir,
+ThumbnailPixmapCache::ThumbnailPixmapCache(const std::filesystem::path& thumbDir,
                                            const QSize& maxThumbSize,
                                            const int maxCachedPixmaps,
                                            const int expirationThreshold)
-    : m_impl(std::make_unique<Impl>(core::toQString(RelinkablePath::normalize(core::toFileSystemPath(thumbDir))),
+    : m_impl(std::make_unique<Impl>(RelinkablePath::normalize(thumbDir),
                                     maxThumbSize,
                                     maxCachedPixmaps,
                                     expirationThreshold)) {}
 
 ThumbnailPixmapCache::~ThumbnailPixmapCache() = default;
 
-void ThumbnailPixmapCache::setThumbDir(const QString& thumbDir) {
-  m_impl->setThumbDir(core::toQString(RelinkablePath::normalize(core::toFileSystemPath(thumbDir))));
+void ThumbnailPixmapCache::setThumbDir(const std::filesystem::path& thumbDir) {
+  m_impl->setThumbDir(RelinkablePath::normalize(thumbDir));
 }
 
 ThumbnailPixmapCache::Status ThumbnailPixmapCache::loadFromCache(const ImageId& imageId, QPixmap& pixmap) {
@@ -309,7 +313,7 @@ const QSize& ThumbnailPixmapCache::getMaxThumbSize() const {
 
 /*======================= ThumbnailPixmapCache::Impl ========================*/
 
-ThumbnailPixmapCache::Impl::Impl(const QString& thumbDir,
+ThumbnailPixmapCache::Impl::Impl(const std::filesystem::path& thumbDir,
                                  const QSize& maxThumbSize,
                                  const int maxCachedPixmaps,
                                  const int expirationThreshold)
@@ -331,7 +335,7 @@ ThumbnailPixmapCache::Impl::Impl(const QString& thumbDir,
   // that is $OUT/cache doesn't exist. We want that behaviour,
   // as otherwise when loading a project from a different machine,
   // a whole bunch of bogus directories would be created.
-  QDir().mkdir(m_thumbDir);
+  QDir().mkdir(core::toQString(m_thumbDir));
 
   m_backgroundLoader.moveToThread(this);
 }
@@ -350,7 +354,7 @@ ThumbnailPixmapCache::Impl::~Impl() {
   wait();
 }
 
-void ThumbnailPixmapCache::Impl::setThumbDir(const QString& thumbDir) {
+void ThumbnailPixmapCache::Impl::setThumbDir(const std::filesystem::path& thumbDir) {
   QMutexLocker locker(&m_mutex);
 
   if (thumbDir == m_thumbDir) {
@@ -394,7 +398,7 @@ ThumbnailPixmapCache::Status ThumbnailPixmapCache::Impl::request(
   }
 
   if (loadNow) {
-    const QString thumbDir(m_thumbDir);
+    const std::filesystem::path thumbDir(m_thumbDir);
     const QSize maxThumbSize(m_maxThumbSize);
 
     locker.unlock();
@@ -462,19 +466,19 @@ void ThumbnailPixmapCache::Impl::ensureThumbnailExists(const ImageId& imageId, c
   }
 
   QMutexLocker locker(&m_mutex);
-  const QString thumbDir(m_thumbDir);
+  const std::filesystem::path thumbDir(m_thumbDir);
   const QSize maxThumbSize(m_maxThumbSize);
   locker.unlock();
 
-  const QString thumbFilePath(getThumbFilePath(imageId, thumbDir, m_maxThumbSize));
-  if (QFile::exists(thumbFilePath)) {
+  const std::filesystem::path thumbFilePath(getThumbFilePath(imageId, thumbDir, m_maxThumbSize));
+  if (QFile::exists(core::toQString(thumbFilePath))) {
     return;
   }
 
   const QImage thumbnail(makeThumbnail(image, maxThumbSize));
 
   AtomicFileOverwriter overwriter;
-  QIODevice* iodev = overwriter.startWriting(thumbFilePath);
+  QIODevice* iodev = overwriter.startWriting(core::toQString(thumbFilePath));
   if (iodev && thumbnail.save(iodev, "PNG")) {
     overwriter.commit();
   }
@@ -490,17 +494,17 @@ void ThumbnailPixmapCache::Impl::recreateThumbnail(const ImageId& imageId, const
   }
 
   QMutexLocker locker(&m_mutex);
-  const QString thumbDir(m_thumbDir);
+  const std::filesystem::path thumbDir(m_thumbDir);
   const QSize maxThumbSize(m_maxThumbSize);
   locker.unlock();
 
-  const QString thumbFilePath(getThumbFilePath(imageId, thumbDir, m_maxThumbSize));
+  const std::filesystem::path thumbFilePath(getThumbFilePath(imageId, thumbDir, m_maxThumbSize));
   const QImage thumbnail(makeThumbnail(image, maxThumbSize));
   bool thumbWritten = false;
 
   // Note that we may be called from multiple threads at the same time.
   AtomicFileOverwriter overwriter;
-  QIODevice* iodev = overwriter.startWriting(thumbFilePath);
+  QIODevice* iodev = overwriter.startWriting(core::toQString(thumbFilePath));
   if (iodev && thumbnail.save(iodev, "PNG")) {
     thumbWritten = overwriter.commit();
   } else {
@@ -568,7 +572,7 @@ void ThumbnailPixmapCache::Impl::backgroundProcessing() {
     try {
       // We are going to initialize these while holding the mutex.
       ImageId imageId;
-      QString thumbDir;
+      std::filesystem::path thumbDir;
       QSize maxThumbSize;
 
       {
@@ -683,11 +687,12 @@ void ThumbnailPixmapCache::Impl::backgroundProcessing() {
 }  // ThumbnailPixmapCache::Impl::backgroundProcessing
 
 QImage ThumbnailPixmapCache::Impl::loadSaveThumbnail(const ImageId& imageId,
-                                                     const QString& thumbDir,
+                                                     const std::filesystem::path& thumbDir,
                                                      const QSize& maxThumbSize) {
-  const QString thumbFilePath(getThumbFilePath(imageId, thumbDir, maxThumbSize));
+  const std::filesystem::path thumbFilePath(getThumbFilePath(imageId, thumbDir, maxThumbSize));
+  const QString qtThumbFilePath(core::toQString(thumbFilePath));
 
-  QImage image(ImageLoader::load(thumbFilePath, 0));
+  QImage image(ImageLoader::load(qtThumbFilePath, 0));
   if (!image.isNull()) {
     return image;
   }
@@ -698,13 +703,13 @@ QImage ThumbnailPixmapCache::Impl::loadSaveThumbnail(const ImageId& imageId,
   }
 
   const QImage thumbnail(makeThumbnail(image, maxThumbSize));
-  thumbnail.save(thumbFilePath, "PNG");
+  thumbnail.save(qtThumbFilePath, "PNG");
   return thumbnail;
 }
 
-QString ThumbnailPixmapCache::Impl::getThumbFilePath(const ImageId& imageId,
-                                                     const QString& thumbDir,
-                                                     const QSize& maxThumbSize) {
+std::filesystem::path ThumbnailPixmapCache::Impl::getThumbFilePath(const ImageId& imageId,
+                                                                   const std::filesystem::path& thumbDir,
+                                                                   const QSize& maxThumbSize) {
   // Because a project may have several files with the same name (from
   // different directories), we add a hash of the original image path
   // to the thumbnail file name.
@@ -715,17 +720,16 @@ QString ThumbnailPixmapCache::Impl::getThumbFilePath(const ImageId& imageId,
   const QString thumbnailQualityStr = QChar('q') + QString::number(maxThumbSize.width());
 
   const QFileInfo origImgPath(imagePath);
-  QString thumbFilePath(thumbDir);
-  thumbFilePath += QChar('/');
-  thumbFilePath += origImgPath.completeBaseName();
-  thumbFilePath += QChar('_');
-  thumbFilePath += QString::number(imageId.zeroBasedPage());
-  thumbFilePath += QChar('_');
-  thumbFilePath += origPathHashStr;
-  thumbFilePath += QChar('_');
-  thumbFilePath += thumbnailQualityStr;
-  thumbFilePath += QString::fromLatin1(".png");
-  return thumbFilePath;
+  QString thumbFileName(origImgPath.completeBaseName());
+  thumbFileName += QChar('_');
+  thumbFileName += QString::number(imageId.zeroBasedPage());
+  thumbFileName += QChar('_');
+  thumbFileName += origPathHashStr;
+  thumbFileName += QChar('_');
+  thumbFileName += thumbnailQualityStr;
+  thumbFileName += QString::fromLatin1(".png");
+  const std::filesystem::path thumbDirectory = thumbDir.empty() ? std::filesystem::path("/") : thumbDir;
+  return thumbDirectory / core::toFileSystemPath(thumbFileName);
 }
 
 QImage ThumbnailPixmapCache::Impl::makeThumbnail(const QImage& image, const QSize& maxThumbSize) {

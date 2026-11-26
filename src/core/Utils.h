@@ -6,6 +6,7 @@
 
 #include <QObject>
 #include <QString>
+#include <filesystem>
 #include <map>
 #include <unordered_map>
 
@@ -32,11 +33,11 @@ class Utils {
    * The idea is to prevent creating a bogus directory structure when loading
    * a project created on another machine.
    */
-  static void maybeCreateCacheDir(const QString& outputDir);
+  static void maybeCreateCacheDir(const std::filesystem::path& outputDir);
 
-  static QString outputDirToThumbDir(const QString& outputDir);
+  static std::filesystem::path outputDirToThumbDir(const std::filesystem::path& outputDir);
 
-  static std::shared_ptr<ThumbnailPixmapCache> createThumbnailCache(const QString& outputDir);
+  static std::shared_ptr<ThumbnailPixmapCache> createThumbnailCache(const std::filesystem::path& outputDir);
 
   /**
    * Unlike QFile::rename(), this one overwrites existing files.

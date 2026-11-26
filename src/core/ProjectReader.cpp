@@ -22,7 +22,7 @@ ProjectReader::ProjectReader(const QDomDocument& doc, std::filesystem::path proj
   QDomElement projectEl(m_doc.documentElement());
 
   m_version = projectEl.attribute("version");
-  m_migrationReport = ProjectMigration::analyze(m_doc, core::toQString(projectFilePath));
+  m_migrationReport = ProjectMigration::analyze(m_doc, projectFilePath);
   if (!isVersionReadable(m_version)) {
     return;
   }

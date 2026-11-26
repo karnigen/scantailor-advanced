@@ -8,6 +8,8 @@
 #include <QFileInfo>
 #include <QSet>
 
+#include "PathUtils.h"
+
 namespace {
 
 bool willBeWrittenRelative(const QString& path, const QDir& projectDir) {
@@ -36,7 +38,8 @@ QString nextBackupPath(const QString& projectFilePath) {
 
 }  // namespace
 
-ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const QString& projectFilePath) {
+ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc,
+                                                 const std::filesystem::path& projectFilePath) {
   ProjectMigrationReport report;
   const QDomElement projectEl(doc.documentElement());
   bool versionOk = false;
@@ -108,7 +111,7 @@ ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const 
     }
   }
 
-  const QDir projectDir(QFileInfo(projectFilePath).absolutePath());
+  const QDir projectDir(QFileInfo(core::toQString(projectFilePath)).absolutePath());
   if (willBeWrittenRelative(projectEl.attribute("outputDirectory"), projectDir)) {
     ++report.pathsWrittenRelative;
   }
@@ -123,17 +126,18 @@ ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const 
   return report;
 }
 
-bool ProjectMigration::createBackupForFormat3(const QString& projectFilePath,
-                                              QString* backupFilePath,
+bool ProjectMigration::createBackupForFormat3(const std::filesystem::path& projectFilePath,
+                                              std::filesystem::path* backupFilePath,
                                               QString* errorMessage) {
   if (backupFilePath) {
-    backupFilePath->clear();
+    *backupFilePath = std::filesystem::path{};
   }
   if (errorMessage) {
     errorMessage->clear();
   }
 
-  QFile projectFile(projectFilePath);
+  const QString qtProjectFilePath(core::toQString(projectFilePath));
+  QFile projectFile(qtProjectFilePath);
   if (!projectFile.exists()) {
     return true;
   }
@@ -155,7 +159,7 @@ bool ProjectMigration::createBackupForFormat3(const QString& projectFilePath,
     return true;
   }
 
-  const QString backupPath(nextBackupPath(projectFilePath));
+  const QString backupPath(nextBackupPath(qtProjectFilePath));
   if (!projectFile.copy(backupPath)) {
     if (errorMessage) {
       *errorMessage = QString("Could not create backup %1: %2").arg(backupPath, projectFile.errorString());
@@ -164,7 +168,7 @@ bool ProjectMigration::createBackupForFormat3(const QString& projectFilePath,
   }
 
   if (backupFilePath) {
-    *backupFilePath = backupPath;
+    *backupFilePath = core::toFileSystemPath(backupPath);
   }
   return true;
 }

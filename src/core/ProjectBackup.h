@@ -5,7 +5,10 @@
 #define SCANTAILOR_CORE_PROJECTBACKUP_H_
 
 #include <QString>
+#include <filesystem>
 
-bool createProjectBackup(const QString& projectFilePath, int backupCount, QString* errorMessage = nullptr);
+bool createProjectBackup(const std::filesystem::path& projectFilePath,
+                         int backupCount,
+                         QString* errorMessage = nullptr);
 
 #endif  // SCANTAILOR_CORE_PROJECTBACKUP_H_

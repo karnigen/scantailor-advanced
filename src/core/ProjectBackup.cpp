@@ -9,7 +9,9 @@
 #include <QFileInfo>
 #include <QSaveFile>
 
-bool createProjectBackup(const QString& projectFilePath, const int backupCount, QString* errorMessage) {
+#include "PathUtils.h"
+
+bool createProjectBackup(const std::filesystem::path& projectFilePath, const int backupCount, QString* errorMessage) {
   if (errorMessage) {
     errorMessage->clear();
   }
@@ -17,7 +19,8 @@ bool createProjectBackup(const QString& projectFilePath, const int backupCount, 
     return true;
   }
 
-  QFile source(projectFilePath);
+  const QString qtProjectFilePath(core::toQString(projectFilePath));
+  QFile source(qtProjectFilePath);
   if (!source.open(QIODevice::ReadOnly)) {
     if (errorMessage) {
       *errorMessage = source.errorString();
@@ -25,7 +28,7 @@ bool createProjectBackup(const QString& projectFilePath, const int backupCount, 
     return false;
   }
 
-  const QString backupDirectoryPath = projectFilePath + QStringLiteral(".backups");
+  const QString backupDirectoryPath = qtProjectFilePath + QStringLiteral(".backups");
   if (!QDir().mkpath(backupDirectoryPath)) {
     if (errorMessage) {
       *errorMessage = QStringLiteral("Unable to create the project backup directory: %1").arg(backupDirectoryPath);

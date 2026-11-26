@@ -97,8 +97,8 @@ bool ProjectWriter::write(const std::filesystem::path& filePath,
     errorMessage->clear();
   }
 
-  QString backupFilePath;
-  if (!ProjectMigration::createBackupForFormat3(qtFilePath, &backupFilePath, errorMessage)) {
+  std::filesystem::path backupFilePath;
+  if (!ProjectMigration::createBackupForFormat3(filePath, &backupFilePath, errorMessage)) {
     return false;
   }
 
@@ -183,7 +183,7 @@ bool ProjectWriter::write(const std::filesystem::path& filePath,
     }
     if (projectChanged) {
       QString backupError;
-      if (!createProjectBackup(qtFilePath, backupCount, &backupError)) {
+      if (!createProjectBackup(filePath, backupCount, &backupError)) {
         file.cancelWriting();
         if (errorMessage) {
           *errorMessage = backupError;
