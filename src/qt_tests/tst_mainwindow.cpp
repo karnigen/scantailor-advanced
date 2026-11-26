@@ -47,6 +47,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
+#include <QWheelEvent>
 #include <QtTest/QtTest>
 #include <functional>
 #include <stdexcept>
@@ -645,6 +646,45 @@ void TestMainWindowAsync::missingOutputDirectoryPrompt() {
     QVERIFY(!window.isProjectLoaded());
   }
   dialogWatcher.stop();
+}
+
+void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  std::vector<ImageInfo> imageInfos;
+  for (int index = 0; index < 25; ++index) {
+    const QString imagePath = directory.filePath(QStringLiteral("page%1.png").arg(index));
+    QVERIFY(image.save(imagePath));
+    imageInfos.emplace_back(ImageId(imagePath, 0), ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false);
+  }
+  const auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
+
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path());
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
+  const auto sendWheelEvent = [&window](const Qt::KeyboardModifier modifier, const int delta) {
+    const QPoint localPosition(10, 10);
+    const QPoint globalPosition = window.thumbView->viewport()->mapToGlobal(localPosition);
+    QWheelEvent event(localPosition, globalPosition, QPoint(), QPoint(0, delta), Qt::NoButton, modifier,
+                      Qt::NoScrollPhase, false);
+    QVERIFY(window.eventFilter(window.thumbView->viewport(), &event));
+  };
+
+  window.goToPage(pageSequence.pageAt(5).id());
+  sendWheelEvent(Qt::ControlModifier, -120);
+  QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(6).id());
+
+  window.goToPage(pageSequence.pageAt(5).id());
+  sendWheelEvent(Qt::ShiftModifier, -120);
+  QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(15).id());
+
+  sendWheelEvent(Qt::ShiftModifier, 120);
+  QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(5).id());
 }
 
 void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {

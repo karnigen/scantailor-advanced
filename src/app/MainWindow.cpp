@@ -638,19 +638,26 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
   const bool isThumbnailView = (obj == thumbView) || (obj == thumbView->viewport());
   if (isThumbnailView && ev->type() == QEvent::Wheel) {
     auto* wheelEvent = static_cast<QWheelEvent*>(ev);
-    if (wheelEvent->modifiers() == Qt::ControlModifier) {
+    const Qt::KeyboardModifiers modifiers = wheelEvent->modifiers();
+    const bool singlePageNavigation = modifiers == Qt::ControlModifier;
+    const bool fastPageNavigation = modifiers == Qt::ShiftModifier;
+    if (singlePageNavigation || fastPageNavigation) {
       const QPoint pixelDelta = wheelEvent->pixelDelta();
       const QPoint angleDelta = wheelEvent->angleDelta();
       const int wheelDelta = !pixelDelta.isNull() ? (pixelDelta.y() != 0 ? pixelDelta.y() : pixelDelta.x())
                                                   : (angleDelta.y() != 0 ? angleDelta.y() : angleDelta.x());
-      m_thumbnailNavigationWheelDelta += wheelDelta;
-      const int pageSteps = m_thumbnailNavigationWheelDelta / 120;
-      m_thumbnailNavigationWheelDelta %= 120;
+      int& wheelDeltaAccumulator
+          = singlePageNavigation ? m_thumbnailNavigationWheelDelta : m_thumbnailFastNavigationWheelDelta;
+      wheelDeltaAccumulator += wheelDelta;
+      const int pageSteps = wheelDeltaAccumulator / 120;
+      wheelDeltaAccumulator %= 120;
       if (pageSteps != 0 && !isBatchProcessingInProgress() && isProjectLoaded()) {
         const PageInfo currentPage = m_thumbSequence->selectionLeader();
         PageInfo targetPage = currentPage;
         const bool moveBackward = pageSteps > 0;
-        for (int i = 0; i < std::abs(pageSteps) && !targetPage.isNull(); ++i) {
+        const int pageStepSize = fastPageNavigation ? 10 : 1;
+        const int pagesToMove = std::abs(pageSteps) * pageStepSize;
+        for (int i = 0; i < pagesToMove && !targetPage.isNull(); ++i) {
           const PageInfo nextPage
               = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
           if (nextPage.isNull()) {

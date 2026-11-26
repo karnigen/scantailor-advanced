@@ -30,6 +30,7 @@ class TestMainWindowAsync : public QObject {
   void relinkingRetainsMultipleMappings();
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();
+  void thumbnailWheelNavigationUsesShiftPageStride();
   void batchProcessingBenchmark();
   void stageSwitchBenchmark();
 };

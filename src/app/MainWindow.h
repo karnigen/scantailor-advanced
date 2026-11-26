@@ -395,6 +395,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   StatusBarPanel* m_statusBarPanel;
   QActionGroup* m_unitsMenuActionGroup;
   int m_thumbnailNavigationWheelDelta = 0;
+  int m_thumbnailFastNavigationWheelDelta = 0;
   QTimer m_maxLogicalThumbSizeUpdater;
   QTimer m_sceneItemsPosUpdater;
 };
