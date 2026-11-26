@@ -353,11 +353,14 @@ void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
 
   RelinkingDialog dialog(QDir(configDirectory).filePath("project.ScanTailor"));
   dialog.pathCollector()(RelinkablePath(imagePath, RelinkablePath::File));
+  dialog.addCommonImageRoot();
   dialog.selectFirstPath();
   auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
   QVERIFY(useConfigPathButton);
   QVERIFY(useConfigPathButton->isEnabled());
+  QVERIFY(useConfigPathButton->property("imageRootOutsideProject").toBool());
   useConfigPathButton->click();
+  QVERIFY(!useConfigPathButton->property("imageRootOutsideProject").toBool());
 
   auto* buttonBox = dialog.findChild<QDialogButtonBox*>("buttonBox");
   QVERIFY(buttonBox);

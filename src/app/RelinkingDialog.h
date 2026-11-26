@@ -65,6 +65,10 @@ class RelinkingDialog : public QDialog {
  private:
   void updateSummary();
 
+  void updateConfigPathButtonAppearance();
+
+  bool imageRootIsOutsideProjectDirectory() const;
+
   void scheduleSummaryUpdate();
 
   void rebuildTreeModel(int selectedSourceRow = -1);

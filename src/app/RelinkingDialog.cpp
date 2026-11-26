@@ -5,13 +5,16 @@
 
 #include <core/IconProvider.h>
 
+#include <QApplication>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHash>
 #include <QItemSelectionModel>
+#include <QPalette>
 #include <QSignalBlocker>
 #include <QStandardItem>
+#include <QStyle>
 #include <QTreeView>
 #include <QVector>
 #include <cassert>
@@ -52,6 +55,7 @@ RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent
   ui.undoButton->setVisible(false);
   ui.useConfigPathButton->setEnabled(false);
   ui.summaryLabel->setTextFormat(Qt::RichText);
+  updateConfigPathButtonAppearance();
   m_summaryUpdateTimer.setSingleShot(true);
   connect(&m_summaryUpdateTimer, &QTimer::timeout, this, &RelinkingDialog::updateSummary);
   updateSummary();
@@ -61,9 +65,11 @@ RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent
 
   connect(&m_model, &QAbstractItemModel::dataChanged, this, [this](const QModelIndex& first, const QModelIndex& last) {
     updateTreeItems(first, last);
+    updateConfigPathButtonAppearance();
     scheduleSummaryUpdate();
   });
   connect(&m_model, &QAbstractItemModel::rowsInserted, this, [this]() {
+    updateConfigPathButtonAppearance();
     if (m_treeBuilt) {
       rebuildTreeModel();
       scheduleSummaryUpdate();
@@ -111,6 +117,7 @@ void RelinkingDialog::selectionChanged(const QItemSelection& selected, const QIt
 
     const auto entryKind = static_cast<RelinkingModel::EntryKind>(index.data(m_model.EntryKindRole).toInt());
     ui.useConfigPathButton->setEnabled(entryKind != RelinkingModel::OutputDirectory);
+    updateConfigPathButtonAppearance();
     const QString path(index.data(m_model.UncommittedPathRole).toString());
     const int type = index.data(m_model.TypeRole).toInt();
     ui.pathVisualization->setPath(RelinkablePath(path, (RelinkablePath::Type) type), /*clickable=*/true);
@@ -206,6 +213,7 @@ void RelinkingDialog::applyReplacement(const QString& prefixPath,
   const int sourceRow = selectedSourceRow();
   m_model.replacePrefix(prefixPath, replacementPath, replacementType, entryKind);
   rebuildTreeModel(sourceRow);
+  updateConfigPathButtonAppearance();
 
   const bool hasMerges = m_model.checkForMerges();
   if (hasMerges) {
@@ -239,6 +247,56 @@ void RelinkingDialog::scheduleSummaryUpdate() {
   if (!m_summaryUpdateTimer.isActive()) {
     m_summaryUpdateTimer.start();
   }
+}
+
+void RelinkingDialog::updateConfigPathButtonAppearance() {
+  const bool rootOutsideProject = imageRootIsOutsideProjectDirectory();
+  if (ui.useConfigPathButton->property("imageRootOutsideProject").toBool() == rootOutsideProject) {
+    return;
+  }
+
+  ui.useConfigPathButton->setProperty("imageRootOutsideProject", rootOutsideProject);
+  if (rootOutsideProject) {
+    const bool darkPalette = QApplication::palette().color(QPalette::Window).lightness() < 128;
+    const QString background = darkPalette ? QStringLiteral("#755300") : QStringLiteral("#fff2cc");
+    const QString foreground = darkPalette ? QStringLiteral("#fff2cc") : QStringLiteral("#694800");
+    const QString hoverBackground = darkPalette ? QStringLiteral("#896300") : QStringLiteral("#ffe29a");
+    ui.useConfigPathButton->setStyleSheet(
+        QStringLiteral("QPushButton { background-color: %1; color: %2; border: 1px solid #b88724; }"
+                       "QPushButton:hover { background-color: %3; }")
+            .arg(background, foreground, hoverBackground));
+    ui.useConfigPathButton->setToolTip(
+        tr("The common image root is outside the folder containing this project. Use this to move it under the "
+           "project folder."));
+  } else {
+    ui.useConfigPathButton->setStyleSheet(QString());
+    ui.useConfigPathButton->setToolTip(tr("Use the folder containing this project as the selected path's base."));
+  }
+  ui.useConfigPathButton->style()->unpolish(ui.useConfigPathButton);
+  ui.useConfigPathButton->style()->polish(ui.useConfigPathButton);
+  ui.useConfigPathButton->update();
+}
+
+bool RelinkingDialog::imageRootIsOutsideProjectDirectory() const {
+  QStringList imagePaths;
+  QString commonRootPath;
+  for (int row = 0; row < m_model.rowCount(); ++row) {
+    const QModelIndex index = m_model.index(row, 0);
+    const auto entryKind = static_cast<RelinkingModel::EntryKind>(index.data(m_model.EntryKindRole).toInt());
+    if (entryKind == RelinkingModel::CommonImageRoot) {
+      commonRootPath = index.data(m_model.UncommittedPathRole).toString();
+    } else if (entryKind == RelinkingModel::ImageFile) {
+      imagePaths.push_back(index.data(m_model.UncommittedPathRole).toString());
+    }
+  }
+
+  if (imagePaths.isEmpty()) {
+    return false;
+  }
+  if (commonRootPath.isEmpty()) {
+    commonRootPath = RelinkingModel::findCommonImageRoot(imagePaths);
+  }
+  return commonRootPath.isEmpty() || !isPathWithinDirectory(commonRootPath, m_projectFileDir);
 }
 
 void RelinkingDialog::rebuildTreeModel(const int selectedRow) {
