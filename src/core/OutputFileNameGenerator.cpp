@@ -29,10 +29,10 @@ void OutputFileNameGenerator::performRelinking(const AbstractRelinker& relinker)
 QString OutputFileNameGenerator::fileNameFor(const PageId& page) const {
   const bool ltr = (m_layoutDirection == Qt::LeftToRight);
   const PageId::SubPage subPage = page.subPage();
-  const QString imagePath = core::toQString(page.imageId().filePath());
+  const std::filesystem::path& imagePath = page.imageId().filePath();
   const int label = m_disambiguator->getLabel(imagePath);
 
-  QString name(QFileInfo(imagePath).completeBaseName());
+  QString name(QFileInfo(core::toQString(imagePath)).completeBaseName());
   if (label != 0) {
     name += QString::fromLatin1("(%1)").arg(label);
   }

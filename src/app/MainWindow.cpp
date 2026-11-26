@@ -3024,7 +3024,7 @@ void MainWindow::insertImage(const ImageInfo& newImage, BeforeOrAfter beforeOrAf
   }
 
   for (const PageInfo& pageInfo : pages) {
-    m_outFileNameGen.disambiguator()->registerFile(core::toQString(pageInfo.imageId().filePath()));
+    m_outFileNameGen.disambiguator()->registerFile(pageInfo.imageId().filePath());
     m_thumbSequence->insert(pageInfo, beforeOrAfter, existing);
     existing = pageInfo.imageId();
   }
@@ -3186,7 +3186,7 @@ std::shared_ptr<CompositeCacheDrivenTask> MainWindow::createCompositeCacheDriven
 
 void MainWindow::updateDisambiguationRecords(const PageSequence& pages) {
   for (const PageInfo& page : pages) {
-    m_outFileNameGen.disambiguator()->registerFile(core::toQString(page.imageId().filePath()));
+    m_outFileNameGen.disambiguator()->registerFile(page.imageId().filePath());
   }
 }
 

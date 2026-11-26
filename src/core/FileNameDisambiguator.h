@@ -4,6 +4,7 @@
 #ifndef SCANTAILOR_CORE_FILENAMEDISAMBIGUATOR_H_
 #define SCANTAILOR_CORE_FILENAMEDISAMBIGUATOR_H_
 
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <set>
@@ -63,9 +64,9 @@ class FileNameDisambiguator {
                     const QString& name,
                     const std::function<QString(const QString&)>& filePathPacker) const;
 
-  int getLabel(const QString& filePath) const;
+  int getLabel(const std::filesystem::path& filePath) const;
 
-  int registerFile(const QString& filePath);
+  int registerFile(const std::filesystem::path& filePath);
 
   void performRelinking(const AbstractRelinker& relinker);
 

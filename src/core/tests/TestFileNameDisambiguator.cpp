@@ -2,6 +2,7 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include <FileNameDisambiguator.h>
+#include <core/PathUtils.h>
 
 #include <QDomDocument>
 
@@ -13,11 +14,13 @@ TEST_CASE("FileNameDisambiguatorTestSuite / test_labels_and_xml_order") {
   const QString firstPath = QStringLiteral("/first/page.tif");
   const QString secondPath = QStringLiteral("/second/page.tif");
 
-  CHECK(disambiguator.registerFile(firstPath) == 0);
-  CHECK(disambiguator.registerFile(secondPath) == 1);
-  CHECK(disambiguator.registerFile(firstPath) == 0);
-  CHECK(disambiguator.getLabel(firstPath) == 0);
-  CHECK(disambiguator.getLabel(secondPath) == 1);
+  const std::filesystem::path firstFilePath(core::toFileSystemPath(firstPath));
+  const std::filesystem::path secondFilePath(core::toFileSystemPath(secondPath));
+  CHECK(disambiguator.registerFile(firstFilePath) == 0);
+  CHECK(disambiguator.registerFile(secondFilePath) == 1);
+  CHECK(disambiguator.registerFile(firstFilePath) == 0);
+  CHECK(disambiguator.getLabel(firstFilePath) == 0);
+  CHECK(disambiguator.getLabel(secondFilePath) == 1);
 
   QDomDocument doc;
   const QDomElement xml = disambiguator.toXml(doc, QStringLiteral("disambiguator"));
