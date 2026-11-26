@@ -146,6 +146,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void setupGuides();
 
+  void addDefaultGuidesIfNeeded();
+
   void addHorizontalGuide(double y);
 
   void addVerticalGuide(double x);

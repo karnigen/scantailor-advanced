@@ -1123,8 +1123,9 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, directory.path());
+  window.switchToNewProject(pages, directory.path(), projectPath);
   window.resize(1100, 700);
   window.show();
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
@@ -1137,38 +1138,80 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
 
   auto* view = window.findChild<page_layout::ImageView*>();
   QVERIFY(view);
-  QMenu* const menu = view->findChild<QMenu*>();
+  QMenu* menu = view->findChild<QMenu*>();
   QVERIFY(menu);
   QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Add guide"));
   QCOMPARE(menu->actions().at(1)->text(), QStringLiteral("Add guide"));
   QVERIFY(!menu->actions().at(0)->icon().isNull());
   QVERIFY(!menu->actions().at(1)->icon().isNull());
 
-  const QPoint center = view->viewport()->rect().center();
-  QContextMenuEvent centerEvent(QContextMenuEvent::Mouse, center, view->viewport()->mapToGlobal(center));
-  QApplication::sendEvent(view->viewport(), &centerEvent);
-  QTRY_VERIFY(menu->isVisible());
+  const QPoint center = view->imageToWidget().map(QPointF(image.width() / 2.0, image.height() / 2.0)).toPoint();
+  const auto showContextMenuAt = [view, menu](const QPoint& pos) {
+    QContextMenuEvent event(QContextMenuEvent::Mouse, pos, view->viewport()->mapToGlobal(pos));
+    QApplication::sendEvent(view->viewport(), &event);
+    QTRY_VERIFY(menu->isVisible());
+  };
+  showContextMenuAt(center);
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->actions().at(3)->trigger();
+  menu->close();
+  showContextMenuAt(center);
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->actions().at(3)->trigger();
+  menu->close();
+
+  showContextMenuAt(center);
+  QVERIFY(!menu->actions().at(2)->isVisible());
+  QVERIFY(!menu->actions().at(3)->isVisible());
   QVERIFY(menu->actions().at(0)->isEnabled());
   QVERIFY(menu->actions().at(1)->isEnabled());
   menu->actions().at(0)->trigger();
+  menu->close();
 
   const QPoint outsideX(view->viewport()->rect().left(), center.y());
-  QContextMenuEvent outsideXEvent(QContextMenuEvent::Mouse, outsideX, view->viewport()->mapToGlobal(outsideX));
-  QApplication::sendEvent(view->viewport(), &outsideXEvent);
-  QTRY_VERIFY(menu->isVisible());
+  showContextMenuAt(outsideX);
   QVERIFY(menu->actions().at(0)->isVisible());
   QVERIFY(menu->actions().at(1)->isVisible());
   QVERIFY(menu->actions().at(0)->isEnabled());
   QVERIFY(!menu->actions().at(1)->isEnabled());
-  QVERIFY(menu->actions().at(3)->isVisible());
   menu->close();
 
   const QPoint outsideY(center.x(), view->viewport()->rect().top());
-  QContextMenuEvent outsideYEvent(QContextMenuEvent::Mouse, outsideY, view->viewport()->mapToGlobal(outsideY));
-  QApplication::sendEvent(view->viewport(), &outsideYEvent);
-  QTRY_VERIFY(menu->isVisible());
+  showContextMenuAt(outsideY);
   QVERIFY(!menu->actions().at(0)->isEnabled());
   QVERIFY(menu->actions().at(1)->isEnabled());
+  QVERIFY(menu->actions().at(2)->isVisible());
+  menu->actions().at(2)->trigger();
+  menu->close();
+
+  window.saveProjectTriggered();
+  QVERIFY(QFileInfo::exists(projectPath));
+  QFile projectFile(projectPath);
+  QVERIFY(projectFile.open(QIODevice::ReadOnly));
+  QDomDocument projectDocument;
+  QVERIFY(projectDocument.setContent(&projectFile));
+  const QDomElement pageLayout = projectDocument.elementsByTagName("page-layout").at(0).toElement();
+  QCOMPARE(pageLayout.attribute("guidesInitialized"), QStringLiteral("1"));
+  QVERIFY(pageLayout.firstChildElement("guides").isNull());
+
+  QPointer<page_layout::ImageView> oldView(view);
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(oldView.isNull(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  view = window.findChild<page_layout::ImageView*>();
+  QVERIFY(view);
+  menu = view->findChild<QMenu*>();
+  QVERIFY(menu);
+  const QPoint reopenedCenter = view->imageToWidget().map(QPointF(image.width() / 2.0, image.height() / 2.0)).toPoint();
+  QContextMenuEvent reopenedEvent(QContextMenuEvent::Mouse, reopenedCenter,
+                                  view->viewport()->mapToGlobal(reopenedCenter));
+  QApplication::sendEvent(view->viewport(), &reopenedEvent);
+  QTRY_VERIFY(menu->isVisible());
+  QVERIFY(!menu->actions().at(2)->isVisible());
+  QVERIFY(!menu->actions().at(3)->isVisible());
 }
 
 void TestMainWindowAsync::batchProcessingBenchmark() {

@@ -185,6 +185,10 @@ class Settings::Impl {
 
   std::vector<Guide>& guides();
 
+  bool guidesInitialized() const;
+
+  void setGuidesInitialized(bool initialized);
+
   bool isShowingMiddleRectEnabled() const;
 
   void enableShowingMiddleRect(bool state);
@@ -395,6 +399,7 @@ class Settings::Impl {
   const bool m_autoMarginsDefault;
   DeviationProvider<PageId> m_deviationProvider;
   std::vector<Guide> m_guides;
+  bool m_guidesInitialized;
   bool m_showMiddleRect;
 
   std::optional<QSizeF> m_frozenAggregateHardSizeMm;
@@ -513,6 +518,14 @@ std::vector<Guide>& Settings::guides() {
   return m_impl->guides();
 }
 
+bool Settings::guidesInitialized() const {
+  return m_impl->guidesInitialized();
+}
+
+void Settings::setGuidesInitialized(const bool initialized) {
+  m_impl->setGuidesInitialized(initialized);
+}
+
 bool Settings::isShowingMiddleRectEnabled() const {
   return m_impl->isShowingMiddleRectEnabled();
 }
@@ -569,6 +582,7 @@ Settings::Impl::Impl()
       m_defaultHardMarginsMM(Margins(10.0, 5.0, 10.0, 5.0)),
       m_defaultAlignment(Alignment::TOP, Alignment::HCENTER),
       m_autoMarginsDefault(false),
+      m_guidesInitialized(false),
       m_showMiddleRect(true) {
   m_deviationProvider.setComputeValueByKey([this](const PageId& pageId) -> double {
     auto it = m_items.find(pageId);
@@ -588,6 +602,8 @@ void Settings::Impl::clear() {
   const QMutexLocker locker(&m_mutex);
   m_items.clear();
   m_deviationProvider.clear();
+  m_guides.clear();
+  m_guidesInitialized = false;
   m_frozenAggregateHardSizeMm.reset();
 }
 
@@ -952,6 +968,14 @@ const DeviationProvider<PageId>& Settings::Impl::deviationProvider() const {
 
 std::vector<Guide>& Settings::Impl::guides() {
   return m_guides;
+}
+
+bool Settings::Impl::guidesInitialized() const {
+  return m_guidesInitialized;
+}
+
+void Settings::Impl::setGuidesInitialized(const bool initialized) {
+  m_guidesInitialized = initialized;
 }
 
 bool Settings::Impl::isShowingMiddleRectEnabled() const {

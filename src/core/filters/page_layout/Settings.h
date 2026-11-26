@@ -168,6 +168,10 @@ class Settings {
 
   std::vector<Guide>& guides();
 
+  bool guidesInitialized() const;
+
+  void setGuidesInitialized(bool initialized);
+
   bool isShowingMiddleRectEnabled() const;
 
   void enableShowingMiddleRect(bool state);

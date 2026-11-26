@@ -177,6 +177,7 @@ ImageView::ImageView(const std::shared_ptr<Settings>& settings,
   setupGuides();
 
   recalcBoxesAndFit(optWidget.marginsMM());
+  addDefaultGuidesIfNeeded();
 }
 
 ImageView::~ImageView() = default;
@@ -233,6 +234,7 @@ void ImageView::alignmentChanged(const Alignment& alignment) {
   const Settings::AggregateSizeChanged sizeChanged = m_settings->setPageAlignment(m_pageId, alignment);
 
   recalcBoxesAndFit(calcHardMarginsMM());
+  addDefaultGuidesIfNeeded();
 
   enableGuidesInteraction(!m_alignment.isNull());
   forceInscribeGuides();
@@ -784,10 +786,27 @@ void ImageView::onContextMenuEvent(QContextMenuEvent* event, InteractionState& i
 }
 
 void ImageView::setupGuides() {
+  if (m_settings->guides().empty()) {
+    return;
+  }
+
+  m_settings->setGuidesInitialized(true);
   for (const Guide& guide : m_settings->guides()) {
     m_guides[m_guidesFreeIndex] = m_mmToPixelsXform.map(guide);
     setupGuideInteraction(m_guidesFreeIndex++);
   }
+}
+
+void ImageView::addDefaultGuidesIfNeeded() {
+  if (m_alignment.isNull() || m_settings->guidesInitialized() || !m_settings->guides().empty()) {
+    return;
+  }
+
+  m_settings->setGuidesInitialized(true);
+  const QPointF pageCenter(m_xform.resultingPreCropArea().boundingRect().center());
+  const QPointF guideCenter(pageCenter - m_outerRect.center());
+  addHorizontalGuide(guideCenter.y());
+  addVerticalGuide(guideCenter.x());
 }
 
 void ImageView::addHorizontalGuide(double y) {

@@ -80,6 +80,7 @@ QDomElement Filter::saveSettings(const ProjectWriter& writer, QDomDocument& doc)
   QDomElement filterEl(doc.createElement("page-layout"));
 
   filterEl.setAttribute("showMiddleRect", m_settings->isShowingMiddleRectEnabled() ? "1" : "0");
+  filterEl.setAttribute("guidesInitialized", m_settings->guidesInitialized() ? "1" : "0");
 
   if (!m_settings->guides().empty()) {
     QDomElement guidesEl(doc.createElement("guides"));
@@ -115,6 +116,7 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
   m_settings->enableShowingMiddleRect(filterEl.attribute("showMiddleRect") == "1");
 
   const QDomElement guidesEl = filterEl.namedItem("guides").toElement();
+  m_settings->setGuidesInitialized(filterEl.attribute("guidesInitialized") == "1" || !guidesEl.isNull());
   if (!guidesEl.isNull()) {
     QDomNode node(guidesEl.firstChild());
     for (; !node.isNull(); node = node.nextSibling()) {
