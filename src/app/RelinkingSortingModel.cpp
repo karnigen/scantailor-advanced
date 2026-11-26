@@ -11,6 +11,25 @@ RelinkingSortingModel::RelinkingSortingModel(QObject* parent) : QSortFilterProxy
 }
 
 bool RelinkingSortingModel::lessThan(const QModelIndex& left, const QModelIndex& right) const {
+  const bool leftIsCommonRoot = left.data(RelinkingModel::EntryKindRole).isValid()
+                                && left.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::CommonImageRoot;
+  const bool rightIsCommonRoot
+      = right.data(RelinkingModel::EntryKindRole).isValid()
+        && right.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::CommonImageRoot;
+  if (leftIsCommonRoot != rightIsCommonRoot) {
+    return leftIsCommonRoot;
+  }
+
+  const bool leftIsGroup = left.data(RelinkingModel::TreeGroupRole).toBool();
+  const bool rightIsGroup = right.data(RelinkingModel::TreeGroupRole).toBool();
+  if (leftIsGroup != rightIsGroup) {
+    return leftIsGroup;
+  }
+
+  if (leftIsGroup) {
+    return left.data(Qt::DisplayRole).toString() < right.data(Qt::DisplayRole).toString();
+  }
+
   const int leftKind = left.data(RelinkingModel::EntryKindRole).toInt();
   const int rightKind = right.data(RelinkingModel::EntryKindRole).toInt();
   if (leftKind != rightKind) {

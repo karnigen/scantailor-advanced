@@ -32,7 +32,14 @@ class RelinkingModel : public QAbstractListModel {
 
   enum EntryKind { CommonImageRoot, ImageFile, OutputDirectory };
 
-  enum { TypeRole = Qt::UserRole, UncommittedPathRole, UncommittedStatusRole, EntryKindRole };
+  enum {
+    TypeRole = Qt::UserRole,
+    UncommittedPathRole,
+    UncommittedStatusRole,
+    EntryKindRole,
+    TreeGroupRole,
+    TreeSourceRowRole
+  };
 
   struct Summary {
     int imagesInsideRoot = 0;

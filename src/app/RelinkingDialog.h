@@ -5,6 +5,9 @@
 #define SCANTAILOR_APP_RELINKINGDIALOG_H_
 
 #include <QDialog>
+#include <QStandardItemModel>
+#include <QTimer>
+#include <QVector>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -15,6 +18,7 @@
 class RelinkingSortingModel;
 class QAbstractButton;
 class QItemSelection;
+class QStandardItem;
 class QString;
 
 class RelinkingDialog : public QDialog {
@@ -61,6 +65,20 @@ class RelinkingDialog : public QDialog {
  private:
   void updateSummary();
 
+  void scheduleSummaryUpdate();
+
+  void rebuildTreeModel(int selectedSourceRow = -1);
+
+  void updateTreeItems(const QModelIndex& first, const QModelIndex& last);
+
+  void updateTreeItem(int sourceRow);
+
+  void copyPathData(QStandardItem* target, int sourceRow);
+
+  QModelIndex firstSelectableIndex(const QModelIndex& parent = QModelIndex()) const;
+
+  int selectedSourceRow() const;
+
   void applyReplacement(const QString& prefixPath,
                         const QString& suffixPath,
                         const QString& replacementPath,
@@ -70,8 +88,12 @@ class RelinkingDialog : public QDialog {
 
   Ui::RelinkingDialog ui;
   RelinkingModel m_model;
+  QStandardItemModel* m_treeModel;
   RelinkingSortingModel* m_sortingModel;
+  QVector<QStandardItem*> m_treeItemsByRow;
+  QTimer m_summaryUpdateTimer;
   QString m_projectFileDir;
+  bool m_treeBuilt = false;
 };
 
 

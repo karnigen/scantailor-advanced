@@ -25,6 +25,7 @@ class TestMainWindowAsync : public QObject {
   void relinkingStatusColorsFollowPalette();
   void relinkingCommonImageRootDoesNotChangeOutputDirectory();
   void relinkingCommonImageRootLeavesExternalOutputAlone();
+  void relinkingDialogGroupsPathsInDirectoryTree();
   void relinkingRetainsMultipleMappings();
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();

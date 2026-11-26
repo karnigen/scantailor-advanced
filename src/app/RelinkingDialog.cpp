@@ -8,13 +8,29 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QHash>
 #include <QItemSelectionModel>
+#include <QSignalBlocker>
+#include <QStandardItem>
+#include <QTreeView>
+#include <QVector>
 #include <cassert>
 
 #include "RelinkingSortingModel.h"
 
+namespace {
+
+bool isPathWithinDirectory(const QString& path, const QString& directory) {
+  const QString relativePath = QDir::fromNativeSeparators(QDir(directory).relativeFilePath(path));
+  return relativePath == "."
+         || (!QDir::isAbsolutePath(relativePath) && relativePath != ".." && !relativePath.startsWith("../"));
+}
+
+}  // namespace
+
 RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent, const QString& initialDirectory)
     : QDialog(parent),
+      m_treeModel(new QStandardItemModel(this)),
       m_sortingModel(new RelinkingSortingModel),
       m_projectFileDir(QFileInfo(projectFilePath).absolutePath()) {
   if (m_projectFileDir.isEmpty() || !QDir(m_projectFileDir).exists()) {
@@ -26,20 +42,33 @@ RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent
   ui.setupUi(this);
   ui.undoButton->setIcon(IconProvider::getInstance().getIcon("undo"));
   ui.undoButton->setIconSize(QSize(16, 16));
-  m_sortingModel->setSourceModel(&m_model);
+  m_sortingModel->setSourceModel(m_treeModel);
   ui.listView->setModel(m_sortingModel);
   ui.listView->setTextElideMode(Qt::ElideMiddle);
+  ui.listView->setHeaderHidden(true);
+  ui.listView->setUniformRowHeights(true);
+  ui.listView->setExpandsOnDoubleClick(true);
   ui.errorLabel->setVisible(false);
   ui.undoButton->setVisible(false);
   ui.useConfigPathButton->setEnabled(false);
   ui.summaryLabel->setTextFormat(Qt::RichText);
+  m_summaryUpdateTimer.setSingleShot(true);
+  connect(&m_summaryUpdateTimer, &QTimer::timeout, this, &RelinkingDialog::updateSummary);
   updateSummary();
 
   connect(ui.listView->selectionModel(), SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
           SLOT(selectionChanged(const QItemSelection&, const QItemSelection&)));
 
-  connect(&m_model, &QAbstractItemModel::dataChanged, this, [this]() { updateSummary(); });
-  connect(&m_model, &QAbstractItemModel::rowsInserted, this, [this]() { updateSummary(); });
+  connect(&m_model, &QAbstractItemModel::dataChanged, this, [this](const QModelIndex& first, const QModelIndex& last) {
+    updateTreeItems(first, last);
+    scheduleSummaryUpdate();
+  });
+  connect(&m_model, &QAbstractItemModel::rowsInserted, this, [this]() {
+    if (m_treeBuilt) {
+      rebuildTreeModel();
+      scheduleSummaryUpdate();
+    }
+  });
 
   connect(ui.pathVisualization, SIGNAL(clicked(const QString&, const QString&, int)),
           SLOT(pathButtonClicked(const QString&, const QString&, int)));
@@ -52,7 +81,11 @@ RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent
 }
 
 void RelinkingDialog::selectFirstPath() {
-  const QModelIndex firstIndex(m_sortingModel->index(0, 0));
+  if (!m_treeBuilt) {
+    rebuildTreeModel();
+    updateSummary();
+  }
+  const QModelIndex firstIndex(firstSelectableIndex());
   if (firstIndex.isValid()) {
     ui.listView->selectionModel()->setCurrentIndex(firstIndex,
                                                    QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -67,7 +100,15 @@ void RelinkingDialog::selectionChanged(const QItemSelection& selected, const QIt
   } else {
     ui.undoButton->setVisible(false);
 
-    const QModelIndex index(selected.front().topLeft());
+    QModelIndex index(selected.front().topLeft());
+    const int sourceRow = index.data(m_model.TreeSourceRowRole).toInt();
+    const bool rollback = ui.errorLabel->isVisible();
+    if (rollback) {
+      m_model.rollbackChanges();
+      rebuildTreeModel(sourceRow);
+      index = ui.listView->currentIndex();
+    }
+
     const auto entryKind = static_cast<RelinkingModel::EntryKind>(index.data(m_model.EntryKindRole).toInt());
     ui.useConfigPathButton->setEnabled(entryKind != RelinkingModel::OutputDirectory);
     const QString path(index.data(m_model.UncommittedPathRole).toString());
@@ -75,9 +116,7 @@ void RelinkingDialog::selectionChanged(const QItemSelection& selected, const QIt
     ui.pathVisualization->setPath(RelinkablePath(path, (RelinkablePath::Type) type), /*clickable=*/true);
     ui.pathVisualization->setVisible(true);
 
-    if (ui.errorLabel->isVisible()) {
-      m_model.rollbackChanges();
-    } else {
+    if (!rollback) {
       m_model.commitChanges();
     }
   }
@@ -164,7 +203,9 @@ void RelinkingDialog::applyReplacement(const QString& prefixPath,
   newPath += QChar('/');
   newPath += suffixPath;
 
+  const int sourceRow = selectedSourceRow();
   m_model.replacePrefix(prefixPath, replacementPath, replacementType, entryKind);
+  rebuildTreeModel(sourceRow);
 
   const bool hasMerges = m_model.checkForMerges();
   if (hasMerges) {
@@ -183,13 +224,174 @@ void RelinkingDialog::applyReplacement(const QString& prefixPath,
 }
 
 void RelinkingDialog::undoButtonClicked() {
+  const int sourceRow = selectedSourceRow();
   m_model.rollbackChanges();  // Has to go before selectionChanged()
+  rebuildTreeModel(sourceRow);
   selectionChanged(ui.listView->selectionModel()->selection(), QItemSelection());
 }
 
 void RelinkingDialog::commitChanges() {
   m_model.commitChanges();
   accept();
+}
+
+void RelinkingDialog::scheduleSummaryUpdate() {
+  if (!m_summaryUpdateTimer.isActive()) {
+    m_summaryUpdateTimer.start();
+  }
+}
+
+void RelinkingDialog::rebuildTreeModel(const int selectedRow) {
+  const QSignalBlocker selectionBlocker(ui.listView->selectionModel());
+  m_treeModel->clear();
+  m_treeItemsByRow.fill(nullptr, m_model.rowCount());
+
+  const int rowCount = m_model.rowCount();
+  int commonRootRow = -1;
+  QString commonRootPath;
+  for (int row = 0; row < rowCount; ++row) {
+    const QModelIndex sourceIndex = m_model.index(row, 0);
+    if (sourceIndex.data(m_model.EntryKindRole).toInt() == RelinkingModel::CommonImageRoot) {
+      commonRootRow = row;
+      commonRootPath = sourceIndex.data(m_model.UncommittedPathRole).toString();
+      break;
+    }
+  }
+
+  QStandardItem* commonRootItem = nullptr;
+  if (commonRootRow >= 0) {
+    commonRootItem = new QStandardItem;
+    copyPathData(commonRootItem, commonRootRow);
+    m_treeModel->appendRow(commonRootItem);
+    m_treeItemsByRow[commonRootRow] = commonRootItem;
+  }
+
+  QHash<QString, QStandardItem*> directoryNodes;
+  for (int row = 0; row < rowCount; ++row) {
+    const QModelIndex sourceIndex = m_model.index(row, 0);
+    const auto entryKind = static_cast<RelinkingModel::EntryKind>(sourceIndex.data(m_model.EntryKindRole).toInt());
+    if (entryKind == RelinkingModel::CommonImageRoot) {
+      continue;
+    }
+
+    const QString path = QDir::cleanPath(sourceIndex.data(m_model.UncommittedPathRole).toString());
+    const bool underCommonRoot = commonRootItem && isPathWithinDirectory(path, commonRootPath);
+    QStringList components;
+    QStandardItem* parentItem = nullptr;
+    QString currentDirectory;
+
+    if (underCommonRoot) {
+      const QString relativePath = QDir::fromNativeSeparators(QDir(commonRootPath).relativeFilePath(path));
+      components = relativePath.split(QChar('/'), Qt::SkipEmptyParts);
+      parentItem = commonRootItem;
+      currentDirectory = commonRootPath;
+    } else {
+      const QString parentDirectory = QFileInfo(path).absolutePath();
+      const QString rootKey = QStringLiteral("outside:") + parentDirectory;
+      parentItem = directoryNodes.value(rootKey, nullptr);
+      if (!parentItem) {
+        parentItem = new QStandardItem(tr("Outside common root: %1").arg(QDir::toNativeSeparators(parentDirectory)));
+        parentItem->setData(true, RelinkingModel::TreeGroupRole);
+        parentItem->setFlags(Qt::ItemIsEnabled);
+        m_treeModel->appendRow(parentItem);
+        directoryNodes.insert(rootKey, parentItem);
+      }
+      components.push_back(QFileInfo(path).fileName());
+      currentDirectory = parentDirectory;
+    }
+
+    if (components.isEmpty()) {
+      components.push_back(QFileInfo(path).fileName());
+    }
+
+    for (int componentIndex = 0; componentIndex < components.size() - 1; ++componentIndex) {
+      const QString component = components.at(componentIndex);
+      currentDirectory = QDir(currentDirectory).filePath(component);
+      const QString key = QString::number(underCommonRoot ? 1 : 0) + QChar(':') + currentDirectory;
+      QStandardItem* directoryItem = directoryNodes.value(key, nullptr);
+      if (!directoryItem) {
+        directoryItem = new QStandardItem(component);
+        directoryItem->setData(true, RelinkingModel::TreeGroupRole);
+        directoryItem->setFlags(Qt::ItemIsEnabled);
+        parentItem->appendRow(directoryItem);
+        directoryNodes.insert(key, directoryItem);
+      }
+      parentItem = directoryItem;
+    }
+
+    QStandardItem* pathItem = new QStandardItem;
+    copyPathData(pathItem, row);
+    parentItem->appendRow(pathItem);
+    m_treeItemsByRow[row] = pathItem;
+  }
+
+  ui.listView->expandToDepth(1);
+  m_treeBuilt = true;
+  if (selectedRow >= 0 && selectedRow < m_treeItemsByRow.size() && m_treeItemsByRow.at(selectedRow)) {
+    const QModelIndex sourceIndex = m_treeModel->indexFromItem(m_treeItemsByRow.at(selectedRow));
+    const QModelIndex proxyIndex = m_sortingModel->mapFromSource(sourceIndex);
+    if (proxyIndex.isValid()) {
+      ui.listView->selectionModel()->setCurrentIndex(proxyIndex,
+                                                     QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    }
+  }
+}
+
+void RelinkingDialog::updateTreeItems(const QModelIndex& first, const QModelIndex& last) {
+  for (int row = first.row(); row <= last.row(); ++row) {
+    updateTreeItem(row);
+  }
+}
+
+void RelinkingDialog::updateTreeItem(const int sourceRow) {
+  if (sourceRow < 0 || sourceRow >= m_treeItemsByRow.size() || !m_treeItemsByRow.at(sourceRow)) {
+    return;
+  }
+  copyPathData(m_treeItemsByRow.at(sourceRow), sourceRow);
+}
+
+void RelinkingDialog::copyPathData(QStandardItem* target, const int sourceRow) {
+  const QModelIndex sourceIndex = m_model.index(sourceRow, 0);
+  const int roles[] = {Qt::DisplayRole,
+                       Qt::DecorationRole,
+                       Qt::ForegroundRole,
+                       Qt::ToolTipRole,
+                       m_model.TypeRole,
+                       m_model.UncommittedPathRole,
+                       m_model.UncommittedStatusRole,
+                       m_model.EntryKindRole};
+  for (const int role : roles) {
+    target->setData(sourceIndex.data(role), role);
+  }
+  const auto entryKind = static_cast<RelinkingModel::EntryKind>(sourceIndex.data(m_model.EntryKindRole).toInt());
+  const QString path = sourceIndex.data(m_model.UncommittedPathRole).toString();
+  const QString fileName = QDir::toNativeSeparators(QFileInfo(path).fileName());
+  if (entryKind == RelinkingModel::ImageFile) {
+    target->setData(fileName, Qt::DisplayRole);
+  } else if (entryKind == RelinkingModel::OutputDirectory) {
+    target->setData(tr("%1 (output directory)").arg(fileName), Qt::DisplayRole);
+  }
+  target->setData(sourceRow, m_model.TreeSourceRowRole);
+  target->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+}
+
+QModelIndex RelinkingDialog::firstSelectableIndex(const QModelIndex& parent) const {
+  for (int row = 0; row < m_sortingModel->rowCount(parent); ++row) {
+    const QModelIndex index = m_sortingModel->index(row, 0, parent);
+    if (index.data(m_model.UncommittedPathRole).isValid()) {
+      return index;
+    }
+    const QModelIndex childIndex = firstSelectableIndex(index);
+    if (childIndex.isValid()) {
+      return childIndex;
+    }
+  }
+  return {};
+}
+
+int RelinkingDialog::selectedSourceRow() const {
+  const QModelIndex index = ui.listView->currentIndex();
+  return index.data(m_model.TreeSourceRowRole).toInt();
 }
 
 void RelinkingDialog::updateSummary() {

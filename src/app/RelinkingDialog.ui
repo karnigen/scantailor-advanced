@@ -191,7 +191,7 @@
  <customwidgets>
   <customwidget>
    <class>RelinkingListView</class>
-   <extends>QListView</extends>
+   <extends>QTreeView</extends>
    <header location="global">RelinkingListView.h</header>
   </customwidget>
   <customwidget>

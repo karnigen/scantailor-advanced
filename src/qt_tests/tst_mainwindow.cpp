@@ -46,6 +46,7 @@
 #include <QTextBrowser>
 #include <QTimer>
 #include <QToolButton>
+#include <QTreeView>
 #include <QtTest/QtTest>
 #include <functional>
 #include <stdexcept>
@@ -495,6 +496,55 @@ void TestMainWindowAsync::relinkingCommonImageRootLeavesExternalOutputAlone() {
   const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
   QCOMPARE(relinker->substitutionPathFor(image), QDir(replacementRoot).filePath("page.png"));
   QCOMPARE(relinker->substitutionPathFor(RelinkablePath(outputDirectory, RelinkablePath::Dir)), outputDirectory);
+}
+
+void TestMainWindowAsync::relinkingDialogGroupsPathsInDirectoryTree() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imageRoot = directory.filePath("dataset");
+  const QString projectFile = directory.filePath("project.ScanTailor");
+  const QString firstImage = QDir(imageRoot).filePath("dir1/page1.png");
+  const QString secondImage = QDir(imageRoot).filePath("dir2/page2.png");
+  const QString outputDirectory = QDir(imageRoot).filePath("out");
+  QVERIFY(QDir().mkpath(QFileInfo(firstImage).absolutePath()));
+  QVERIFY(QDir().mkpath(QFileInfo(secondImage).absolutePath()));
+  QVERIFY(QDir().mkpath(outputDirectory));
+
+  RelinkingDialog dialog(projectFile);
+  dialog.pathCollector()(RelinkablePath(firstImage, RelinkablePath::File));
+  dialog.pathCollector()(RelinkablePath(secondImage, RelinkablePath::File));
+  dialog.addOutputPath(RelinkablePath(outputDirectory, RelinkablePath::Dir));
+  dialog.addCommonImageRoot();
+  dialog.selectFirstPath();
+
+  auto* treeView = dialog.findChild<QTreeView*>("listView");
+  QVERIFY(treeView);
+  const QModelIndex rootIndex = treeView->model()->index(0, 0);
+  QVERIFY(rootIndex.isValid());
+  QCOMPARE(rootIndex.data(RelinkingModel::EntryKindRole).toInt(), RelinkingModel::CommonImageRoot);
+  QCOMPARE(rootIndex.data(RelinkingModel::UncommittedPathRole).toString(), QDir::cleanPath(imageRoot));
+  QCOMPARE(treeView->model()->rowCount(rootIndex), 3);
+
+  int directoryGroups = 0;
+  int outputEntries = 0;
+  for (int row = 0; row < treeView->model()->rowCount(rootIndex); ++row) {
+    const QModelIndex child = treeView->model()->index(row, 0, rootIndex);
+    if (child.data(RelinkingModel::TreeGroupRole).toBool()) {
+      ++directoryGroups;
+      QCOMPARE(treeView->model()->rowCount(child), 1);
+      const QModelIndex imageLeaf = treeView->model()->index(0, 0, child);
+      QVERIFY(imageLeaf.data(RelinkingModel::EntryKindRole).isValid());
+      QCOMPARE(imageLeaf.data(Qt::DisplayRole).toString(),
+               child.data(Qt::DisplayRole).toString() == QStringLiteral("dir1") ? QStringLiteral("page1.png")
+                                                                                : QStringLiteral("page2.png"));
+    } else if (child.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::OutputDirectory) {
+      ++outputEntries;
+      QCOMPARE(child.data(Qt::DisplayRole).toString(), QStringLiteral("out (output directory)"));
+    }
+  }
+  QCOMPARE(directoryGroups, 2);
+  QCOMPARE(outputEntries, 1);
 }
 
 void TestMainWindowAsync::missingOutputDirectoryPrompt_data() {
