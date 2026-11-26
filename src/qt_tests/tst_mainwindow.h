@@ -38,6 +38,7 @@ class TestMainWindowAsync : public QObject {
   void missingOutputDirectoryPrompt();
   void thumbnailWheelNavigationUsesShiftPageStride();
   void fixDpiDialogListsAndUpdatesPageDpi();
+  void fixDpiDialogSortsProjectDpiNumerically();
   void fixDpiDialogRequiresDpiForEveryPage();
   void updateProjectDpiMetadataMarksProjectModified();
   void fixDpiDialogPersistsProjectDpiOnAccept();

@@ -43,6 +43,7 @@ class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
 
  private:
   class PageTableModel;
+  class PageTableSortProxyModel;
 
   void enableDisableOkButton();
 
@@ -61,6 +62,9 @@ class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
   void decorateDpiInputField(QLineEdit* field, ImageMetadata::DpiStatus dpiStatus) const;
 
   std::unique_ptr<PageTableModel> m_pages;
+  std::unique_ptr<PageTableSortProxyModel> m_sortProxy;
+  int m_sortColumn = -1;
+  Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
   std::vector<QSize> m_selectedItemPixelSizes;
   QPalette m_normalPalette;
   QPalette m_errorPalette;

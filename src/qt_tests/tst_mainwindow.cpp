@@ -45,7 +45,9 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QImage>
 #include <QImageWriter>
 #include <QItemSelectionModel>
@@ -769,6 +771,12 @@ void TestMainWindowAsync::fixDpiDialogListsAndUpdatesPageDpi() {
 
   QCOMPARE(allPagesTable->model()->rowCount(), 2);
   QCOMPARE(allPagesTable->model()->columnCount(), 3);
+  QVERIFY(allPagesTable->columnWidth(1) >= 100);
+  QVERIFY(allPagesTable->columnWidth(2) >= 100);
+  QVERIFY(allPagesTable->horizontalHeader()->sectionsClickable());
+  QVERIFY(!allPagesTable->horizontalHeader()->isSortIndicatorShown());
+  QVERIFY(allPagesTable->model()->headerData(0, Qt::Horizontal, Qt::FontRole).value<QFont>().bold());
+  QCOMPARE(allPagesTable->model()->index(0, 1).data(Qt::TextAlignmentRole).toInt(), static_cast<int>(Qt::AlignCenter));
   QCOMPARE(allPagesTable->model()->index(0, 0).data().toString(), QStringLiteral("page-a.png"));
   QCOMPARE(allPagesTable->model()->index(0, 1).data().toString(), QStringLiteral("300 x 300"));
   QCOMPARE(allPagesTable->model()->index(0, 2).data().toString(), QStringLiteral("300 x 600"));
@@ -801,6 +809,28 @@ void TestMainWindowAsync::fixDpiDialogListsAndUpdatesPageDpi() {
     QCOMPARE(file.imageInfo()[0].dpi().horizontal(), 600);
     QCOMPARE(file.imageInfo()[0].dpi().vertical(), 600);
   }
+}
+
+void TestMainWindowAsync::fixDpiDialogSortsProjectDpiNumerically() {
+  const QSize imageSize(3000, 3000);
+  const std::vector<ImageFileInfo> files{
+      ImageFileInfo(QFileInfo(QStringLiteral("page-1200.png")), {ImageMetadata(imageSize, Dpi(1200, 1200))}),
+      ImageFileInfo(QFileInfo(QStringLiteral("page-300.png")), {ImageMetadata(imageSize, Dpi(300, 300))}),
+      ImageFileInfo(QFileInfo(QStringLiteral("page-600.png")), {ImageMetadata(imageSize, Dpi(600, 600))}),
+  };
+  FixDpiDialog dialog(files);
+  auto* allPagesTable = dialog.findChild<QTableView*>(QStringLiteral("allPagesTable"));
+  QVERIFY(allPagesTable);
+
+  QVERIFY(QMetaObject::invokeMethod(allPagesTable->horizontalHeader(), "sectionClicked", Qt::DirectConnection,
+                                    Q_ARG(int, 2)));
+  QVERIFY(allPagesTable->horizontalHeader()->isSortIndicatorShown());
+  QCOMPARE(allPagesTable->horizontalHeader()->sortIndicatorSection(), 2);
+
+  QCOMPARE(allPagesTable->model()->index(0, 0).data().toString(), QStringLiteral("page-300.png"));
+  QCOMPARE(allPagesTable->model()->index(1, 0).data().toString(), QStringLiteral("page-600.png"));
+  QCOMPARE(allPagesTable->model()->index(2, 0).data().toString(), QStringLiteral("page-1200.png"));
+  QVERIFY(allPagesTable->model()->headerData(2, Qt::Horizontal, Qt::FontRole).value<QFont>().bold());
 }
 
 void TestMainWindowAsync::fixDpiDialogRequiresDpiForEveryPage() {

@@ -4,7 +4,9 @@
 #include "FixDpiDialog.h"
 
 #include <QAbstractItemView>
+#include <QFont>
 #include <QHeaderView>
+#include <QSortFilterProxyModel>
 #include <QStringList>
 #include <QTableView>
 #include <algorithm>
@@ -44,6 +46,10 @@ class FixDpiDialog::PageTableModel : public QAbstractTableModel {
 
   const std::vector<ImageFileInfo>& files() const { return m_files; }
 
+  const std::optional<Dpi>& sourceDpiForRow(const int row) const { return m_pages[row].sourceDpi; }
+
+  Dpi projectDpiForRow(const int row) const { return metadataForRow(row).dpi(); }
+
   int rowCount(const QModelIndex& parent = QModelIndex()) const override {
     return parent.isValid() ? 0 : static_cast<int>(m_pages.size());
   }
@@ -58,6 +64,9 @@ class FixDpiDialog::PageTableModel : public QAbstractTableModel {
     const ImageMetadata& metadata = metadataForRow(index.row());
     if (role == IMAGE_METADATA_ROLE) {
       return QVariant::fromValue(metadata);
+    }
+    if (role == Qt::TextAlignmentRole && index.column() > 0) {
+      return Qt::AlignCenter;
     }
     if (role == Qt::DisplayRole) {
       if (index.column() == 0) {
@@ -91,7 +100,15 @@ class FixDpiDialog::PageTableModel : public QAbstractTableModel {
   }
 
   QVariant headerData(const int section, const Qt::Orientation orientation, const int role) const override {
-    if (role != Qt::DisplayRole || orientation != Qt::Horizontal) {
+    if (orientation != Qt::Horizontal) {
+      return QVariant();
+    }
+    if (role == Qt::FontRole) {
+      QFont font;
+      font.setBold(true);
+      return font;
+    }
+    if (role != Qt::DisplayRole) {
       return QVariant();
     }
     if (section == 0) {
@@ -179,8 +196,42 @@ class FixDpiDialog::PageTableModel : public QAbstractTableModel {
   std::vector<Page> m_pages;
 };
 
+class FixDpiDialog::PageTableSortProxyModel : public QSortFilterProxyModel {
+ public:
+  explicit PageTableSortProxyModel(PageTableModel* pages) : m_pages(pages) {
+    setSourceModel(pages);
+    setDynamicSortFilter(true);
+  }
+
+ protected:
+  bool lessThan(const QModelIndex& left, const QModelIndex& right) const override {
+    if (left.column() == 1) {
+      const std::optional<Dpi>& leftDpi = m_pages->sourceDpiForRow(left.row());
+      const std::optional<Dpi>& rightDpi = m_pages->sourceDpiForRow(right.row());
+      if (!leftDpi || !rightDpi) {
+        return !leftDpi && rightDpi.has_value();
+      }
+      return std::pair(leftDpi->horizontal(), leftDpi->vertical())
+             < std::pair(rightDpi->horizontal(), rightDpi->vertical());
+    }
+    if (left.column() == 2) {
+      const Dpi leftDpi = m_pages->projectDpiForRow(left.row());
+      const Dpi rightDpi = m_pages->projectDpiForRow(right.row());
+      return std::pair(leftDpi.horizontal(), leftDpi.vertical())
+             < std::pair(rightDpi.horizontal(), rightDpi.vertical());
+    }
+    return QString::localeAwareCompare(left.data(Qt::DisplayRole).toString(), right.data(Qt::DisplayRole).toString())
+           < 0;
+  }
+
+ private:
+  PageTableModel* m_pages;
+};
+
 FixDpiDialog::FixDpiDialog(const std::vector<ImageFileInfo>& files, QWidget* parent)
-    : QDialog(parent), m_pages(std::make_unique<PageTableModel>(files)) {
+    : QDialog(parent),
+      m_pages(std::make_unique<PageTableModel>(files)),
+      m_sortProxy(std::make_unique<PageTableSortProxyModel>(m_pages.get())) {
   setupUi(this);
 
   m_normalPalette = xDpi->palette();
@@ -193,14 +244,33 @@ FixDpiDialog::FixDpiDialog(const std::vector<ImageFileInfo>& files, QWidget* par
   dpiCombo->addItem("600 x 600", QSize(600, 600));
   dpiCombo->addItem("1200 x 1200", QSize(1200, 1200));
 
-  allPagesTable->setModel(m_pages.get());
+  allPagesTable->setModel(m_sortProxy.get());
   allPagesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
   allPagesTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
   allPagesTable->verticalHeader()->setVisible(false);
   allPagesTable->verticalHeader()->setDefaultSectionSize(22);
-  allPagesTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-  allPagesTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-  allPagesTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+  QHeaderView* horizontalHeader = allPagesTable->horizontalHeader();
+  horizontalHeader->setSectionsClickable(true);
+  horizontalHeader->setSortIndicatorShown(false);
+  QFont headerFont(horizontalHeader->font());
+  headerFont.setBold(true);
+  horizontalHeader->setFont(headerFont);
+  horizontalHeader->setSectionResizeMode(0, QHeaderView::Stretch);
+  horizontalHeader->setSectionResizeMode(1, QHeaderView::Fixed);
+  horizontalHeader->setSectionResizeMode(2, QHeaderView::Fixed);
+  allPagesTable->setColumnWidth(1, 112);
+  allPagesTable->setColumnWidth(2, 112);
+  connect(horizontalHeader, &QHeaderView::sectionClicked, this, [this, horizontalHeader](const int section) {
+    if (m_sortColumn == section) {
+      m_sortOrder = m_sortOrder == Qt::AscendingOrder ? Qt::DescendingOrder : Qt::AscendingOrder;
+    } else {
+      m_sortColumn = section;
+      m_sortOrder = Qt::AscendingOrder;
+    }
+    horizontalHeader->setSortIndicator(section, m_sortOrder);
+    horizontalHeader->setSortIndicatorShown(true);
+    m_sortProxy->sort(section, m_sortOrder);
+  });
 
   xDpi->setMaxLength(4);
   yDpi->setMaxLength(4);
@@ -242,7 +312,7 @@ std::vector<int> FixDpiDialog::selectedRows() const {
   std::vector<int> rows;
   rows.reserve(static_cast<size_t>(selectedIndexes.size()));
   for (const QModelIndex& selectedIndex : selectedIndexes) {
-    rows.push_back(selectedIndex.row());
+    rows.push_back(m_sortProxy->mapToSource(selectedIndex).row());
   }
   return rows;
 }

@@ -1364,7 +1364,7 @@ QToolButton:pressed {
   </action>
   <action name="actionFixDpi">
    <property name="text">
-    <string>Fix DPI ...</string>
+    <string>Check / Set DPI ...</string>
    </property>
    <property name="shortcut">
     <string notr="true"/>
