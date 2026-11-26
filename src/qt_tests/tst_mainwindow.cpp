@@ -173,7 +173,7 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QSemaphore started;
   QSemaphore release;
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   QTRY_VERIFY(window.m_workerThreadPool->isIdle());
 
   const int margins = window.m_stages->selectContentFilterIdx() + 1;
@@ -260,7 +260,7 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QSemaphore release;
   AutoSaveSetting autoSaveSetting;
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), originalPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(originalPath));
   QTRY_VERIFY(window.m_workerThreadPool->isIdle());
   QVERIFY(window.saveProjectInteractive());
 
@@ -642,7 +642,7 @@ void TestMainWindowAsync::missingOutputDirectoryPrompt() {
 
   {
     MainWindow creator;
-    creator.switchToNewProject(pages, core::toFileSystemPath(outputDirectory), projectPath);
+    creator.switchToNewProject(pages, core::toFileSystemPath(outputDirectory), core::toFileSystemPath(projectPath));
     QTRY_VERIFY(creator.m_workerThreadPool->isIdle());
     QVERIFY(creator.saveProjectInteractive());
   }
@@ -888,7 +888,7 @@ void TestMainWindowAsync::fixDpiDialogPersistsProjectDpiOnAccept() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath(QStringLiteral("project.ScanTailor"));
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
 
   QVERIFY(QMetaObject::invokeMethod(&window, "fixDpiDialogRequested", Qt::DirectConnection));
@@ -1038,9 +1038,9 @@ void TestMainWindowAsync::reloadProjectConfirmsDiscardWithoutOfferingSave() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
-  QVERIFY(window.saveProjectWithFeedback(projectPath));
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
 
   pages->setLayoutDirection(Qt::RightToLeft);
   bool promptShown = false;
@@ -1080,9 +1080,9 @@ void TestMainWindowAsync::closeProjectSaveCreatesHistoryBackup() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
-  QVERIFY(window.saveProjectWithFeedback(projectPath));
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
 
   QFile originalProject(projectPath);
   QVERIFY(originalProject.open(QIODevice::ReadOnly));
@@ -1149,10 +1149,10 @@ void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
   QVERIFY(window.windowTitle().startsWith(QStringLiteral("[*] project")));
-  QVERIFY(window.saveProjectWithFeedback(projectPath));
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
   QVERIFY(!window.isWindowModified());
   QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
 
@@ -1160,7 +1160,7 @@ void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
   QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
   QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
 
-  QVERIFY(window.saveProjectWithFeedback(projectPath));
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
   QVERIFY(!window.isWindowModified());
   QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
 
@@ -1584,7 +1584,7 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
       Qt::LeftToRight);
   const QString projectPath = directory.filePath("project.ScanTailor");
   MainWindow window;
-  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   window.resize(1100, 700);
   window.show();
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);

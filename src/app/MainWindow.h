@@ -246,7 +246,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
                           const std::filesystem::path& outDir,
-                          const QString& projectFilePath = QString(),
+                          const std::filesystem::path& projectFilePath = {},
                           const ProjectReader* projectReader = nullptr);
 
   void updateThumbViewMinWidth();
@@ -316,7 +316,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void closeProjectWithoutSaving();
 
-  bool saveProjectWithFeedback(const QString& projectFile);
+  bool saveProjectWithFeedback(const std::filesystem::path& projectFile);
 
   void showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId& existing);
 
@@ -357,7 +357,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QSizeF m_maxLogicalThumbSize;
   std::shared_ptr<ProjectPages> m_pages;
   std::shared_ptr<StageSequence> m_stages;
-  QString m_projectFile;
+  std::filesystem::path m_projectFile;
   OutputFileNameGenerator m_outFileNameGen;
   std::shared_ptr<ThumbnailPixmapCache> m_thumbnailCache;
   std::unique_ptr<ThumbnailSequence> m_thumbSequence;

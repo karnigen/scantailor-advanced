@@ -491,7 +491,7 @@ std::vector<PageRange> MainWindow::selectedRanges() const {
 
 void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
                                     const std::filesystem::path& outDir,
-                                    const QString& projectFilePath,
+                                    const std::filesystem::path& projectFilePath,
                                     const ProjectReader* projectReader) {
   stopBatchProcessing(CLEAR_MAIN_AREA);
   m_interactiveQueue->cancelAndClear();
@@ -555,7 +555,8 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
 
   removeFilterOptionsWidget();
   updateProjectActions();
-  m_projectModified = isProjectLoaded() && (m_projectFile.isEmpty() || !QFileInfo::exists(m_projectFile));
+  m_projectModified
+      = isProjectLoaded() && (m_projectFile.empty() || !QFileInfo::exists(core::toQString(m_projectFile)));
   updateWindowTitle();
   if (isProjectLoaded() && !m_projectModified) {
     updateProjectModifiedState();
@@ -1056,7 +1057,7 @@ void MainWindow::showRelinkingDialog() {
     return;
   }
 
-  auto* dialog = new RelinkingDialog(m_projectFile, this, m_initialDirectory);
+  auto* dialog = new RelinkingDialog(core::toQString(m_projectFile), this, m_initialDirectory);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowModality(Qt::WindowModal);
 
@@ -1083,13 +1084,13 @@ bool MainWindow::isPathWithinDirectory(const QString& path, const QString& direc
 }
 
 void MainWindow::warnAboutExternalImages() {
-  if (!isProjectLoaded() || m_projectFile.isEmpty()) {
+  if (!isProjectLoaded() || m_projectFile.empty()) {
     return;
   }
 
   QStringList imagePaths;
   QStringList externalImages;
-  const QString projectDirectory = QFileInfo(m_projectFile).absolutePath();
+  const QString projectDirectory = QFileInfo(core::toQString(m_projectFile)).absolutePath();
   for (const ImageFileInfo& image : m_pages->toImageFileInfo()) {
     const QString imagePath = image.fileInfo().filePath();
     imagePaths.push_back(imagePath);
@@ -1270,7 +1271,7 @@ void MainWindow::currentPageChanged(const PageInfo& pageInfo,
 }
 
 void MainWindow::autoSaveProject() {
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     return;
   }
   if (!ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
@@ -1469,7 +1470,7 @@ void MainWindow::finishWaitingForCancelledTasks() {
     } else if (pendingSave == PendingSave::SaveAs) {
       saveProjectAsNow();
     } else if (pendingSave == PendingSave::AutoSave) {
-      if (!m_projectFile.isEmpty() && ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
+      if (!m_projectFile.empty() && ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
         saveProjectWithFeedback(m_projectFile);
       }
     }
@@ -1870,9 +1871,9 @@ void MainWindow::saveProjectTriggered() {
 }
 
 bool MainWindow::saveProjectInteractive() {
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     saveProjectAsNow();
-    return !m_projectFile.isEmpty();
+    return !m_projectFile.empty();
   }
 
   if (!saveProjectWithFeedback(m_projectFile)) {
@@ -1908,8 +1909,8 @@ void MainWindow::saveProjectAsNow() {
   // XXX: this function is duplicated in OutOfMemoryDialog.
 
   QString projectDir;
-  if (!m_projectFile.isEmpty()) {
-    projectDir = QFileInfo(m_projectFile).absolutePath();
+  if (!m_projectFile.empty()) {
+    projectDir = QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     SettingsStore settings;
     projectDir = m_initialDirectory;
@@ -1928,16 +1929,17 @@ void MainWindow::saveProjectAsNow() {
     projectFile += ".ScanTailor";
   }
 
-  if (saveProjectWithFeedback(projectFile)) {
-    m_projectFile = projectFile;
+  const std::filesystem::path projectFilePath(core::toFileSystemPath(projectFile));
+  if (saveProjectWithFeedback(projectFilePath)) {
+    m_projectFile = projectFilePath;
     updateWindowTitle();
 
     SettingsStore settings;
-    settings.setValue("project/lastDir", QFileInfo(m_projectFile).absolutePath());
+    settings.setValue("project/lastDir", QFileInfo(core::toQString(m_projectFile)).absolutePath());
 
     RecentProjects rp;
     rp.read();
-    rp.setMostRecent(core::toFileSystemPath(m_projectFile));
+    rp.setMostRecent(m_projectFile);
     rp.write();
   }
 }  // MainWindow::saveProjectAsTriggered
@@ -2002,7 +2004,7 @@ void MainWindow::openProject(const QString& projectFile) {
 }
 
 void MainWindow::reloadProject() {
-  if (!isProjectLoaded() || m_projectFile.isEmpty()) {
+  if (!isProjectLoaded() || m_projectFile.empty()) {
     return;
   }
   if (m_waitingForCancelledTasks) {
@@ -2025,7 +2027,7 @@ void MainWindow::reloadProject() {
     }
   }
 
-  openProject(m_projectFile);
+  openProject(core::toQString(m_projectFile));
 }
 
 void MainWindow::projectOpened(ProjectOpeningContext* context) {
@@ -2037,7 +2039,7 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
   SettingsStore().setValue("project/lastDir", QFileInfo(core::toQString(context->projectFile())).absolutePath());
 
   switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
-                     core::toQString(context->projectFile()), context->projectReader());
+                     context->projectFile(), context->projectReader());
   warnAboutExternalImages();
 }
 
@@ -2559,7 +2561,7 @@ void MainWindow::disconnectFilterOptionsWidget() {
 void MainWindow::updateProjectActions() {
   const bool loaded = isProjectLoaded();
   const bool canExport = loaded && !isBatchProcessingInProgress();
-  actionReloadProject->setEnabled(loaded && !m_projectFile.isEmpty() && !m_waitingForCancelledTasks
+  actionReloadProject->setEnabled(loaded && !m_projectFile.empty() && !m_waitingForCancelledTasks
                                   && !isBatchProcessingInProgress());
   actionSaveProject->setEnabled(loaded);
   actionSaveProjectAs->setEnabled(loaded);
@@ -2696,10 +2698,10 @@ void MainWindow::loadPageInteractive(const PageInfo& page) {
 void MainWindow::updateWindowTitle() {
   QString projectName;
 
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     projectName = tr("Unnamed");
   } else {
-    projectName = QFileInfo(m_projectFile).completeBaseName();
+    projectName = QFileInfo(core::toQString(m_projectFile)).completeBaseName();
   }
   const QString version(QString::fromUtf8(VERSION));
   setWindowTitle(tr("[*] %2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
@@ -2709,11 +2711,11 @@ void MainWindow::updateWindowTitle() {
 void MainWindow::updateProjectModifiedState() {
   bool modified = false;
   if (isProjectLoaded()) {
-    if (m_projectFile.isEmpty() || !QFileInfo::exists(m_projectFile)) {
+    if (m_projectFile.empty() || !QFileInfo::exists(core::toQString(m_projectFile))) {
       modified = true;
     } else {
-      const QString snapshotTemplate
-          = QDir(QFileInfo(m_projectFile).absolutePath()).filePath(QStringLiteral(".scantailor-dirty-XXXXXX"));
+      const QString snapshotTemplate = QDir(QFileInfo(core::toQString(m_projectFile)).absolutePath())
+                                           .filePath(QStringLiteral(".scantailor-dirty-XXXXXX"));
       QTemporaryFile snapshot(snapshotTemplate);
       if (!snapshot.open()) {
         qWarning().noquote() << "Unable to create a temporary project snapshot:" << snapshot.errorString();
@@ -2728,7 +2730,7 @@ void MainWindow::updateProjectModifiedState() {
           qWarning().noquote() << "Unable to check whether the project has unsaved changes:" << errorMessage;
           modified = true;
         } else {
-          modified = !compareFiles(m_projectFile, snapshotPath);
+          modified = !compareFiles(core::toQString(m_projectFile), snapshotPath);
         }
       }
     }
@@ -2752,7 +2754,7 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     switch (promptProjectSave()) {
       case SAVE:
         if (!saveProjectInteractive()) {
@@ -2768,7 +2770,7 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  const QFileInfo projectFile(m_projectFile);
+  const QFileInfo projectFile(core::toQString(m_projectFile));
   const QFileInfo backupFile(projectFile.absoluteDir(), QString::fromLatin1("Backup.") + projectFile.fileName());
   const QString backupFilePath(backupFile.absoluteFilePath());
 
@@ -2792,7 +2794,7 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  if (compareFiles(m_projectFile, backupFilePath)) {
+  if (compareFiles(core::toQString(m_projectFile), backupFilePath)) {
     // The project hasn't really changed.
     QFile::remove(backupFilePath);
     closeProjectWithoutSaving();
@@ -2803,16 +2805,15 @@ bool MainWindow::closeProjectInteractive() {
     case SAVE: {
       std::filesystem::path backupPath;
       QString errorMessage;
-      if (!ProjectMigration::createBackupForFormat3(core::toFileSystemPath(m_projectFile), &backupPath,
-                                                    &errorMessage)) {
+      if (!ProjectMigration::createBackupForFormat3(m_projectFile, &backupPath, &errorMessage)) {
         QMessageBox::warning(
             this, tr("Error"),
             tr("The original format-3 project could not be preserved, so it was not overwritten.\n\n%1")
                 .arg(errorMessage));
         return false;
       }
-      if (!createProjectBackup(core::toFileSystemPath(m_projectFile),
-                               ApplicationSettings::getInstance().getProjectBackupCount(), &errorMessage)) {
+      if (!createProjectBackup(m_projectFile, ApplicationSettings::getInstance().getProjectBackupCount(),
+                               &errorMessage)) {
         QFile::remove(backupFilePath);
         QMessageBox::warning(this, tr("Error"),
                              tr("The previous project version could not be preserved, so it was not overwritten.\n\n%1")
@@ -2820,7 +2821,7 @@ bool MainWindow::closeProjectInteractive() {
         return false;
       }
     }
-      if (!Utils::overwritingRename(backupFilePath, m_projectFile)) {
+      if (!Utils::overwritingRename(backupFilePath, core::toQString(m_projectFile))) {
         QMessageBox::warning(this, tr("Error"), tr("Error saving the project file!"));
         return false;
       }
@@ -2841,11 +2842,11 @@ void MainWindow::closeProjectWithoutSaving() {
   switchToNewProject(pages, {});
 }
 
-bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {
+bool MainWindow::saveProjectWithFeedback(const std::filesystem::path& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
   QString errorMessage;
-  if (!writer.write(core::toFileSystemPath(projectFile), m_stages->filters(), &errorMessage,
+  if (!writer.write(projectFile, m_stages->filters(), &errorMessage,
                     ApplicationSettings::getInstance().getProjectBackupCount())) {
     const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
                                                    : tr("Error saving the project file!\n\n%1").arg(errorMessage);
@@ -2899,11 +2900,11 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
 
   QString dialogDir;
   if (existing.isNull()) {
-    dialogDir = m_projectFile.isEmpty() ? m_initialDirectory : QFileInfo(m_projectFile).absolutePath();
+    dialogDir = m_projectFile.empty() ? m_initialDirectory : QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     dialogDir = QFileInfo(existing.filePath()).absolutePath();
     if (dialogDir.isEmpty()) {
-      dialogDir = m_projectFile.isEmpty() ? m_initialDirectory : QFileInfo(m_projectFile).absolutePath();
+      dialogDir = m_projectFile.empty() ? m_initialDirectory : QFileInfo(core::toQString(m_projectFile)).absolutePath();
     }
   }
   if (dialogDir.isEmpty() || !QDir(dialogDir).exists()) {

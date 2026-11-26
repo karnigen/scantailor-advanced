@@ -28,7 +28,7 @@ OutOfMemoryDialog::OutOfMemoryDialog(QWidget* parent) : QDialog(parent) {
   connect(ui.dontSaveBtn, SIGNAL(clicked()), SLOT(reject()));
 }
 
-void OutOfMemoryDialog::setParams(const QString& projectFile,
+void OutOfMemoryDialog::setParams(const std::filesystem::path& projectFile,
                                   const QString& initialDirectory,
                                   std::shared_ptr<StageSequence> stages,
                                   std::shared_ptr<ProjectPages> pages,
@@ -41,11 +41,11 @@ void OutOfMemoryDialog::setParams(const QString& projectFile,
   m_selectedPage = selectedPage;
   m_outFileNameGen = outFileNameGen;
 
-  ui.saveProjectBtn->setVisible(!projectFile.isEmpty());
+  ui.saveProjectBtn->setVisible(!projectFile.empty());
 }
 
 void OutOfMemoryDialog::saveProject() {
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     saveProjectAs();
   } else if (saveProjectWithFeedback(m_projectFile)) {
     showSaveSuccessScreen();
@@ -56,8 +56,8 @@ void OutOfMemoryDialog::saveProjectAs() {
   // XXX: this function is duplicated MainWindow
 
   QString projectDir;
-  if (!m_projectFile.isEmpty()) {
-    projectDir = QFileInfo(m_projectFile).absolutePath();
+  if (!m_projectFile.empty()) {
+    projectDir = QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     SettingsStore settings;
     projectDir = m_initialDirectory;
@@ -76,25 +76,25 @@ void OutOfMemoryDialog::saveProjectAs() {
     projectFile += ".ScanTailor";
   }
 
-  if (saveProjectWithFeedback(projectFile)) {
-    m_projectFile = projectFile;
+  if (saveProjectWithFeedback(core::toFileSystemPath(projectFile))) {
+    m_projectFile = core::toFileSystemPath(projectFile);
     showSaveSuccessScreen();
 
     SettingsStore settings;
-    settings.setValue("project/lastDir", QFileInfo(m_projectFile).absolutePath());
+    settings.setValue("project/lastDir", QFileInfo(core::toQString(m_projectFile)).absolutePath());
 
     RecentProjects rp;
     rp.read();
-    rp.setMostRecent(core::toFileSystemPath(m_projectFile));
+    rp.setMostRecent(m_projectFile);
     rp.write();
   }
 }  // OutOfMemoryDialog::saveProjectAs
 
-bool OutOfMemoryDialog::saveProjectWithFeedback(const QString& projectFile) {
+bool OutOfMemoryDialog::saveProjectWithFeedback(const std::filesystem::path& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
   QString errorMessage;
-  if (!writer.write(core::toFileSystemPath(projectFile), m_stages->filters(), &errorMessage,
+  if (!writer.write(projectFile, m_stages->filters(), &errorMessage,
                     ApplicationSettings::getInstance().getProjectBackupCount())) {
     const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
                                                    : tr("Error saving the project file!\n\n%1").arg(errorMessage);
