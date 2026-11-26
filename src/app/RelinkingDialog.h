@@ -59,6 +59,8 @@ class RelinkingDialog : public QDialog {
   void commitChanges();
 
  private:
+  void updateSummary();
+
   void applyReplacement(const QString& prefixPath,
                         const QString& suffixPath,
                         const QString& replacementPath,

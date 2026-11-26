@@ -313,6 +313,11 @@ void TestMainWindowAsync::sourceImageLocationDetection() {
   QVERIFY(MainWindow::isPathWithinDirectory(nestedImage, projectDirectory));
   QVERIFY(MainWindow::isPathWithinDirectory(QDir(projectDirectory).filePath("missing.png"), projectDirectory));
   QVERIFY(!MainWindow::isPathWithinDirectory(siblingImage, projectDirectory));
+
+  const QString commonRoot = RelinkingModel::findCommonImageRoot({nestedImage, siblingImage});
+  QCOMPARE(commonRoot, QDir::cleanPath(directory.path()));
+  QVERIFY(MainWindow::isPathWithinDirectory(QDir(commonRoot).filePath("out"), commonRoot));
+  QVERIFY(!MainWindow::isPathWithinDirectory(QDir(directory.path()).absoluteFilePath("../outside/out"), commonRoot));
 }
 
 void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
@@ -421,6 +426,17 @@ void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory()
     }
   }
   QCOMPARE(commonRootPath, QDir::cleanPath(imageRoot));
+  const RelinkingModel::Summary beforeRelink = model.summary();
+  QCOMPARE(beforeRelink.imagesInsideRoot, 2);
+  QCOMPARE(beforeRelink.imagesOutsideRoot, 0);
+  QVERIFY(beforeRelink.outputInsideRoot);
+  for (int row = 0; row < model.rowCount(); ++row) {
+    const QModelIndex index(model.index(row, 0));
+    if (index.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::ImageFile) {
+      QCOMPARE(index.data(Qt::DisplayRole).toString(), QStringLiteral("img1/page1.png"));
+      break;
+    }
+  }
 
   model.replacePrefix(commonRootPath, configDirectory, RelinkablePath::Dir, RelinkingModel::CommonImageRoot);
   model.commitChanges();
@@ -428,6 +444,33 @@ void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory()
   const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
   QCOMPARE(relinker->substitutionPathFor(firstImage), QDir(configDirectory).filePath("img1/page1.png"));
   QCOMPARE(relinker->substitutionPathFor(secondImage), QDir(configDirectory).filePath("img2/page2.png"));
+  QCOMPARE(relinker->substitutionPathFor(RelinkablePath(outputDirectory, RelinkablePath::Dir)),
+           QDir(configDirectory).filePath("out"));
+}
+
+void TestMainWindowAsync::relinkingCommonImageRootLeavesExternalOutputAlone() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imageRoot = directory.filePath("dataset");
+  const QString replacementRoot = directory.filePath("relocated");
+  const QString outputDirectory = directory.filePath("separate-output");
+  const RelinkablePath image(QDir(imageRoot).filePath("batch/page.png"), RelinkablePath::File);
+  QVERIFY(QDir().mkpath(QFileInfo(image.normalizedPath()).absolutePath()));
+  QVERIFY(QDir().mkpath(outputDirectory));
+  QVERIFY(QDir().mkpath(replacementRoot));
+
+  RelinkingModel model;
+  model.addPath(image);
+  model.addOutputPath(RelinkablePath(outputDirectory, RelinkablePath::Dir));
+  model.addCommonImageRoot();
+
+  const QString commonRoot = RelinkingModel::findCommonImageRoot({image.normalizedPath()});
+  model.replacePrefix(commonRoot, replacementRoot, RelinkablePath::Dir, RelinkingModel::CommonImageRoot);
+  model.commitChanges();
+
+  const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
+  QCOMPARE(relinker->substitutionPathFor(image), QDir(replacementRoot).filePath("page.png"));
   QCOMPARE(relinker->substitutionPathFor(RelinkablePath(outputDirectory, RelinkablePath::Dir)), outputDirectory);
 }
 

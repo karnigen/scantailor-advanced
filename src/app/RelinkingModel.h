@@ -8,11 +8,13 @@
 #include <QIcon>
 #include <QModelIndex>
 #include <QString>
+#include <QStringList>
 #include <QThread>
 #include <Qt>
 #include <memory>
 #include <set>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "AbstractRelinker.h"
@@ -30,6 +32,17 @@ class RelinkingModel : public QAbstractListModel {
   enum EntryKind { CommonImageRoot, ImageFile, OutputDirectory };
 
   enum { TypeRole = Qt::UserRole, UncommittedPathRole, UncommittedStatusRole, EntryKindRole };
+
+  struct Summary {
+    int imagesInsideRoot = 0;
+    int imagesOutsideRoot = 0;
+    int missingPaths = 0;
+    int failedPaths = 0;
+    int pendingPaths = 0;
+    bool hasOutput = false;
+    bool outputInsideRoot = false;
+    Status outputStatus = StatusUpdatePending;
+  };
 
   RelinkingModel();
 
@@ -58,6 +71,10 @@ class RelinkingModel : public QAbstractListModel {
 
   void addOutputPath(const RelinkablePath& path);
 
+  static QString findCommonImageRoot(const QStringList& imagePaths);
+
+  Summary summary() const;
+
   void replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type, EntryKind entryKind);
 
   /**
@@ -77,6 +94,8 @@ class RelinkingModel : public QAbstractListModel {
 
  private:
   void addPath(const RelinkablePath& path, EntryKind entryKind);
+
+  QString commonImageRootPath() const;
 
   class StatusUpdateThread;
   class StatusUpdateResponse;
@@ -120,7 +139,7 @@ class RelinkingModel : public QAbstractListModel {
   QPixmap m_fileIcon;
   QPixmap m_folderIcon;
   std::vector<Item> m_items;
-  std::set<QString> m_origPathSet;
+  std::set<std::pair<QString, EntryKind>> m_origPathSet;
   const std::shared_ptr<Relinker> m_relinker;
   std::unique_ptr<StatusUpdateThread> m_statusUpdateThread;
   bool m_haveUncommittedChanges;

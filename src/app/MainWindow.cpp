@@ -1040,24 +1040,34 @@ void MainWindow::warnAboutExternalImages() {
     return;
   }
 
+  QStringList imagePaths;
   QStringList externalImages;
   const QString projectDirectory = QFileInfo(m_projectFile).absolutePath();
   for (const ImageFileInfo& image : m_pages->toImageFileInfo()) {
     const QString imagePath = image.fileInfo().filePath();
+    imagePaths.push_back(imagePath);
     if (!isPathWithinDirectory(imagePath, projectDirectory)) {
       externalImages.push_back(imagePath);
     }
   }
-  if (externalImages.isEmpty()) {
+  const QString commonImageRoot = RelinkingModel::findCommonImageRoot(imagePaths);
+  const QString outputDirectory = m_outFileNameGen.outDir();
+  const bool outputOutsideImageRoot
+      = !imagePaths.isEmpty()
+        && (commonImageRoot.isEmpty() || !isPathWithinDirectory(outputDirectory, commonImageRoot));
+  if (externalImages.isEmpty() && !outputOutsideImageRoot) {
     return;
   }
 
   constexpr int displayedPathLimit = 5;
   const qsizetype displayedPathCount = std::min<qsizetype>(displayedPathLimit, externalImages.size());
-  QString message
-      = tr("Some source images are outside the folder containing this project. This may be intentional, but it can "
-           "mean the project is using a different image set than expected.\n\n%1 external image(s):")
-            .arg(externalImages.size());
+  QString message;
+  if (!externalImages.isEmpty()) {
+    message
+        = tr("Some source images are outside the folder containing this project. This may be intentional, but it can "
+             "mean the project is using a different image set than expected.\n\n%1 external image(s):")
+              .arg(externalImages.size());
+  }
   for (qsizetype i = 0; i < displayedPathCount; ++i) {
     message += QStringLiteral("\n%1").arg(QDir::toNativeSeparators(externalImages.at(i)));
   }
@@ -1065,7 +1075,17 @@ void MainWindow::warnAboutExternalImages() {
     message += tr("\n... and %1 more").arg(externalImages.size() - displayedPathLimit);
   }
 
-  QMessageBox messageBox(QMessageBox::Warning, tr("Source Images Outside Project Folder"), message,
+  if (outputOutsideImageRoot) {
+    if (!message.isEmpty()) {
+      message += QStringLiteral("\n\n");
+    }
+    message += tr("The output directory is outside the common root of the source images. A common-root relink will "
+                  "not move it together with those images.\n\nOutput directory: %1\nCommon image root: %2")
+                   .arg(QDir::toNativeSeparators(outputDirectory),
+                        commonImageRoot.isEmpty() ? tr("not available") : QDir::toNativeSeparators(commonImageRoot));
+  }
+
+  QMessageBox messageBox(QMessageBox::Warning, tr("Project Paths Outside Expected Roots"), message,
                          QMessageBox::NoButton, this);
   QPushButton* relinkButton = messageBox.addButton(tr("Relink..."), QMessageBox::ActionRole);
   QPushButton* continueButton = messageBox.addButton(tr("Continue"), QMessageBox::RejectRole);

@@ -32,9 +32,14 @@ RelinkingDialog::RelinkingDialog(const QString& projectFilePath, QWidget* parent
   ui.errorLabel->setVisible(false);
   ui.undoButton->setVisible(false);
   ui.useConfigPathButton->setEnabled(false);
+  ui.summaryLabel->setTextFormat(Qt::RichText);
+  updateSummary();
 
   connect(ui.listView->selectionModel(), SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
           SLOT(selectionChanged(const QItemSelection&, const QItemSelection&)));
+
+  connect(&m_model, &QAbstractItemModel::dataChanged, this, [this]() { updateSummary(); });
+  connect(&m_model, &QAbstractItemModel::rowsInserted, this, [this]() { updateSummary(); });
 
   connect(ui.pathVisualization, SIGNAL(clicked(const QString&, const QString&, int)),
           SLOT(pathButtonClicked(const QString&, const QString&, int)));
@@ -185,4 +190,43 @@ void RelinkingDialog::undoButtonClicked() {
 void RelinkingDialog::commitChanges() {
   m_model.commitChanges();
   accept();
+}
+
+void RelinkingDialog::updateSummary() {
+  const RelinkingModel::Summary summary = m_model.summary();
+  const QString successColor = QStringLiteral("#1b5e20");
+  const QString warningColor = QStringLiteral("#6d4c00");
+  const QString errorColor = QStringLiteral("#b71c1c");
+  const QString statusColor = summary.missingPaths > 0 || summary.failedPaths > 0 ? errorColor : successColor;
+
+  QString outputDescription = tr("not available");
+  QString outputColor = warningColor;
+  if (summary.hasOutput) {
+    outputDescription = summary.outputInsideRoot ? tr("inside common root") : tr("outside common root");
+    outputColor = summary.outputInsideRoot ? successColor : warningColor;
+    if (summary.outputStatus == RelinkingModel::Missing) {
+      outputDescription += tr(", missing");
+      outputColor = errorColor;
+    } else if (summary.outputStatus == RelinkingModel::StatusUpdateFailed) {
+      outputDescription += tr(", status unknown");
+      outputColor = errorColor;
+    }
+  }
+
+  const QString errors = tr("%1 missing, %2 status errors").arg(summary.missingPaths).arg(summary.failedPaths);
+  const QString pending = summary.pendingPaths > 0 ? tr(" • %1 still checking").arg(summary.pendingPaths) : QString();
+  const QString outsideColor = summary.imagesOutsideRoot > 0 ? warningColor : successColor;
+  ui.summaryLabel->setText(tr("<span style=\"color:%1\"><b>%2</b> image(s) under common root</span> "
+                              "&nbsp; <span style=\"color:%3\"><b>%4</b> outside</span><br/>"
+                              "Output directory: <span style=\"color:%5\"><b>%6</b></span> &nbsp; "
+                              "<span style=\"color:%7\"><b>%8</b></span>%9")
+                               .arg(successColor)
+                               .arg(summary.imagesInsideRoot)
+                               .arg(outsideColor)
+                               .arg(summary.imagesOutsideRoot)
+                               .arg(outputColor)
+                               .arg(outputDescription)
+                               .arg(statusColor)
+                               .arg(errors)
+                               .arg(pending));
 }
