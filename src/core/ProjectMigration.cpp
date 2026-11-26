@@ -8,6 +8,8 @@
 #include <QFileInfo>
 #include <QSet>
 
+#include <string>
+
 #include "PathUtils.h"
 
 namespace {
@@ -22,15 +24,17 @@ bool willBeWrittenRelative(const QString& path, const QDir& projectDir) {
   return !QDir::isAbsolutePath(relativePath) && relativePath != path;
 }
 
-QString nextBackupPath(const QString& projectFilePath) {
-  const QString firstCandidate(projectFilePath + ".v3.bak");
-  if (!QFile::exists(firstCandidate)) {
+std::filesystem::path nextBackupPath(const std::filesystem::path& projectFilePath) {
+  std::filesystem::path firstCandidate(projectFilePath);
+  firstCandidate += ".v3.bak";
+  if (!QFile::exists(core::toQString(firstCandidate))) {
     return firstCandidate;
   }
 
   for (int suffix = 1;; ++suffix) {
-    const QString candidate(projectFilePath + QString(".v3.%1.bak").arg(suffix));
-    if (!QFile::exists(candidate)) {
+    std::filesystem::path candidate(projectFilePath);
+    candidate += ".v3." + std::to_string(suffix) + ".bak";
+    if (!QFile::exists(core::toQString(candidate))) {
       return candidate;
     }
   }
@@ -159,16 +163,17 @@ bool ProjectMigration::createBackupForFormat3(const std::filesystem::path& proje
     return true;
   }
 
-  const QString backupPath(nextBackupPath(qtProjectFilePath));
-  if (!projectFile.copy(backupPath)) {
+  const std::filesystem::path backupPath(nextBackupPath(projectFilePath));
+  const QString qtBackupPath(core::toQString(backupPath));
+  if (!projectFile.copy(qtBackupPath)) {
     if (errorMessage) {
-      *errorMessage = QString("Could not create backup %1: %2").arg(backupPath, projectFile.errorString());
+      *errorMessage = QString("Could not create backup %1: %2").arg(qtBackupPath, projectFile.errorString());
     }
     return false;
   }
 
   if (backupFilePath) {
-    *backupFilePath = core::toFileSystemPath(backupPath);
+    *backupFilePath = backupPath;
   }
   return true;
 }
