@@ -778,6 +778,7 @@ void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
   const QTextCursor dynamicHelp = helpDocument->find(QStringLiteral("Arrow keys move page content"));
   QVERIFY(!staticHelp.isNull());
   QVERIFY(!dynamicHelp.isNull());
+  QVERIFY(guideHelp->toPlainText().contains(QStringLiteral("‣ Arrow keys move page content")));
   QVERIFY(!staticHelp.charFormat().hasProperty(QTextFormat::FontPointSize));
   QVERIFY(!dynamicHelp.charFormat().hasProperty(QTextFormat::FontPointSize));
 
