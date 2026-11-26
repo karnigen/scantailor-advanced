@@ -380,6 +380,29 @@ void TestMainWindowAsync::relinkingDialogDisablesConfigPathForOutput() {
   QVERIFY(!useConfigPathButton->isEnabled());
 }
 
+void TestMainWindowAsync::relinkingStatusColorsFollowPalette() {
+  const QPalette originalPalette = QApplication::palette();
+  QPalette palette = originalPalette;
+
+  palette.setColor(QPalette::Window, Qt::white);
+  QApplication::setPalette(palette);
+  const QColor lightExistsColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Exists);
+  const QColor lightMissingColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Missing);
+
+  palette.setColor(QPalette::Window, QColor(40, 40, 40));
+  QApplication::setPalette(palette);
+  const QColor darkExistsColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Exists);
+  const QColor darkMissingColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Missing);
+
+  QApplication::setPalette(originalPalette);
+  QVERIFY(lightExistsColor.lightness() < QColor(Qt::white).lightness());
+  QVERIFY(darkExistsColor.lightness() > QColor(40, 40, 40).lightness());
+  QVERIFY(lightMissingColor.lightness() < QColor(Qt::white).lightness());
+  QVERIFY(darkMissingColor.lightness() > QColor(40, 40, 40).lightness());
+  QVERIFY(lightExistsColor != darkExistsColor);
+  QVERIFY(lightMissingColor != darkMissingColor);
+}
+
 void TestMainWindowAsync::relinkingRetainsMultipleMappings() {
   RelinkingModel model;
   const RelinkablePath firstPath(QStringLiteral("/original-a/page.png"), RelinkablePath::File);

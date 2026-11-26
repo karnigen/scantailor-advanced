@@ -194,9 +194,9 @@ void RelinkingDialog::commitChanges() {
 
 void RelinkingDialog::updateSummary() {
   const RelinkingModel::Summary summary = m_model.summary();
-  const QString successColor = QStringLiteral("#1b5e20");
-  const QString warningColor = QStringLiteral("#6d4c00");
-  const QString errorColor = QStringLiteral("#b71c1c");
+  const QString successColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Exists).name();
+  const QString warningColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::StatusUpdateFailed).name();
+  const QString errorColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Missing).name();
   const QString statusColor = summary.missingPaths > 0 || summary.failedPaths > 0 ? errorColor : successColor;
 
   QString outputDescription = tr("not available");

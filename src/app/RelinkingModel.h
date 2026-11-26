@@ -5,6 +5,7 @@
 #define SCANTAILOR_APP_RELINKINGMODEL_H_
 
 #include <QAbstractListModel>
+#include <QColor>
 #include <QIcon>
 #include <QModelIndex>
 #include <QString>
@@ -74,6 +75,8 @@ class RelinkingModel : public QAbstractListModel {
   static QString findCommonImageRoot(const QStringList& imagePaths);
 
   Summary summary() const;
+
+  static QColor foregroundColorForStatus(Status status);
 
   void replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type, EntryKind entryKind);
 

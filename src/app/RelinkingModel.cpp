@@ -6,10 +6,12 @@
 #include <core/IconProvider.h>
 #include <foundation/Hashes.h>
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QPalette>
 #include <QWaitCondition>
 
 #include <list>
@@ -80,34 +82,6 @@ bool isPathWithinDirectory(const QString& path, const QString& directory) {
          || (!QDir::isAbsolutePath(relativePath) && relativePath != ".." && !relativePath.startsWith("../"));
 }
 
-QColor backgroundColorForStatus(const RelinkingModel::Status status) {
-  switch (status) {
-    case RelinkingModel::Exists:
-      return QColor(46, 125, 50, 20);
-    case RelinkingModel::Missing:
-      return QColor(198, 40, 40, 22);
-    case RelinkingModel::StatusUpdatePending:
-      return QColor(80, 80, 80, 12);
-    case RelinkingModel::StatusUpdateFailed:
-      return QColor(158, 111, 0, 24);
-  }
-  return QColor(Qt::transparent);
-}
-
-QColor foregroundColorForStatus(const RelinkingModel::Status status) {
-  switch (status) {
-    case RelinkingModel::Exists:
-      return QColor(27, 94, 32);
-    case RelinkingModel::Missing:
-      return QColor(183, 28, 28);
-    case RelinkingModel::StatusUpdatePending:
-      return QColor(50, 50, 50);
-    case RelinkingModel::StatusUpdateFailed:
-      return QColor(109, 76, 0);
-  }
-  return QColor(32, 32, 32);
-}
-
 }  // namespace
 
 
@@ -170,8 +144,6 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
       }
     case Qt::DecorationRole:
       return (item.type == RelinkablePath::Dir) ? m_folderIcon : m_fileIcon;
-    case Qt::BackgroundRole:
-      return backgroundColorForStatus(item.uncommittedStatus);
     case Qt::ForegroundRole:
       return foregroundColorForStatus(item.uncommittedStatus);
     default:
@@ -261,6 +233,21 @@ RelinkingModel::Summary RelinkingModel::summary() const {
     }
   }
   return result;
+}
+
+QColor RelinkingModel::foregroundColorForStatus(const Status status) {
+  const bool darkPalette = QApplication::palette().color(QPalette::Window).lightness() < 128;
+  switch (status) {
+    case Exists:
+      return darkPalette ? QColor(129, 199, 132) : QColor(27, 94, 32);
+    case Missing:
+      return darkPalette ? QColor(239, 154, 154) : QColor(183, 28, 28);
+    case StatusUpdatePending:
+      return darkPalette ? QColor(238, 238, 238) : QColor(50, 50, 50);
+    case StatusUpdateFailed:
+      return darkPalette ? QColor(255, 213, 79) : QColor(109, 76, 0);
+  }
+  return QApplication::palette().color(QPalette::Text);
 }
 
 QString RelinkingModel::commonImageRootPath() const {
