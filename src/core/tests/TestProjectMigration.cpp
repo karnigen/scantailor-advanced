@@ -9,6 +9,7 @@
 
 #include "ImageInfo.h"
 #include "OutputFileNameGenerator.h"
+#include "ProjectBackup.h"
 #include "ProjectMigration.h"
 #include "ProjectPages.h"
 #include "ProjectReader.h"
@@ -254,6 +255,28 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_backup_skips_non_v3_and_nonexist
   CHECK(backupPath.isEmpty());
 }
 
+TEST_CASE("CoreProjectMigrationTestSuite / test_project_backup_retention_keeps_latest_versions") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+
+  const QString projectPath(tempDir.filePath("project.ScanTailor"));
+  QString errorMessage;
+  for (int version = 0; version < 3; ++version) {
+    REQUIRE(writeFile(projectPath, QByteArray("version-") + QByteArray::number(version)));
+    REQUIRE(createProjectBackup(projectPath, 2, &errorMessage));
+  }
+
+  const QDir backupsDirectory(projectPath + QStringLiteral(".backups"));
+  const QStringList backups = backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  REQUIRE(backups.size() == 2);
+  CHECK(readFile(backupsDirectory.filePath(backups.at(0))) == QByteArray("version-1"));
+  CHECK(readFile(backupsDirectory.filePath(backups.at(1))) == QByteArray("version-2"));
+
+  REQUIRE(writeFile(projectPath, QByteArray("version-3")));
+  REQUIRE(createProjectBackup(projectPath, 0, &errorMessage));
+  CHECK(backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name).size() == 2);
+}
+
 TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_paths_and_preserves_backup") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
@@ -279,12 +302,20 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
-  const bool writeSucceeded = writer.write(projectPath, filters, &errorMessage);
+  const bool writeSucceeded = writer.write(projectPath, filters, &errorMessage, 2);
   {
     INFO(errorMessage.toStdString());
     REQUIRE(writeSucceeded);
   }
   CHECK(readFile(projectPath + ".v3.bak") == originalV3);
+  const QDir historyDirectory(projectPath + QStringLiteral(".backups"));
+  QStringList historyBackups = historyDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  REQUIRE(historyBackups.size() == 1);
+  CHECK(readFile(historyDirectory.filePath(historyBackups.front())) == originalV3);
+
+  REQUIRE(writer.write(projectPath, filters, &errorMessage, 2));
+  historyBackups = historyDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  CHECK(historyBackups.size() == 1);
 
   QFile savedProject(projectPath);
   REQUIRE(savedProject.open(QIODevice::ReadOnly));

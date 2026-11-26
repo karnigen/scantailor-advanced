@@ -90,6 +90,7 @@
     </property>
     <addaction name="actionNewProject"/>
     <addaction name="actionOpenProject"/>
+    <addaction name="actionReloadProject"/>
     <addaction name="separator"/>
     <addaction name="actionSaveProject"/>
     <addaction name="actionSaveProjectAs"/>
@@ -1207,6 +1208,14 @@ QToolButton:pressed {
    </property>
    <property name="toolTip">
     <string>Open an existing project. Shortcut: Ctrl+O.</string>
+   </property>
+  </action>
+  <action name="actionReloadProject">
+   <property name="text">
+    <string>Reload Project</string>
+   </property>
+   <property name="toolTip">
+    <string>Reload the current project from disk, discarding unsaved changes.</string>
    </property>
   </action>
   <action name="actionPrevPageQ">

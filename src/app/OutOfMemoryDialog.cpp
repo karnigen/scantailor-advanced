@@ -8,6 +8,7 @@
 #include <QMessageBox>
 #include <utility>
 
+#include <core/ApplicationSettings.h>
 #include <core/SettingsStore.h>
 #include "ProjectWriter.h"
 #include "RecentProjects.h"
@@ -92,7 +93,8 @@ bool OutOfMemoryDialog::saveProjectWithFeedback(const QString& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
   QString errorMessage;
-  if (!writer.write(projectFile, m_stages->filters(), &errorMessage)) {
+  if (!writer.write(projectFile, m_stages->filters(), &errorMessage,
+                    ApplicationSettings::getInstance().getProjectBackupCount())) {
     const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
                                                    : tr("Error saving the project file!\n\n%1").arg(errorMessage);
     QMessageBox::warning(this, tr("Error"), message);

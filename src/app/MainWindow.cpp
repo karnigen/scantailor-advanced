@@ -72,6 +72,7 @@
 #include "ProcessedPagesExporter.h"
 #include "ProcessingIndicationWidget.h"
 #include "ProcessingTaskQueue.h"
+#include "ProjectBackup.h"
 #include "ProjectCreationContext.h"
 #include "ProjectMigration.h"
 #include "ProjectOpeningContext.h"
@@ -433,6 +434,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
 
   connect(actionNewProject, SIGNAL(triggered(bool)), this, SLOT(newProject()));
   connect(actionOpenProject, SIGNAL(triggered(bool)), this, SLOT(openProject()));
+  connect(actionReloadProject, &QAction::triggered, this, &MainWindow::reloadProject);
   connect(actionSaveProject, SIGNAL(triggered(bool)), this, SLOT(saveProjectTriggered()));
   connect(actionSaveProjectAs, SIGNAL(triggered(bool)), this, SLOT(saveProjectAsTriggered()));
   connect(actionCloseProject, SIGNAL(triggered(bool)), this, SLOT(closeProject()));
@@ -739,6 +741,20 @@ MainWindow::SavePromptResult MainWindow::promptProjectSave() {
   QMessageBox msgBox(QMessageBox::Question, tr("Save Project"), tr("Save the project?"),
                      QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, this);
   msgBox.setDefaultButton(QMessageBox::Save);
+  auto* saveButton = msgBox.button(QMessageBox::Save);
+  saveButton->setShortcut(QKeySequence(Qt::AltModifier | Qt::Key_S));
+  saveButton->setToolTip(tr("Save the project. Shortcut: Alt+S."));
+  auto* discardButton = msgBox.button(QMessageBox::Discard);
+  discardButton->setShortcut(QKeySequence(Qt::AltModifier | Qt::Key_D));
+  discardButton->setToolTip(tr("Discard project changes. Shortcut: Alt+D."));
+  auto makeButtonTextFit = [](QAbstractButton* button) {
+    const int iconWidth = button->icon().isNull() ? 0 : button->iconSize().width();
+    const int requiredWidth = button->fontMetrics().horizontalAdvance(button->text()) + iconWidth + 48;
+    button->setMinimumWidth(qMax(button->sizeHint().width(), requiredWidth));
+  };
+  makeButtonTextFit(saveButton);
+  makeButtonTextFit(discardButton);
+  makeButtonTextFit(msgBox.button(QMessageBox::Cancel));
 
   switch (msgBox.exec()) {
     case QMessageBox::Save:
@@ -2002,6 +2018,33 @@ void MainWindow::openProject(const QString& projectFile) {
   context->proceed();
 }
 
+void MainWindow::reloadProject() {
+  if (!isProjectLoaded() || m_projectFile.isEmpty()) {
+    return;
+  }
+  if (m_waitingForCancelledTasks) {
+    QMessageBox::information(this, tr("Please wait"), tr("Cancelled tasks are still finishing. Please try again."));
+    return;
+  }
+  if (isBatchProcessingInProgress()) {
+    QMessageBox::information(this, tr("Please wait"), tr("Stop batch processing before reloading the project."));
+    return;
+  }
+
+  updateProjectModifiedState();
+  if (m_projectModified) {
+    QMessageBox messageBox(QMessageBox::Warning, tr("Reload Project"),
+                           tr("Discard all unsaved changes and reload the project from disk?"),
+                           QMessageBox::Discard | QMessageBox::Cancel, this);
+    messageBox.setDefaultButton(QMessageBox::Cancel);
+    if (messageBox.exec() != QMessageBox::Discard) {
+      return;
+    }
+  }
+
+  openProject(m_projectFile);
+}
+
 void MainWindow::projectOpened(ProjectOpeningContext* context) {
   RecentProjects rp;
   rp.read();
@@ -2186,6 +2229,13 @@ void MainWindow::showKeyboardShortcuts() {
 
     appendShortcutRow(label, shortcutTexts, context);
   }
+
+  appendShortcutRow(tr("Save project when prompted"),
+                    {QKeySequence(Qt::AltModifier | Qt::Key_S).toString(QKeySequence::NativeText)},
+                    tr("Save confirmation dialog"));
+  appendShortcutRow(tr("Discard changes when prompted"),
+                    {QKeySequence(Qt::AltModifier | Qt::Key_D).toString(QKeySequence::NativeText)},
+                    tr("Save confirmation dialog"));
 
   if (!actionNames.contains("deskewRotateLeft")) {
     appendShortcutRow(tr("Rotate left"), {QKeySequence(",").toString(QKeySequence::NativeText)}, tr("Active tool"));
@@ -2526,6 +2576,8 @@ void MainWindow::disconnectFilterOptionsWidget() {
 void MainWindow::updateProjectActions() {
   const bool loaded = isProjectLoaded();
   const bool canExport = loaded && !isBatchProcessingInProgress();
+  actionReloadProject->setEnabled(loaded && !m_projectFile.isEmpty() && !m_waitingForCancelledTasks
+                                  && !isBatchProcessingInProgress());
   actionSaveProject->setEnabled(loaded);
   actionSaveProjectAs->setEnabled(loaded);
   actionExportProcessedImages->setEnabled(canExport);
@@ -2774,6 +2826,14 @@ bool MainWindow::closeProjectInteractive() {
                 .arg(errorMessage));
         return false;
       }
+      if (!createProjectBackup(m_projectFile, ApplicationSettings::getInstance().getProjectBackupCount(),
+                               &errorMessage)) {
+        QFile::remove(backupFilePath);
+        QMessageBox::warning(this, tr("Error"),
+                             tr("The previous project version could not be preserved, so it was not overwritten.\n\n%1")
+                                 .arg(errorMessage));
+        return false;
+      }
     }
       if (!Utils::overwritingRename(backupFilePath, m_projectFile)) {
         QMessageBox::warning(this, tr("Error"), tr("Error saving the project file!"));
@@ -2800,7 +2860,8 @@ bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
   QString errorMessage;
-  if (!writer.write(projectFile, m_stages->filters(), &errorMessage)) {
+  if (!writer.write(projectFile, m_stages->filters(), &errorMessage,
+                    ApplicationSettings::getInstance().getProjectBackupCount())) {
     const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
                                                    : tr("Error saving the project file!\n\n%1").arg(errorMessage);
     QMessageBox::warning(this, tr("Error"), message);

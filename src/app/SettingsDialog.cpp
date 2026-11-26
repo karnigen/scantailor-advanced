@@ -78,6 +78,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   ui.marginsDeviationThresholdSB->setValue(settings.getMarginsDeviationThreshold());
 
   ui.autoSaveProjectCB->setChecked(settings.isAutoSaveProjectEnabled());
+  ui.projectBackupCountSB->setValue(settings.getProjectBackupCount());
   ui.imageAllocationLimitSB->setMaximum(image_allocation_limit::kMaxLimitMb);
   const int defaultImageAllocationLimitMb = ImageAllocationLimit::defaultLimitMb();
   if (ImageAllocationLimit::hasEnvironmentOverride()) {
@@ -129,6 +130,7 @@ bool SettingsDialog::commitChanges() {
 
   settings.setOpenGlEnabled(ui.enableOpenglCb->isChecked());
   settings.setAutoSaveProjectEnabled(ui.autoSaveProjectCB->isChecked());
+  settings.setProjectBackupCount(ui.projectBackupCountSB->value());
   settings.setHighlightDeviationEnabled(ui.highlightDeviationCB->isChecked());
   settings.setColorScheme(ui.colorSchemeBox->currentData().toString());
 
@@ -167,8 +169,9 @@ bool SettingsDialog::commitChanges() {
     config.setValue("main_window/external_alarm_cmd", alarmCommand);
   }
   if (config.hasError()) {
-    QMessageBox::warning(this, tr("Settings"),
-                         tr("The completion sound command could not be saved. Check application settings and try again."));
+    QMessageBox::warning(
+        this, tr("Settings"),
+        tr("The completion sound command could not be saved. Check application settings and try again."));
     return false;
   }
 

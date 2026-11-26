@@ -180,6 +180,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void openProject();
 
+  void reloadProject();
+
   void projectOpened(ProjectOpeningContext* context);
 
   void closeProject();

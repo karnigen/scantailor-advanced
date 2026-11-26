@@ -119,6 +119,10 @@ class ApplicationSettings {
 
   bool setImageAllocationLimitMb(int limitMb);
 
+  int getProjectBackupCount() const;
+
+  void setProjectBackupCount(int count);
+
  private:
   static inline QString getKey(const QString& keyName);
 
@@ -169,9 +173,11 @@ class ApplicationSettings {
   static const QString DEFAULT_ZONE_CREATION_MODE_KEY;
   static const QString OUTPUT_SHOW_GUIDES_KEY;
   static const QString IMAGE_ALLOCATION_LIMIT_MB_KEY;
+  static const QString PROJECT_BACKUP_COUNT_KEY;
 
   static const int DEFAULT_ZONE_CREATION_MODE;  // 0 = polygonal
   static const bool DEFAULT_OUTPUT_SHOW_GUIDES;
+  static const int DEFAULT_PROJECT_BACKUP_COUNT;
 
   SettingsStore m_settings;
 };

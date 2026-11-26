@@ -3,6 +3,7 @@
 
 #include "ProjectWriter.h"
 
+#include <QBuffer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -17,6 +18,7 @@
 #include "PageId.h"
 #include "PageInfo.h"
 #include "PageView.h"
+#include "ProjectBackup.h"
 #include "ProjectMigration.h"
 #include "ProjectPages.h"
 #include "version.h"
@@ -85,7 +87,10 @@ static QString toRelativeIfPossible(const QString& projectDirPath, const QString
   return rel;
 }
 
-bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>& filters, QString* errorMessage) const {
+bool ProjectWriter::write(const QString& filePath,
+                          const std::vector<FilterPtr>& filters,
+                          QString* errorMessage,
+                          const int backupCount) const {
   if (errorMessage) {
     errorMessage->clear();
   }
@@ -119,6 +124,25 @@ bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>&
     filtersEl.appendChild((*it)->saveSettings(*this, doc));
   }
 
+  QByteArray serializedProject;
+  QBuffer buffer(&serializedProject);
+  if (!buffer.open(QIODevice::WriteOnly)) {
+    if (errorMessage) {
+      *errorMessage = buffer.errorString();
+    }
+    return false;
+  }
+  QTextStream strm(&buffer);
+  doc.save(strm, 2);
+  strm.flush();
+  if (strm.status() != QTextStream::Ok) {
+    if (errorMessage) {
+      *errorMessage = QString("Could not serialize project data.");
+    }
+    return false;
+  }
+  buffer.close();
+
   QSaveFile file(filePath);
   if (!file.open(QIODevice::WriteOnly)) {
     if (errorMessage) {
@@ -126,14 +150,49 @@ bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>&
     }
     return false;
   }
-
-  QTextStream strm(&file);
-  doc.save(strm, 2);
-  strm.flush();
-  if (strm.status() != QTextStream::Ok) {
+  if (backupCount > 0 && QFileInfo::exists(filePath)) {
+    QFile existingProject(filePath);
+    if (!existingProject.open(QIODevice::ReadOnly)) {
+      file.cancelWriting();
+      if (errorMessage) {
+        *errorMessage = existingProject.errorString();
+      }
+      return false;
+    }
+    bool projectChanged = existingProject.size() != serializedProject.size();
+    qint64 offset = 0;
+    const qint64 chunkSize = 1024 * 1024;
+    while (!projectChanged && offset < serializedProject.size()) {
+      const qint64 bytesToRead = qMin(chunkSize, serializedProject.size() - offset);
+      const QByteArray existingChunk = existingProject.read(bytesToRead);
+      if (existingProject.error() != QFileDevice::NoError) {
+        file.cancelWriting();
+        if (errorMessage) {
+          *errorMessage = existingProject.errorString();
+        }
+        return false;
+      }
+      if (existingChunk.size() != bytesToRead
+          || existingChunk != serializedProject.mid(offset, static_cast<int>(bytesToRead))) {
+        projectChanged = true;
+      }
+      offset += bytesToRead;
+    }
+    if (projectChanged) {
+      QString backupError;
+      if (!createProjectBackup(filePath, backupCount, &backupError)) {
+        file.cancelWriting();
+        if (errorMessage) {
+          *errorMessage = backupError;
+        }
+        return false;
+      }
+    }
+  }
+  if (file.write(serializedProject) != serializedProject.size()) {
     file.cancelWriting();
     if (errorMessage) {
-      *errorMessage = QString("Could not serialize project data.");
+      *errorMessage = file.errorString();
     }
     return false;
   }

@@ -44,6 +44,7 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -717,6 +718,10 @@ void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
   QVERIFY(QMetaObject::invokeMethod(&window, "showKeyboardShortcuts", Qt::DirectConnection));
   QVERIFY(shortcutHelp.contains("Fix Orientation"));
   QVERIFY(!shortcutHelp.contains("Open the manual Fix Orientation stage."));
+  QVERIFY(shortcutHelp.contains("Save project when prompted"));
+  QVERIFY(shortcutHelp.contains("Discard changes when prompted"));
+  QVERIFY(shortcutHelp.contains("Alt+S"));
+  QVERIFY(shortcutHelp.contains("Alt+D"));
 }
 
 void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
@@ -733,9 +738,22 @@ void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
     auto* saveButton = messageBox->button(QMessageBox::Save);
     auto* discardButton = messageBox->button(QMessageBox::Discard);
     auto* cancelButton = messageBox->button(QMessageBox::Cancel);
+    const auto textAndIconWidth = [](const QAbstractButton* button) {
+      return button->fontMetrics().horizontalAdvance(button->text())
+             + (button->icon().isNull() ? 0 : button->iconSize().width());
+    };
     actionButtonsPresent = saveButton && discardButton && cancelButton
                            && messageBox->standardButton(saveButton) == QMessageBox::Save
-                           && messageBox->standardButton(discardButton) == QMessageBox::Discard;
+                           && messageBox->standardButton(discardButton) == QMessageBox::Discard
+                           && saveButton->minimumWidth() >= textAndIconWidth(saveButton)
+                           && discardButton->minimumWidth() >= textAndIconWidth(discardButton)
+                           && cancelButton->minimumWidth() >= textAndIconWidth(cancelButton)
+                           && !messageBox->text().contains(QStringLiteral("Alt+S"))
+                           && !messageBox->text().contains(QStringLiteral("Alt+D"))
+                           && saveButton->toolTip().contains(QStringLiteral("Alt+S"))
+                           && discardButton->toolTip().contains(QStringLiteral("Alt+D"))
+                           && saveButton->shortcut() == QKeySequence(Qt::AltModifier | Qt::Key_S)
+                           && discardButton->shortcut() == QKeySequence(Qt::AltModifier | Qt::Key_D);
     if (discardButton) {
       discardButton->click();
     }
@@ -744,6 +762,103 @@ void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
   QCOMPARE(window.promptProjectSave(), MainWindow::DONT_SAVE);
   QVERIFY(promptShown);
   QVERIFY(actionButtonsPresent);
+
+  QTimer::singleShot(0, &window, []() {
+    if (auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+      if (auto* saveButton = messageBox->button(QMessageBox::Save)) {
+        saveButton->click();
+      }
+    }
+  });
+  QCOMPARE(window.promptProjectSave(), MainWindow::SAVE);
+}
+
+void TestMainWindowAsync::reloadProjectConfirmsDiscardWithoutOfferingSave() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path(), projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QVERIFY(window.saveProjectWithFeedback(projectPath));
+
+  pages->setLayoutDirection(Qt::RightToLeft);
+  bool promptShown = false;
+  bool discardOnlyButtons = false;
+  QTimer::singleShot(0, &window, [&]() {
+    auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!messageBox || messageBox->windowTitle() != QStringLiteral("Reload Project")) {
+      return;
+    }
+
+    promptShown = true;
+    discardOnlyButtons = messageBox->standardButtons() == (QMessageBox::Discard | QMessageBox::Cancel);
+    if (auto* discardButton = messageBox->button(QMessageBox::Discard)) {
+      discardButton->click();
+    }
+  });
+
+  window.reloadProject();
+  QVERIFY(promptShown);
+  QVERIFY(discardOnlyButtons);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_pages->layoutDirection(), Qt::LeftToRight, 10000);
+  QVERIFY(!window.isWindowModified());
+}
+
+void TestMainWindowAsync::closeProjectSaveCreatesHistoryBackup() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(imagePath, 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, directory.path(), projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QVERIFY(window.saveProjectWithFeedback(projectPath));
+
+  QFile originalProject(projectPath);
+  QVERIFY(originalProject.open(QIODevice::ReadOnly));
+  const QByteArray originalContents = originalProject.readAll();
+  originalProject.close();
+  pages->setLayoutDirection(Qt::RightToLeft);
+
+  bool promptShown = false;
+  QTimer::singleShot(0, &window, [&]() {
+    auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!messageBox || messageBox->windowTitle() != QStringLiteral("Save Project")) {
+      return;
+    }
+    promptShown = true;
+    if (auto* saveButton = messageBox->button(QMessageBox::Save)) {
+      saveButton->click();
+    }
+  });
+
+  QVERIFY(window.closeProjectInteractive());
+  QVERIFY(promptShown);
+  const QDir backupsDirectory(projectPath + QStringLiteral(".backups"));
+  const QStringList backups = backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  QCOMPARE(backups.size(), 1);
+  QFile historyBackup(backupsDirectory.filePath(backups.front()));
+  QVERIFY(historyBackup.open(QIODevice::ReadOnly));
+  QCOMPARE(historyBackup.readAll(), originalContents);
 }
 
 void TestMainWindowAsync::compareFilesDetectsSameSizeChanges() {

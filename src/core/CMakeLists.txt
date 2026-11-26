@@ -59,6 +59,7 @@ set(common_sources
     FilterOptionsWidget.cpp FilterOptionsWidget.h
     FilterUiInterface.h
     ProjectMigration.cpp ProjectMigration.h
+    ProjectBackup.cpp ProjectBackup.h
     ProjectReader.cpp ProjectReader.h
     ProjectWriter.cpp ProjectWriter.h
     AtomicFileOverwriter.cpp AtomicFileOverwriter.h
