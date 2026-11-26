@@ -112,11 +112,11 @@ class RelinkingModel : public QAbstractListModel {
 
   /** Stands for File System Object (file or directory). */
   struct Item {
-    QString origPath;
+    std::filesystem::path origPath;
 
     /**< That's the path passed through addPath(). It never changes. */
-    QString committedPath;
-    QString uncommittedPath;
+    std::filesystem::path committedPath;
+    std::filesystem::path uncommittedPath;
 
     /**< Same as committedPath when m_haveUncommittedChanges == false. */
     RelinkablePath::Type type;
@@ -149,7 +149,7 @@ class RelinkingModel : public QAbstractListModel {
   QPixmap m_fileIcon;
   QPixmap m_folderIcon;
   std::vector<Item> m_items;
-  std::set<std::pair<QString, EntryKind>> m_origPathSet;
+  std::set<std::pair<std::filesystem::path, EntryKind>> m_origPathSet;
   const std::shared_ptr<Relinker> m_relinker;
   std::unique_ptr<StatusUpdateThread> m_statusUpdateThread;
   bool m_haveUncommittedChanges;

@@ -5,7 +5,6 @@
 
 #include <core/IconProvider.h>
 #include <core/PathUtils.h>
-#include <foundation/Hashes.h>
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -15,6 +14,7 @@
 #include <QPalette>
 #include <QWaitCondition>
 
+#include <filesystem>
 #include <list>
 #include <unordered_map>
 #include <utility>
@@ -24,16 +24,17 @@
 
 class RelinkingModel::StatusUpdateResponse {
  public:
-  StatusUpdateResponse(const QString& path, int row, Status status) : m_path(path), m_row(row), m_status(status) {}
+  StatusUpdateResponse(const std::filesystem::path& path, int row, Status status)
+      : m_path(path), m_row(row), m_status(status) {}
 
-  const QString& path() const { return m_path; }
+  const std::filesystem::path& path() const { return m_path; }
 
   int row() const { return m_row; }
 
   Status status() const { return m_status; }
 
  private:
-  QString m_path;
+  std::filesystem::path m_path;
   int m_row;
   Status m_status;
 };
@@ -51,25 +52,25 @@ class RelinkingModel::StatusUpdateThread : private QThread {
    * Requesting the same item multiple times will just move the existing
    * record to the top of the stack.
    */
-  void requestStatusUpdate(const QString& path, int row);
+  void requestStatusUpdate(const std::filesystem::path& path, int row);
 
  private:
   struct Task {
-    QString path;
+    std::filesystem::path path;
     int row;
 
-    Task(const QString& p, int r) : path(p), row(r) {}
+    Task(const std::filesystem::path& p, int r) : path(p), row(r) {}
   };
 
   using TaskList = std::list<Task>;
-  using TasksByPath = std::unordered_map<QString, TaskList::iterator, hashes::hash<QString>>;
+  using TasksByPath = std::unordered_map<std::filesystem::path, TaskList::iterator>;
 
   void run() override;
 
   RelinkingModel* m_owner;
   TaskList m_tasks;
   TasksByPath m_tasksByPath;
-  QString m_pathBeingProcessed;
+  std::filesystem::path m_pathBeingProcessed;
   QMutex m_mutex;
   QWaitCondition m_cond;
   bool m_exiting;
@@ -107,6 +108,7 @@ int RelinkingModel::rowCount(const QModelIndex& parent) const {
 
 QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
   const Item& item = m_items[index.row()];
+  const QString path(core::toQString(item.uncommittedPath));
 
   switch (role) {
     case TypeRole:
@@ -116,7 +118,7 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
     case EntryKindRole:
       return item.entryKind;
     case UncommittedPathRole:
-      return item.uncommittedPath;
+      return path;
     case Qt::ToolTipRole:
       if (item.uncommittedStatus == StatusUpdateFailed) {
         return tr("Could not determine whether this path exists.");
@@ -124,24 +126,23 @@ QVariant RelinkingModel::data(const QModelIndex& index, int role) const {
       break;
     case Qt::DisplayRole:
       if (item.entryKind == CommonImageRoot) {
-        return tr("Common image root: %1").arg(QDir::toNativeSeparators(item.uncommittedPath));
+        return tr("Common image root: %1").arg(QDir::toNativeSeparators(path));
       }
       if (item.entryKind == OutputDirectory) {
         const QString root = commonImageRootPath();
-        if (!root.isEmpty() && isPathWithinDirectory(item.uncommittedPath, root)) {
-          return tr("Output directory: %1")
-              .arg(QDir::toNativeSeparators(QDir(root).relativeFilePath(item.uncommittedPath)));
+        if (!root.isEmpty() && isPathWithinDirectory(path, root)) {
+          return tr("Output directory: %1").arg(QDir::toNativeSeparators(QDir(root).relativeFilePath(path)));
         }
-        return tr("Output directory (outside common root): %1").arg(QDir::toNativeSeparators(item.uncommittedPath));
+        return tr("Output directory (outside common root): %1").arg(QDir::toNativeSeparators(path));
       }
       {
         const QString root = commonImageRootPath();
-        if (!root.isEmpty() && isPathWithinDirectory(item.uncommittedPath, root)) {
-          return QDir::toNativeSeparators(QDir(root).relativeFilePath(item.uncommittedPath));
+        if (!root.isEmpty() && isPathWithinDirectory(path, root)) {
+          return QDir::toNativeSeparators(QDir(root).relativeFilePath(path));
         }
-        const QString relativePath = root.isEmpty() ? QString() : QDir(root).relativeFilePath(item.uncommittedPath);
+        const QString relativePath = root.isEmpty() ? QString() : QDir(root).relativeFilePath(path);
         return tr("Outside common root: %1")
-            .arg(QDir::toNativeSeparators(relativePath.isEmpty() ? item.uncommittedPath : relativePath));
+            .arg(QDir::toNativeSeparators(relativePath.isEmpty() ? path : relativePath));
       }
     case Qt::DecorationRole:
       return (item.type == RelinkablePath::Dir) ? m_folderIcon : m_fileIcon;
@@ -161,15 +162,14 @@ void RelinkingModel::addCommonImageRoot() {
   QStringList imagePaths;
   for (const Item& item : m_items) {
     if (item.entryKind == ImageFile) {
-      imagePaths.push_back(item.origPath);
+      imagePaths.push_back(core::toQString(item.origPath));
     }
   }
 
   const QString commonDirectory = findCommonImageRoot(imagePaths);
   const RelinkablePath commonRoot(core::toFileSystemPath(commonDirectory), RelinkablePath::Dir);
   if (commonDirectory.isEmpty() || QDir::cleanPath(QDir(commonDirectory).rootPath()) == commonDirectory
-      || m_origPathSet.find(std::make_pair(core::toQString(commonRoot.normalizedPath()), CommonImageRoot))
-             != m_origPathSet.end()) {
+      || m_origPathSet.find(std::make_pair(commonRoot.normalizedPath(), CommonImageRoot)) != m_origPathSet.end()) {
     return;
   }
 
@@ -224,11 +224,12 @@ RelinkingModel::Summary RelinkingModel::summary() const {
       ++result.pendingPaths;
     }
 
+    const QString path(core::toQString(item.uncommittedPath));
     if (item.entryKind == OutputDirectory) {
       result.hasOutput = true;
-      result.outputInsideRoot = !root.isEmpty() && isPathWithinDirectory(item.uncommittedPath, root);
+      result.outputInsideRoot = !root.isEmpty() && isPathWithinDirectory(path, root);
       result.outputStatus = item.uncommittedStatus;
-    } else if (!root.isEmpty() && isPathWithinDirectory(item.uncommittedPath, root)) {
+    } else if (!root.isEmpty() && isPathWithinDirectory(path, root)) {
       ++result.imagesInsideRoot;
     } else {
       ++result.imagesOutsideRoot;
@@ -255,16 +256,16 @@ QColor RelinkingModel::foregroundColorForStatus(const Status status) {
 QString RelinkingModel::commonImageRootPath() const {
   for (const Item& item : m_items) {
     if (item.entryKind == CommonImageRoot) {
-      return item.uncommittedPath;
+      return core::toQString(item.uncommittedPath);
     }
   }
   return {};
 }
 
 void RelinkingModel::addPath(const RelinkablePath& path, const EntryKind entryKind) {
-  const QString normalizedPath(core::toQString(path.normalizedPath()));
+  const std::filesystem::path& normalizedPath(path.normalizedPath());
 
-  const std::pair<std::set<std::pair<QString, EntryKind>>::iterator, bool> ins(
+  const std::pair<std::set<std::pair<std::filesystem::path, EntryKind>>::iterator, bool> ins(
       m_origPathSet.insert(std::make_pair(normalizedPath, entryKind)));
   if (!ins.second) {
     // Not inserted because identical path is already there.
@@ -294,19 +295,20 @@ void RelinkingModel::replacePrefix(const QString& prefix,
 
     const bool entryInScope = entryKind == CommonImageRoot || item.entryKind == entryKind;
     if (entryInScope) {
+      QString currentPath(core::toQString(item.uncommittedPath));
       if (type == RelinkablePath::File) {
-        if ((item.type == RelinkablePath::File) && (item.uncommittedPath == prefix)) {
-          item.uncommittedPath = replacement;
+        if ((item.type == RelinkablePath::File) && (currentPath == prefix)) {
+          item.uncommittedPath = core::toFileSystemPath(replacement);
           modified = true;
         }
       } else {
         assert(type == RelinkablePath::Dir);
-        if (item.uncommittedPath.startsWith(slashTerminatedPrefix)) {
-          const int suffixLen = item.uncommittedPath.length() - slashTerminatedPrefix.length() + 1;
-          item.uncommittedPath = replacement + item.uncommittedPath.right(suffixLen);
+        if (currentPath.startsWith(slashTerminatedPrefix)) {
+          const int suffixLen = currentPath.length() - slashTerminatedPrefix.length() + 1;
+          item.uncommittedPath = core::toFileSystemPath(replacement + currentPath.right(suffixLen));
           modified = true;
-        } else if (item.uncommittedPath == prefix) {
-          item.uncommittedPath = replacement;
+        } else if (currentPath == prefix) {
+          item.uncommittedPath = core::toFileSystemPath(replacement);
           modified = true;
         }
       }
@@ -333,7 +335,7 @@ void RelinkingModel::replacePrefix(const QString& prefix,
 }  // RelinkingModel::replacePrefix
 
 bool RelinkingModel::checkForMerges() const {
-  std::vector<std::pair<bool, QString>> newPaths;
+  std::vector<std::pair<bool, std::filesystem::path>> newPaths;
   newPaths.reserve(m_items.size());
 
   for (const Item& item : m_items) {
@@ -372,7 +374,7 @@ void RelinkingModel::commitChanges() {
     }
 
     if (item.entryKind != CommonImageRoot && item.committedPath != item.origPath) {
-      newRelinker.addMapping(core::toFileSystemPath(item.origPath), core::toFileSystemPath(item.committedPath));
+      newRelinker.addMapping(item.origPath, item.committedPath);
     }
   }
 
@@ -467,7 +469,7 @@ RelinkingModel::StatusUpdateThread::~StatusUpdateThread() {
   wait();
 }
 
-void RelinkingModel::StatusUpdateThread::requestStatusUpdate(const QString& path, int row) {
+void RelinkingModel::StatusUpdateThread::requestStatusUpdate(const std::filesystem::path& path, int row) {
   const QMutexLocker locker(&m_mutex);
   if (m_exiting) {
     return;
@@ -535,13 +537,13 @@ void RelinkingModel::StatusUpdateThread::run() try {
 
       Status status = StatusUpdateFailed;
       try {
-        status = QFile::exists(task.path) ? Exists : Missing;
+        status = QFile::exists(core::toQString(task.path)) ? Exists : Missing;
       } catch (const std::bad_alloc&) {
         OutOfMemoryHandler::instance().handleOutOfMemorySituation();
       } catch (const std::exception& e) {
-        qWarning("Failed to check relinked path '%s': %s", qPrintable(task.path), e.what());
+        qWarning("Failed to check relinked path '%s': %s", qPrintable(core::toQString(task.path)), e.what());
       } catch (...) {
-        qWarning("Failed to check relinked path '%s': unknown exception.", qPrintable(task.path));
+        qWarning("Failed to check relinked path '%s': unknown exception.", qPrintable(core::toQString(task.path)));
       }
 
       try {
@@ -571,9 +573,9 @@ catch (const std::bad_alloc&) {
 /*================================ Item =================================*/
 
 RelinkingModel::Item::Item(const RelinkablePath& path, const EntryKind entryKind)
-    : origPath(core::toQString(path.normalizedPath())),
-      committedPath(core::toQString(path.normalizedPath())),
-      uncommittedPath(core::toQString(path.normalizedPath())),
+    : origPath(path.normalizedPath()),
+      committedPath(path.normalizedPath()),
+      uncommittedPath(path.normalizedPath()),
       type(path.type()),
       committedStatus(StatusUpdatePending),
       uncommittedStatus(StatusUpdatePending),
