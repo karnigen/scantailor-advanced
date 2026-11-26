@@ -13,6 +13,8 @@
 #include <ProcessingTaskQueue.h>
 #include <ProjectPages.h>
 #include <StageSequence.h>
+#include <Units.h>
+#include <UnitsProvider.h>
 #include <WorkerThreadPool.h>
 #include <core/SettingsStore.h>
 #include <filters/page_layout/Alignment.h>
@@ -40,10 +42,12 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSemaphore>
@@ -1151,6 +1155,76 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
     QApplication::sendEvent(view->viewport(), &event);
     QTRY_VERIFY(menu->isVisible());
   };
+  auto* measurementLabel = view->findChild<QLabel*>(QStringLiteral("guideMeasurementLabel"));
+  QVERIFY(measurementLabel);
+  const Qt::KeyboardModifiers guideDragModifiers = Qt::ControlModifier | Qt::AltModifier;
+  const auto sendGuideDragMove = [view, guideDragModifiers](const QPoint& pos) {
+    QMouseEvent event(QEvent::MouseMove, QPointF(pos), QPointF(view->viewport()->mapToGlobal(pos)), Qt::NoButton,
+                      Qt::LeftButton, guideDragModifiers);
+    QApplication::sendEvent(view->viewport(), &event);
+  };
+  const QPoint horizontalGuideStart = center + QPoint(30, 50);
+  showContextMenuAt(horizontalGuideStart);
+  QVERIFY(menu->actions().at(0)->isEnabled());
+  menu->actions().at(0)->trigger();
+  menu->close();
+  showContextMenuAt(horizontalGuideStart);
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->close();
+  QCoreApplication::processEvents();
+  QTest::keyPress(view, Qt::Key_Control, Qt::NoModifier);
+  QTest::keyPress(view, Qt::Key_Alt, guideDragModifiers);
+  QKeyEvent horizontalModifiersEvent(QEvent::KeyPress, Qt::Key_unknown, guideDragModifiers);
+  QApplication::sendEvent(view, &horizontalModifiersEvent);
+  QTest::mousePress(view->viewport(), Qt::LeftButton, guideDragModifiers, horizontalGuideStart);
+  QVERIFY(view->interactionState().captured());
+  QCOMPARE(view->viewport()->cursor().shape(), Qt::SplitVCursor);
+  sendGuideDragMove(horizontalGuideStart + QPoint(0, 10));
+  QTRY_VERIFY(measurementLabel->isVisible());
+  QVERIFY(measurementLabel->text().contains(QStringLiteral("Top:")));
+  QVERIFY(measurementLabel->text().contains(QStringLiteral("Bottom:")));
+  QVERIFY(measurementLabel->text().contains(QStringLiteral("%")));
+  QVERIFY(measurementLabel->text().contains(unitsToLocalizedString(UnitsProvider::getInstance().getUnits())));
+  sendGuideDragMove(horizontalGuideStart);
+  QTest::mouseRelease(view->viewport(), Qt::LeftButton, guideDragModifiers, horizontalGuideStart);
+  QTest::keyRelease(view, Qt::Key_Alt);
+  QTest::keyRelease(view, Qt::Key_Control);
+  QVERIFY(!measurementLabel->isVisible());
+
+  const QPoint verticalGuideStart = center + QPoint(50, 30);
+  showContextMenuAt(verticalGuideStart);
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  menu->actions().at(1)->trigger();
+  menu->close();
+  showContextMenuAt(verticalGuideStart);
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->close();
+  QCoreApplication::processEvents();
+  QTest::keyPress(view, Qt::Key_Control, Qt::NoModifier);
+  QTest::keyPress(view, Qt::Key_Alt, guideDragModifiers);
+  QKeyEvent verticalModifiersEvent(QEvent::KeyPress, Qt::Key_unknown, guideDragModifiers);
+  QApplication::sendEvent(view, &verticalModifiersEvent);
+  QTest::mousePress(view->viewport(), Qt::LeftButton, guideDragModifiers, verticalGuideStart);
+  QCOMPARE(view->viewport()->cursor().shape(), Qt::SplitHCursor);
+  sendGuideDragMove(verticalGuideStart + QPoint(10, 0));
+  QTRY_VERIFY(measurementLabel->isVisible());
+  QVERIFY(measurementLabel->text().contains(QStringLiteral("Left:")));
+  QVERIFY(measurementLabel->text().contains(QStringLiteral("Right:")));
+  sendGuideDragMove(verticalGuideStart);
+  QTest::mouseRelease(view->viewport(), Qt::LeftButton, guideDragModifiers, verticalGuideStart);
+  QTest::keyRelease(view, Qt::Key_Alt);
+  QTest::keyRelease(view, Qt::Key_Control);
+  QVERIFY(!measurementLabel->isVisible());
+
+  showContextMenuAt(horizontalGuideStart + QPoint(0, 10));
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->actions().at(3)->trigger();
+  menu->close();
+  showContextMenuAt(verticalGuideStart + QPoint(10, 0));
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->actions().at(3)->trigger();
+  menu->close();
+
   showContextMenuAt(center);
   QVERIFY(menu->actions().at(3)->isVisible());
   menu->actions().at(3)->trigger();

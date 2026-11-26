@@ -10,13 +10,18 @@
 #include <imageproc/Transform.h>
 
 #include <QColor>
+#include <QCursor>
+#include <QFrame>
 #include <QIcon>
 #include <QKeyEvent>
+#include <QLabel>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
+#include <QToolTip>
 #include <cmath>
 #include <functional>
 
@@ -24,6 +29,8 @@
 #include "OptionsWidget.h"
 #include "Params.h"
 #include "Settings.h"
+#include "Units.h"
+#include "UnitsProvider.h"
 #include "Utils.h"
 
 using namespace imageproc;
@@ -76,11 +83,23 @@ ImageView::ImageView(const std::shared_ptr<Settings>& settings,
       m_guidesFreeIndex(0),
       m_contextMenu(new QMenu(this)),
       m_guideUnderMouse(-1),
+      m_guideMeasurementLabel(new QLabel(viewport())),
+      m_activeGuideIndex(-1),
       m_innerRectVerticalDragModifier(Qt::ControlModifier),
       m_innerRectHorizontalDragModifier(Qt::ShiftModifier),
       m_nullContentRect((m_innerRect.width() < 1) && (m_innerRect.height() < 1)),
       m_contentMask(contentMask) {
   setMouseTracking(true);
+  m_guideMeasurementLabel->setObjectName(QStringLiteral("guideMeasurementLabel"));
+  m_guideMeasurementLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+  m_guideMeasurementLabel->setBackgroundRole(QPalette::ToolTipBase);
+  m_guideMeasurementLabel->setForegroundRole(QPalette::ToolTipText);
+  m_guideMeasurementLabel->setAutoFillBackground(true);
+  m_guideMeasurementLabel->setPalette(QToolTip::palette());
+  m_guideMeasurementLabel->setFont(QToolTip::font());
+  m_guideMeasurementLabel->setMargin(5);
+  m_guideMeasurementLabel->setFrameStyle(QFrame::StyledPanel);
+  m_guideMeasurementLabel->hide();
 
   interactionState().setDefaultStatusTip(tr("Resize margins by dragging any of the solid lines."));
 
@@ -931,11 +950,66 @@ void ImageView::guideMoveRequest(const int index, QLineF line) {
   }
 
   m_guides[index] = widgetToGuideCs().map(line);
+  m_activeGuideIndex = index;
+  m_guideDragCursorPos = viewport()->mapFromGlobal(QCursor::pos());
+  updateGuideMeasurementLabel(index);
   update();
 }
 
 void ImageView::guideDragFinished() {
+  m_activeGuideIndex = -1;
+  m_guideMeasurementLabel->hide();
   syncGuidesSettings();
+}
+
+void ImageView::updateGuideMeasurementLabel(const int index) {
+  const Guide& guide = m_guides.at(index);
+  const bool horizontalGuide = guide.getOrientation() == Qt::Horizontal;
+  const double extent = horizontalGuide ? m_outerRect.height() : m_outerRect.width();
+  if (extent <= 0.0) {
+    m_guideMeasurementLabel->hide();
+    return;
+  }
+
+  const double halfExtent = extent / 2.0;
+  const double firstDistance = halfExtent + guide.getPosition();
+  const double secondDistance = halfExtent - guide.getPosition();
+  const Units units = UnitsProvider::getInstance().getUnits();
+  const auto formatDistance = [this, horizontalGuide, units](const double distance) {
+    const QPointF millimetres
+        = m_pixelsToMmXform.map(horizontalGuide ? QPointF(0.0, distance) : QPointF(distance, 0.0));
+    double horizontal = millimetres.x();
+    double vertical = millimetres.y();
+    UnitsProvider::getInstance().convertFrom(horizontal, vertical, MILLIMETRES, m_xform.origDpi());
+    const double value = horizontalGuide ? vertical : horizontal;
+    return QStringLiteral("%1 %2").arg(QLocale().toString(value, 'f', 2), unitsToLocalizedString(units));
+  };
+  const QString firstPercent = QLocale().toString(firstDistance / extent * 100.0, 'f', 2);
+  const QString secondPercent = QLocale().toString(secondDistance / extent * 100.0, 'f', 2);
+  if (horizontalGuide) {
+    m_guideMeasurementLabel->setText(
+        tr("Top: %1 (%2%)\nBottom: %3 (%4%)")
+            .arg(formatDistance(firstDistance), firstPercent, formatDistance(secondDistance), secondPercent));
+  } else {
+    m_guideMeasurementLabel->setText(
+        tr("Left: %1 (%2%)\nRight: %3 (%4%)")
+            .arg(formatDistance(firstDistance), firstPercent, formatDistance(secondDistance), secondPercent));
+  }
+
+  m_guideMeasurementLabel->adjustSize();
+  const QRect bounds(viewport()->rect());
+  QPoint labelPos = m_guideDragCursorPos + QPoint(14, 14);
+  if (labelPos.x() + m_guideMeasurementLabel->width() > bounds.right()) {
+    labelPos.rx() = m_guideDragCursorPos.x() - m_guideMeasurementLabel->width() - 14;
+  }
+  if (labelPos.y() + m_guideMeasurementLabel->height() > bounds.bottom()) {
+    labelPos.ry() = m_guideDragCursorPos.y() - m_guideMeasurementLabel->height() - 14;
+  }
+  labelPos.setX(std::max(bounds.left(), std::min(labelPos.x(), bounds.right() - m_guideMeasurementLabel->width())));
+  labelPos.setY(std::max(bounds.top(), std::min(labelPos.y(), bounds.bottom() - m_guideMeasurementLabel->height())));
+  m_guideMeasurementLabel->move(labelPos);
+  m_guideMeasurementLabel->show();
+  m_guideMeasurementLabel->raise();
 }
 
 QLineF ImageView::widgetGuideLine(const int index) const {

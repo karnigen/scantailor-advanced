@@ -29,6 +29,7 @@
 
 class Margins;
 class QKeyEvent;
+class QLabel;
 
 namespace page_layout {
 class OptionsWidget;
@@ -170,6 +171,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void guideDragFinished();
 
+  void updateGuideMeasurementLabel(int index);
+
   QLineF widgetGuideLine(int index) const;
 
   int getGuideUnderMouse(const QPointF& screenMousePos, const InteractionState& state) const;
@@ -286,6 +289,9 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   QAction* m_showMiddleRectAction;
   QPointF m_lastContextMenuPos;
   int m_guideUnderMouse;
+  QLabel* m_guideMeasurementLabel;
+  int m_activeGuideIndex;
+  QPoint m_guideDragCursorPos;
 
   DraggableObject m_innerRectArea;
   ObjectDragHandler m_innerRectAreaHandler;
