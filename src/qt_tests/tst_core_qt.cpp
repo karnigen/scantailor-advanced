@@ -31,6 +31,7 @@
 #include "AbstractCommand.h"
 #include "BackgroundExecutor.h"
 #include "BackgroundTask.h"
+#include "BasicImageView.h"
 #include "CompositeCacheDrivenTask.h"
 #include "ContentBoxPropagator.h"
 #include "FileNameDisambiguator.h"
@@ -351,6 +352,29 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
   QCOMPARE(unchanged.contentRect(), changedContent);
   QVERIFY(unavailable.contentRect().isEmpty());
   QVERIFY(unavailable.contentSizeMM().isEmpty());
+}
+
+void TestCoreQt::testImageViewResizePreservesZoomFocalPoint() {
+  QImage image(1600, 1200, QImage::Format_RGB32);
+  image.fill(Qt::white);
+
+  BasicImageView view(image);
+  view.resize(900, 700);
+  view.show();
+  QTRY_VERIFY(view.maximumViewportSize().width() > 0);
+
+  const QSize oldViewportSize = view.maximumViewportSize();
+  const QPointF oldCenter(oldViewportSize.width() / 2.0, oldViewportSize.height() / 2.0);
+  const QPointF focalOffset(120.0, -80.0);
+  view.setWidgetFocalPointWithoutMoving(oldCenter + focalOffset);
+  view.setZoomLevel(2.0);
+
+  view.resize(700, 700);
+  QTRY_VERIFY(view.maximumViewportSize().width() != oldViewportSize.width());
+
+  const QSize newViewportSize = view.maximumViewportSize();
+  const QPointF newCenter(newViewportSize.width() / 2.0, newViewportSize.height() / 2.0);
+  QCOMPARE(view.getWidgetFocalPoint() - newCenter, focalOffset);
 }
 
 void TestCoreQt::testUnitsToString() {

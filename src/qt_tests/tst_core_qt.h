@@ -26,6 +26,7 @@ class TestCoreQt : public QObject {
   void testCancelledTasksFinishAsynchronously();
   void testContentBoxPropagationPersistsGeometry();
   void testCancelledContentUpdateIsPropagatedBeforeSave();
+  void testImageViewResizePreservesZoomFocalPoint();
 };
 
 class Emitter : public QObject {
