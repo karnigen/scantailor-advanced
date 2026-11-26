@@ -339,6 +339,27 @@ void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
   QCOMPARE(pathButtons.last()->text(), QStringLiteral("page.png"));
 }
 
+void TestMainWindowAsync::relinkingBreadcrumbClearsStaleHoverState() {
+  RelinkablePathVisualization breadcrumb;
+  breadcrumb.setPath(RelinkablePath(QStringLiteral("/old/root/page.png"), RelinkablePath::File), true);
+  const QList<QPushButton*> oldButtons = breadcrumb.findChildren<QPushButton*>();
+  QVERIFY(!oldButtons.isEmpty());
+  for (QPushButton* button : oldButtons) {
+    button->setProperty("forceHighlight", true);
+    button->setProperty("stickHighlight", true);
+  }
+
+  breadcrumb.setPath(RelinkablePath(QStringLiteral("/new/root/page.png"), RelinkablePath::File), true);
+  QCoreApplication::processEvents();
+
+  const QList<QPushButton*> currentButtons = breadcrumb.findChildren<QPushButton*>();
+  QVERIFY(!currentButtons.isEmpty());
+  for (QPushButton* button : currentButtons) {
+    QVERIFY(!button->property("forceHighlight").toBool());
+    QVERIFY(!button->property("stickHighlight").toBool());
+  }
+}
+
 void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());

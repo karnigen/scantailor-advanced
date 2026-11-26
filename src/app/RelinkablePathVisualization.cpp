@@ -3,6 +3,8 @@
 
 #include "RelinkablePathVisualization.h"
 
+#include <QCursor>
+#include <QEvent>
 #include <QFile>
 #include <QHBoxLayout>
 #include <QPaintEvent>
@@ -10,6 +12,7 @@
 #include <QStyle>
 #include <QStyleOption>
 #include <QStylePainter>
+#include <QTimer>
 #include <functional>
 
 #include "ColorSchemeManager.h"
@@ -45,10 +48,14 @@ void RelinkablePathVisualization::clear() {
   for (int count; (count = m_layout->count());) {
     QLayoutItem* item = m_layout->takeAt(count - 1);
     if (QWidget* wgt = item->widget()) {
+      wgt->setProperty("forceHighlight", false);
+      wgt->setProperty("stickHighlight", false);
+      wgt->setProperty("highlightEnforcer", false);
       wgt->deleteLater();  // We may be called from the widget's signal.
     }
     delete item;
   }
+  update();
 }
 
 void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool clickable) {
@@ -108,6 +115,7 @@ void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool click
       btn->setCursor(QCursor(Qt::PointingHandCursor));
     }
     stylePathComponentButton(btn, pathComponent.exists);
+    btn->installEventFilter(this);
 
     connect(btn, &ComponentButton::clicked,
             std::bind(&RelinkablePathVisualization::onClicked, this, componentIdx, pathComponent.prefixPath,
@@ -115,6 +123,7 @@ void RelinkablePathVisualization::setPath(const RelinkablePath& path, bool click
   }
 
   m_layout->addStretch();
+  QTimer::singleShot(0, this, [this]() { refreshHoverHighlight(); });
 }  // RelinkablePathVisualization::setPath
 
 void RelinkablePathVisualization::stylePathComponentButton(QAbstractButton* btn, bool exists) {
@@ -156,46 +165,40 @@ void RelinkablePathVisualization::stylePathComponentButton(QAbstractButton* btn,
 }  // RelinkablePathVisualization::stylePathComponentButton
 
 void RelinkablePathVisualization::paintEvent(QPaintEvent* evt) {
+  QWidget::paintEvent(evt);
+  refreshHoverHighlight();
+}
+
+bool RelinkablePathVisualization::eventFilter(QObject* watched, QEvent* event) {
+  if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
+    QTimer::singleShot(0, this, [this]() { refreshHoverHighlight(); });
+  }
+  return QWidget::eventFilter(watched, event);
+}
+
+void RelinkablePathVisualization::refreshHoverHighlight() {
   const int totalItems = m_layout->count();  // Note that there is an extra stretch item.
+  const QPoint cursorPosition = mapFromGlobal(QCursor::pos());
+  int hoveredIndex = -1;
+  for (int i = 0; i < totalItems; ++i) {
+    QWidget* widget = m_layout->itemAt(i)->widget();
+    if (widget && widget->isVisible() && widget->geometry().contains(cursorPosition)) {
+      hoveredIndex = i;
+      break;
+    }
+  }
+
   for (int i = 0; i < totalItems; ++i) {
     QWidget* widget = m_layout->itemAt(i)->widget();
     if (!widget) {
       continue;
     }
-
-    QStyleOption option;
-    option.initFrom(widget);
-
-    if (option.state & QStyle::State_MouseOver) {
-      widget->setProperty("highlightEnforcer", true);
-      // Update the forceHighlight attribute for all buttons.
-      for (int j = 0; j < totalItems; ++j) {
-        widget = m_layout->itemAt(j)->widget();
-        if (widget) {
-          const bool highlight = j <= i;
-          if (widget->property("forceHighlight").toBool() != highlight) {
-            widget->setProperty("forceHighlight", highlight);
-            widget->update();
-          }
-        }
-      }
-      break;
-    } else if (widget->property("highlightEnforcer").toBool()) {
-      widget->setProperty("highlightEnforcer", false);
-
-      // Update the forceHighlight attribute for all buttons.
-      for (int j = 0; j < totalItems; ++j) {
-        widget = m_layout->itemAt(j)->widget();
-        if (widget) {
-          const bool highlight = false;
-          if (widget->property("forceHighlight").toBool() != highlight) {
-            widget->setProperty("forceHighlight", highlight);
-            widget->update();
-          }
-        }
-      }
-      break;
+    const bool highlight = i <= hoveredIndex;
+    if (widget->property("forceHighlight").toBool() != highlight) {
+      widget->setProperty("forceHighlight", highlight);
+      widget->update();
     }
+    widget->setProperty("highlightEnforcer", false);
   }
 }  // RelinkablePathVisualization::paintEvent
 
@@ -221,6 +224,7 @@ void RelinkablePathVisualization::onClicked(int componentIdx,
       widget->setProperty("stickHighlight", false);
     }
   }
+  QTimer::singleShot(0, this, [this]() { refreshHoverHighlight(); });
 }
 
 void RelinkablePathVisualization::checkForExistence(std::vector<PathComponent>& components) {
@@ -261,6 +265,8 @@ void RelinkablePathVisualization::ComponentButton::paintEvent(QPaintEvent* evt) 
   option.text = text();
   if (property("forceHighlight").toBool() || property("stickHighlight").toBool()) {
     option.state |= QStyle::State_MouseOver;
+  } else {
+    option.state &= ~QStyle::State_MouseOver;
   }
 
   // Prevent weird looking font effects for disabled buttons with Windows XP style.

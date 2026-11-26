@@ -10,6 +10,8 @@
 class RelinkablePath;
 class QHBoxLayout;
 class QAbstractButton;
+class QEvent;
+class QObject;
 
 class RelinkablePathVisualization : public QWidget {
   Q_OBJECT
@@ -27,6 +29,7 @@ class RelinkablePathVisualization : public QWidget {
 
  protected:
   void paintEvent(QPaintEvent* evt) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
  private:
   struct PathComponent;
@@ -34,6 +37,8 @@ class RelinkablePathVisualization : public QWidget {
   class ComponentButton;
 
   void onClicked(int componentIdx, const QString& prefixPath, const QString& suffixPath, int type);
+
+  void refreshHoverHighlight();
 
   void stylePathComponentButton(QAbstractButton* btn, bool exists);
 
