@@ -10,6 +10,7 @@
 #include <ImageTransformation.h>
 #include <Margins.h>
 #include <PageSequence.h>
+#include <ProcessingIndicationWidget.h>
 #include <ProcessingTaskQueue.h>
 #include <ProjectPages.h>
 #include <StageSequence.h>
@@ -30,6 +31,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCursor>
@@ -51,10 +53,12 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPalette>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
 #include <QSemaphore>
+#include <QStackedLayout>
 #include <QTemporaryDir>
 #include <QTextBrowser>
 #include <QTextCursor>
@@ -64,6 +68,7 @@
 #include <QToolButton>
 #include <QTreeView>
 #include <QWheelEvent>
+#include <QWidget>
 #include <QtTest/QtTest>
 #include <functional>
 #include <stdexcept>
@@ -718,6 +723,31 @@ void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
   QCoreApplication::processEvents();
   QVERIFY(verticalScrollBar->value() > initialScrollPosition);
   QVERIFY(focusButton->isChecked());
+}
+
+void TestMainWindowAsync::processingIndicatorPreservesUnderlyingContent() {
+  QWidget container;
+  container.resize(160, 160);
+
+  QStackedLayout layout(&container);
+  layout.setStackingMode(QStackedLayout::StackAll);
+
+  const QColor backgroundColor(24, 88, 176);
+  auto* background = new QWidget;
+  QPalette backgroundPalette(background->palette());
+  backgroundPalette.setColor(QPalette::Window, backgroundColor);
+  background->setPalette(backgroundPalette);
+  background->setAutoFillBackground(true);
+  layout.addWidget(background);
+
+  auto* indicator = new ProcessingIndicationWidget;
+  indicator->setBackgroundFadeEnabled(false);
+  layout.addWidget(indicator);
+  layout.setCurrentWidget(indicator);
+
+  container.show();
+  QCoreApplication::processEvents();
+  QCOMPARE(container.grab().toImage().pixelColor(5, 5), backgroundColor);
 }
 
 void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {

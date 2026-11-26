@@ -37,6 +37,7 @@ class TestMainWindowAsync : public QObject {
   void missingOutputDirectoryPrompt_data();
   void missingOutputDirectoryPrompt();
   void thumbnailWheelNavigationUsesShiftPageStride();
+  void processingIndicatorPreservesUnderlyingContent();
   void batchProcessingBenchmark();
   void stageSwitchBenchmark();
 };

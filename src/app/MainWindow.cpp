@@ -2671,6 +2671,7 @@ void MainWindow::loadPageInteractive(const PageInfo& page) {
       m_processingIndicationWidget->processingRestartedEffect();
     }
     bool currentWidgetIsImage = (Utils::castOrFindChild<ImageViewBase*>(m_imageFrameLayout->widget(0)) != nullptr);
+    m_processingIndicationWidget->setBackgroundFadeEnabled(!currentWidgetIsImage);
     setImageWidget(m_processingIndicationWidget.get(), KEEP_OWNERSHIP, nullptr, currentWidgetIsImage);
     m_stages->filterAt(m_curFilter)->preUpdateUI(this, page);
   }

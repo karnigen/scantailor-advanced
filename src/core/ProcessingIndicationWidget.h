@@ -19,6 +19,8 @@ class ProcessingIndicationWidget : public QWidget {
  public:
   explicit ProcessingIndicationWidget(QWidget* parent = nullptr);
 
+  void setBackgroundFadeEnabled(bool enabled);
+
   /**
    * \brief Resets animation to the state it had just after
    *        constructing this object.
@@ -41,6 +43,7 @@ class ProcessingIndicationWidget : public QWidget {
   BubbleAnimation m_animation;
   QColor m_headColor;
   QColor m_tailColor;
+  bool m_backgroundFadeEnabled;
   double m_distinction;
   double m_distinctionDelta;
   int m_timerId;
