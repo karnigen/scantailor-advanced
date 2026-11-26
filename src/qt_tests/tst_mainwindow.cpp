@@ -44,6 +44,9 @@
 #include <QSemaphore>
 #include <QTemporaryDir>
 #include <QTextBrowser>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextFormat>
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
@@ -761,6 +764,24 @@ void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
   auto* options = window.m_optionsWidget.data();
   QVERIFY(options);
   QVERIFY(!options->findChild<QPushButton*>("matchSizeToAllBtn"));
+
+  auto* guideHelp = options->findChild<QTextBrowser*>("textBrowser");
+  QVERIFY(guideHelp);
+  QTextDocument* helpDocument = guideHelp->document();
+  QCOMPARE(helpDocument->defaultFont().pointSizeF(), 7.0);
+  const QTextCursor staticHelp = helpDocument->find(QStringLiteral("Right-click"));
+  const QTextCursor dynamicHelp = helpDocument->find(QStringLiteral("Arrow keys move page content"));
+  QVERIFY(!staticHelp.isNull());
+  QVERIFY(!dynamicHelp.isNull());
+  QVERIFY(!staticHelp.charFormat().hasProperty(QTextFormat::FontPointSize));
+  QVERIFY(!dynamicHelp.charFormat().hasProperty(QTextFormat::FontPointSize));
+
+  const QPoint helpPosition(5, 5);
+  const QPoint globalHelpPosition = guideHelp->viewport()->mapToGlobal(helpPosition);
+  QWheelEvent zoomEvent(helpPosition, globalHelpPosition, QPoint(), QPoint(0, 120), Qt::NoButton, Qt::ControlModifier,
+                        Qt::NoScrollPhase, false);
+  QApplication::sendEvent(guideHelp->viewport(), &zoomEvent);
+  QVERIFY(helpDocument->defaultFont().pointSizeF() > 7.0);
 
   auto* useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
   auto* horizontalMode = options->findChild<QComboBox*>("hAlignmentModeCB");

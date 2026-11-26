@@ -7,8 +7,10 @@
 #include <UnitsProvider.h>
 #include <core/IconProvider.h>
 
+#include <QFont>
 #include <QIntValidator>
 #include <QLineEdit>
+#include <QTextDocument>
 #include <utility>
 
 #include "../../Utils.h"
@@ -40,6 +42,10 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
   setupUi(this);
   setupIcons();
   setupSourceDpiControls();
+  QFont helpFont = textBrowser->font();
+  helpFont.setFamily(QStringLiteral("MS Shell Dlg 2"));
+  helpFont.setPointSizeF(7.0);
+  textBrowser->document()->setDefaultFont(helpFont);
   textBrowser->append(
       tr("Arrow keys move page content by 1 screen pixel; Alt+Arrow keys move it by 0.1 screen pixel."));
 
