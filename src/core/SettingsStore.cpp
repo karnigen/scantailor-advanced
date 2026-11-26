@@ -40,8 +40,8 @@ namespace {
 
 constexpr int kTomlSchemaVersion = 1;
 
-QString g_configDirectory;
-QString g_configFilePath;
+std::filesystem::path g_configDirectory;
+std::filesystem::path g_configFilePath;
 bool g_configDirectoryWritable = false;
 bool g_configDirectoryExplicit = false;
 bool g_initialized = false;
@@ -1220,8 +1220,8 @@ bool SettingsStore::initialize(const QString& configDirectory,
     }
   }
 
-  g_configDirectory = directory;
-  g_configFilePath = tomlPath;
+  g_configDirectory = core::toFileSystemPath(directory);
+  g_configFilePath = core::toFileSystemPath(tomlPath);
   g_configDirectoryExplicit = explicitDirectory;
   g_configDirectoryWritable = writable;
   g_initialized = true;
@@ -1243,14 +1243,14 @@ QString SettingsStore::configDirectory() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
-  return g_configDirectory;
+  return core::toQString(g_configDirectory);
 }
 
 QString SettingsStore::configFilePath() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
-  return g_configFilePath;
+  return core::toQString(g_configFilePath);
 }
 
 QString SettingsStore::profilesDirectory() {
