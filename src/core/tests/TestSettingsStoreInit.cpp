@@ -44,21 +44,24 @@ TEST_CASE("SettingsStoreTestSuite / test_explicit_relative_config_directory_and_
   QDir::setCurrent(currentDirectory);
 
   const QString expectedDirectory = QDir(tempDir.path()).filePath(QStringLiteral("relative/config"));
-  CHECK(SettingsStore::configDirectory() == expectedDirectory);
-  CHECK(SettingsStore::configFilePath() == QDir(expectedDirectory).filePath(QStringLiteral("config.toml")));
-  CHECK(SettingsStore::profilesDirectory() == QDir(expectedDirectory).filePath(QStringLiteral("profiles")));
+  CHECK(SettingsStore::configDirectory() == core::toFileSystemPath(expectedDirectory));
+  CHECK(SettingsStore::configFilePath()
+        == core::toFileSystemPath(QDir(expectedDirectory).filePath(QStringLiteral("config.toml"))));
+  CHECK(SettingsStore::profilesDirectory()
+        == core::toFileSystemPath(QDir(expectedDirectory).filePath(QStringLiteral("profiles"))));
   CHECK(SettingsStore::configDirectoryExplicit());
   CHECK(SettingsStore::configDirectoryWritable());
 
   SettingsStore settings;
   settings.setValue(QStringLiteral("settings/enabled"), true);
-  CHECK(QFileInfo::exists(SettingsStore::configFilePath()));
+  CHECK(QFileInfo::exists(core::toQString(SettingsStore::configFilePath())));
   CHECK_FALSE(QFileInfo::exists(QDir(expectedDirectory).filePath(QStringLiteral("config.ini"))));
 
   DefaultParamsProfileManager profileManager;
   const auto profile = profileManager.createDefaultProfile();
   REQUIRE(profileManager.writeProfile(*profile, QStringLiteral("test-profile")));
-  CHECK(QFileInfo::exists(QDir(SettingsStore::profilesDirectory()).filePath(QStringLiteral("test-profile.stp"))));
+  CHECK(QFileInfo::exists(
+      QDir(core::toQString(SettingsStore::profilesDirectory())).filePath(QStringLiteral("test-profile.stp"))));
 }
 
 TEST_CASE("SettingsStoreTestSuite / test_copy_and_migrate_existing_standard_ini", "[settings-store-legacy]") {
@@ -83,18 +86,19 @@ TEST_CASE("SettingsStoreTestSuite / test_copy_and_migrate_existing_standard_ini"
   REQUIRE(legacySettings.status() == QSettings::NoError);
   const QString legacyFilePath = legacySettings.fileName();
 
-  const QString defaultDirectory = SettingsStore::defaultConfigDirectory();
+  const QString defaultDirectory = core::toQString(SettingsStore::defaultConfigDirectory());
   const QString relativeDefaultDirectory = QDir(tempDir.path()).relativeFilePath(defaultDirectory);
   CHECK(!relativeDefaultDirectory.startsWith(QStringLiteral("..")));
 
   QString error;
   REQUIRE(SettingsStore::initialize(QString(), false, &error, true));
   REQUIRE(error.isEmpty());
-  CHECK(SettingsStore::configFilePath() == QDir(defaultDirectory).filePath(QStringLiteral("config.toml")));
+  CHECK(SettingsStore::configFilePath()
+        == core::toFileSystemPath(QDir(defaultDirectory).filePath(QStringLiteral("config.toml"))));
   CHECK(QFileInfo::exists(legacyFilePath));
   CHECK_FALSE(QFileInfo::exists(QDir(defaultDirectory).filePath(QStringLiteral("config.ini"))));
   CHECK(QFileInfo::exists(QDir(defaultDirectory).filePath(QStringLiteral("config.ini.bak"))));
-  CHECK(QFileInfo::exists(SettingsStore::configFilePath()));
+  CHECK(QFileInfo::exists(core::toQString(SettingsStore::configFilePath())));
 
   SettingsStore settings;
   CHECK(settings.boolValue(QStringLiteral("settings/enable_opengl")));
@@ -133,7 +137,7 @@ TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_rename_source_t
   QString error;
   REQUIRE(SettingsStore::initialize(tempDir.path(), true, &error));
   REQUIRE(error.isEmpty());
-  CHECK(SettingsStore::configFilePath() == tempDir.filePath(QStringLiteral("config.toml")));
+  CHECK(SettingsStore::configFilePath() == core::toFileSystemPath(tempDir.filePath(QStringLiteral("config.toml"))));
   const QString backupPath = iniPath + QStringLiteral(".bak");
   CHECK_FALSE(QFileInfo::exists(iniPath));
   CHECK(QFileInfo::exists(backupPath));
@@ -152,7 +156,7 @@ TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_rename_source_t
   REQUIRE(backup.open(QIODevice::ReadOnly));
   CHECK(backup.readAll() == originalIni);
 
-  QFile tomlFile(SettingsStore::configFilePath());
+  QFile tomlFile(core::toQString(SettingsStore::configFilePath()));
   REQUIRE(tomlFile.open(QIODevice::ReadOnly));
   const QByteArray tomlContents = tomlFile.readAll();
   CHECK(tomlContents.contains("alignmentGroup = { collapsed = false }"));
@@ -160,7 +164,7 @@ TEST_CASE("SettingsStoreTestSuite / test_migrate_ini_to_toml_and_rename_source_t
 
   settings.setValue(QStringLiteral("settings/enable_opengl"), false);
   CHECK_FALSE(settings.boolValue(QStringLiteral("settings/enable_opengl")));
-  QFile updatedToml(SettingsStore::configFilePath());
+  QFile updatedToml(core::toQString(SettingsStore::configFilePath()));
   REQUIRE(updatedToml.open(QIODevice::ReadOnly));
   CHECK(updatedToml.readAll().contains("enable_opengl = false"));
 }
@@ -715,12 +719,12 @@ TEST_CASE("SettingsStoreTestSuite / test_readonly_default_keeps_legacy_settings_
   REQUIRE(SettingsStore::initialize(QString(), false, &warning, true));
   CHECK_FALSE(SettingsStore::configDirectoryWritable());
   CHECK_FALSE(warning.isEmpty());
-  CHECK_FALSE(QFileInfo::exists(SettingsStore::configFilePath()));
+  CHECK_FALSE(QFileInfo::exists(core::toQString(SettingsStore::configFilePath())));
   SettingsStore settings;
   CHECK(settings.boolValue(QStringLiteral("settings/enable_opengl")));
   settings.sync();
   CHECK(settings.boolValue(QStringLiteral("settings/enable_opengl")));
-  CHECK_FALSE(QFileInfo::exists(SettingsStore::configFilePath()));
+  CHECK_FALSE(QFileInfo::exists(core::toQString(SettingsStore::configFilePath())));
   CHECK(QFileInfo::exists(legacyPath));
 #else
   SUCCEED("The read-only default-path fixture uses Linux's /proc filesystem.");

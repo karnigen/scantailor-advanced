@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
   parser.setApplicationDescription(
       QObject::tr("ScanTailor Advanced. Specify a project file or an existing directory to use as the initial "
                   "input/output location. The default configuration directory is %1.")
-          .arg(SettingsStore::defaultConfigDirectory()));
+          .arg(core::toQString(SettingsStore::defaultConfigDirectory())));
   parser.addHelpOption();
   const QCommandLineOption configOption({"c", "config"},
                                         QObject::tr("Store settings in this directory (config.toml is created "

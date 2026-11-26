@@ -1117,7 +1117,8 @@ bool SettingsStore::initialize(const QString& configDirectory,
     return true;
   }
 
-  const QString requestedDirectory = configDirectory.isEmpty() ? defaultConfigDirectory() : configDirectory;
+  const QString requestedDirectory
+      = configDirectory.isEmpty() ? core::toQString(defaultConfigDirectory()) : configDirectory;
   if (requestedDirectory.isEmpty()) {
     if (errorMessage) {
       *errorMessage = QObject::tr("The platform did not provide a configuration directory.");
@@ -1231,30 +1232,30 @@ bool SettingsStore::initialize(const QString& configDirectory,
   return true;
 }
 
-QString SettingsStore::defaultConfigDirectory() {
+std::filesystem::path SettingsStore::defaultConfigDirectory() {
   const QString root = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
   if (root.isEmpty()) {
-    return QString();
+    return {};
   }
-  return QDir(root).filePath(QString::fromUtf8(APPLICATION_NAME));
+  return core::toFileSystemPath(QDir(root).filePath(QString::fromUtf8(APPLICATION_NAME)));
 }
 
-QString SettingsStore::configDirectory() {
+std::filesystem::path SettingsStore::configDirectory() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
-  return core::toQString(g_configDirectory);
+  return g_configDirectory;
 }
 
-QString SettingsStore::configFilePath() {
+std::filesystem::path SettingsStore::configFilePath() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
-  return core::toQString(g_configFilePath);
+  return g_configFilePath;
 }
 
-QString SettingsStore::profilesDirectory() {
-  return QDir(configDirectory()).filePath(QStringLiteral("profiles"));
+std::filesystem::path SettingsStore::profilesDirectory() {
+  return configDirectory() / "profiles";
 }
 
 bool SettingsStore::configDirectoryExplicit() {
@@ -1280,7 +1281,7 @@ SettingsStore::SettingsStore() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
-  m_filePath = core::toFileSystemPath(configFilePath());
+  m_filePath = configFilePath();
   m_backend = std::make_unique<TomlBackend>(core::toQString(m_filePath));
 }
 

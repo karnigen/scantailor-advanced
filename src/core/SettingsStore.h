@@ -34,10 +34,10 @@ class SettingsStore {
                          bool explicitDirectory,
                          QString* errorMessage = nullptr,
                          bool preserveExistingSettings = false);
-  static QString defaultConfigDirectory();
-  static QString configDirectory();
-  static QString configFilePath();
-  static QString profilesDirectory();
+  static std::filesystem::path defaultConfigDirectory();
+  static std::filesystem::path configDirectory();
+  static std::filesystem::path configFilePath();
+  static std::filesystem::path profilesDirectory();
   static bool configDirectoryExplicit();
   static bool configDirectoryWritable();
   static void setWriteErrorHandler(WriteErrorHandler handler);

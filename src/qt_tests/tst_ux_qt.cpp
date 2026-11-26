@@ -7,6 +7,7 @@
 #include <ConfigurationDialog.h>
 #include <ErrorWidget.h>
 #include <ThumbnailViewMode.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QCheckBox>
@@ -104,9 +105,9 @@ void TestUxQt::testConfigurationDialogShowsPathsAndReloadsSettings() {
   auto* reloadButton = dialog.findChild<QPushButton*>(QStringLiteral("configurationReloadButton"));
 
   QVERIFY(filePath);
-  QVERIFY(filePath->text().contains(SettingsStore::configFilePath()));
+  QVERIFY(filePath->text().contains(core::toQString(SettingsStore::configFilePath())));
   QVERIFY(profilesPath);
-  QVERIFY(profilesPath->text().contains(SettingsStore::profilesDirectory()));
+  QVERIFY(profilesPath->text().contains(core::toQString(SettingsStore::profilesDirectory())));
   QVERIFY(directoryStatus);
   QVERIFY(directoryStatus->text().contains(QStringLiteral("writable")));
   QVERIFY(contents);
@@ -116,7 +117,7 @@ void TestUxQt::testConfigurationDialogShowsPathsAndReloadsSettings() {
   QVERIFY(reloadButton);
 
   QTest::mouseClick(copyButton, Qt::LeftButton);
-  QCOMPARE(QApplication::clipboard()->text(), SettingsStore::configFilePath());
+  QCOMPARE(QApplication::clipboard()->text(), core::toQString(SettingsStore::configFilePath()));
 
   settings.setValue(QStringLiteral("testing/dialog"), QStringLiteral("after reload"));
   QTest::mouseClick(reloadButton, Qt::LeftButton);

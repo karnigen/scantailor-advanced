@@ -19,7 +19,7 @@ using namespace output;
 using namespace page_layout;
 
 DefaultParamsProfileManager::DefaultParamsProfileManager() {
-  m_path = core::toFileSystemPath(SettingsStore::profilesDirectory());
+  m_path = SettingsStore::profilesDirectory();
 }
 
 DefaultParamsProfileManager::DefaultParamsProfileManager(std::filesystem::path path) : m_path(std::move(path)) {}
