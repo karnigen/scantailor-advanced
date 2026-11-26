@@ -44,9 +44,8 @@ ProjectWriter::ProjectWriter(const std::shared_ptr<ProjectPages>& pageSequence,
   for (const PageInfo& page : m_pageSequence) {
     const PageId& pageId = page.id();
     const ImageId& imageId = pageId.imageId();
-    const QString filePath(core::toQString(imageId.filePath()));
-    const QFileInfo fileInfo(filePath);
-    const QString dirPath(fileInfo.absolutePath());
+    const std::filesystem::path& filePath(imageId.filePath());
+    const std::filesystem::path dirPath(core::toFileSystemPath(QFileInfo(core::toQString(filePath)).absolutePath()));
 
     m_metadataByImage[imageId] = page.metadata();
 
@@ -214,7 +213,7 @@ QDomElement ProjectWriter::processDirectories(QDomDocument& doc, const QString& 
   for (const Directory& dir : m_dirs) {
     QDomElement dirEl(doc.createElement("directory"));
     dirEl.setAttribute("id", dir.numericId);
-    dirEl.setAttribute("path", toRelativeIfPossible(projectDirPath, dir.path));
+    dirEl.setAttribute("path", toRelativeIfPossible(projectDirPath, core::toQString(dir.path)));
     dirsEl.appendChild(dirEl);
   }
   return dirsEl;
@@ -224,8 +223,8 @@ QDomElement ProjectWriter::processFiles(QDomDocument& doc) const {
   QDomElement filesEl(doc.createElement("files"));
 
   for (const File& file : m_files) {
-    const QFileInfo fileInfo(file.path);
-    const QString& dirPath = fileInfo.absolutePath();
+    const QFileInfo fileInfo(core::toQString(file.path));
+    const std::filesystem::path dirPath(core::toFileSystemPath(fileInfo.absolutePath()));
     QDomElement fileEl(doc.createElement("file"));
     fileEl.setAttribute("id", file.numericId);
     fileEl.setAttribute("dirId", dirId(dirPath));
@@ -242,7 +241,7 @@ QDomElement ProjectWriter::processImages(QDomDocument& doc) const {
     QDomElement imageEl(doc.createElement("image"));
     imageEl.setAttribute("id", image.numericId);
     imageEl.setAttribute("subPages", image.numSubPages);
-    imageEl.setAttribute("fileId", fileId(core::toQString(image.id.filePath())));
+    imageEl.setAttribute("fileId", fileId(image.id.filePath()));
     imageEl.setAttribute("fileImage", image.id.page());
     if (image.leftHalfRemoved != image.rightHalfRemoved) {
       // Both are not supposed to be removed.
@@ -300,13 +299,13 @@ QDomElement ProjectWriter::processPages(QDomDocument& doc) const {
   return pagesEl;
 }  // ProjectWriter::processPages
 
-int ProjectWriter::dirId(const QString& dirPath) const {
+int ProjectWriter::dirId(const std::filesystem::path& dirPath) const {
   const Directories::const_iterator it(m_dirs.find(dirPath));
   assert(it != m_dirs.end());
   return it->numericId;
 }
 
-int ProjectWriter::fileId(const QString& filePath) const {
+int ProjectWriter::fileId(const std::filesystem::path& filePath) const {
   const Files::const_iterator it(m_files.find(filePath));
   if (it != m_files.end()) {
     return it->numericId;
@@ -316,7 +315,7 @@ int ProjectWriter::fileId(const QString& filePath) const {
 }
 
 QString ProjectWriter::packFilePath(const QString& filePath) const {
-  const Files::const_iterator it(m_files.find(filePath));
+  const Files::const_iterator it(m_files.find(core::toFileSystemPath(filePath)));
   if (it != m_files.end()) {
     return QString::number(it->numericId);
   } else {
