@@ -32,6 +32,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -1360,8 +1361,6 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
     QApplication::sendEvent(view->viewport(), &event);
     QTRY_VERIFY(menu->isVisible());
   };
-  auto* measurementLabel = view->findChild<QLabel*>(QStringLiteral("guideMeasurementLabel"));
-  QVERIFY(measurementLabel);
   const Qt::KeyboardModifiers guideDragModifiers = Qt::ControlModifier | Qt::AltModifier;
   const auto sendGuideDragMove = [view, guideDragModifiers](const QPoint& pos) {
     QMouseEvent event(QEvent::MouseMove, QPointF(pos), QPointF(view->viewport()->mapToGlobal(pos)), Qt::NoButton,
@@ -1384,17 +1383,28 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   QTest::mousePress(view->viewport(), Qt::LeftButton, guideDragModifiers, horizontalGuideStart);
   QVERIFY(view->interactionState().captured());
   QCOMPARE(view->viewport()->cursor().shape(), Qt::SplitVCursor);
+  const QPoint horizontalGuideMoved = horizontalGuideStart + QPoint(0, 10);
+  QCursor::setPos(view->viewport()->mapToGlobal(horizontalGuideMoved));
+  sendGuideDragMove(horizontalGuideMoved);
+  QTRY_VERIFY(!view->guideMeasurementText().isEmpty());
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Top:")));
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Bottom:")));
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("%")));
+  QVERIFY(view->guideMeasurementText().contains(unitsToLocalizedString(UnitsProvider::getInstance().getUnits())));
+  QCoreApplication::processEvents();
+  const QImage horizontalGuideImage = view->viewport()->grab().toImage();
+  const QPoint horizontalGuideAlongMove = horizontalGuideStart + QPoint(10, 10);
+  QCursor::setPos(view->viewport()->mapToGlobal(horizontalGuideAlongMove));
+  sendGuideDragMove(horizontalGuideAlongMove);
+  QCursor::setPos(view->viewport()->mapToGlobal(horizontalGuideStart + QPoint(0, 10)));
   sendGuideDragMove(horizontalGuideStart + QPoint(0, 10));
-  QTRY_VERIFY(measurementLabel->isVisible());
-  QVERIFY(measurementLabel->text().contains(QStringLiteral("Top:")));
-  QVERIFY(measurementLabel->text().contains(QStringLiteral("Bottom:")));
-  QVERIFY(measurementLabel->text().contains(QStringLiteral("%")));
-  QVERIFY(measurementLabel->text().contains(unitsToLocalizedString(UnitsProvider::getInstance().getUnits())));
+  QCoreApplication::processEvents();
+  QCOMPARE(view->viewport()->grab().toImage(), horizontalGuideImage);
   sendGuideDragMove(horizontalGuideStart);
   QTest::mouseRelease(view->viewport(), Qt::LeftButton, guideDragModifiers, horizontalGuideStart);
   QTest::keyRelease(view, Qt::Key_Alt);
   QTest::keyRelease(view, Qt::Key_Control);
-  QVERIFY(!measurementLabel->isVisible());
+  QVERIFY(view->guideMeasurementText().isEmpty());
 
   const QPoint verticalGuideStart = center + QPoint(50, 30);
   showContextMenuAt(verticalGuideStart);
@@ -1411,15 +1421,26 @@ void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
   QApplication::sendEvent(view, &verticalModifiersEvent);
   QTest::mousePress(view->viewport(), Qt::LeftButton, guideDragModifiers, verticalGuideStart);
   QCOMPARE(view->viewport()->cursor().shape(), Qt::SplitHCursor);
+  const QPoint verticalGuideMoved = verticalGuideStart + QPoint(10, 0);
+  QCursor::setPos(view->viewport()->mapToGlobal(verticalGuideMoved));
+  sendGuideDragMove(verticalGuideMoved);
+  QTRY_VERIFY(!view->guideMeasurementText().isEmpty());
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Left:")));
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Right:")));
+  QCoreApplication::processEvents();
+  const QImage verticalGuideImage = view->viewport()->grab().toImage();
+  const QPoint verticalGuideAlongMove = verticalGuideStart + QPoint(10, 10);
+  QCursor::setPos(view->viewport()->mapToGlobal(verticalGuideAlongMove));
+  sendGuideDragMove(verticalGuideAlongMove);
+  QCursor::setPos(view->viewport()->mapToGlobal(verticalGuideStart + QPoint(10, 0)));
   sendGuideDragMove(verticalGuideStart + QPoint(10, 0));
-  QTRY_VERIFY(measurementLabel->isVisible());
-  QVERIFY(measurementLabel->text().contains(QStringLiteral("Left:")));
-  QVERIFY(measurementLabel->text().contains(QStringLiteral("Right:")));
+  QCoreApplication::processEvents();
+  QCOMPARE(view->viewport()->grab().toImage(), verticalGuideImage);
   sendGuideDragMove(verticalGuideStart);
   QTest::mouseRelease(view->viewport(), Qt::LeftButton, guideDragModifiers, verticalGuideStart);
   QTest::keyRelease(view, Qt::Key_Alt);
   QTest::keyRelease(view, Qt::Key_Control);
-  QVERIFY(!measurementLabel->isVisible());
+  QVERIFY(view->guideMeasurementText().isEmpty());
 
   showContextMenuAt(horizontalGuideStart + QPoint(0, 10));
   QVERIFY(menu->actions().at(4)->isVisible());

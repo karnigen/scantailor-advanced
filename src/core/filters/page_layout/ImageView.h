@@ -29,7 +29,7 @@
 
 class Margins;
 class QKeyEvent;
-class QLabel;
+class QPainter;
 
 namespace page_layout {
 class OptionsWidget;
@@ -48,6 +48,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
             const OptionsWidget& optWidget);
 
   ~ImageView() override;
+
+  const QString& guideMeasurementText() const { return m_guideMeasurementText; }
 
  signals:
 
@@ -173,7 +175,9 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void guideDragFinished();
 
-  void updateGuideMeasurementLabel(int index);
+  void updateGuideMeasurement(int index);
+
+  void drawGuideMeasurement(QPainter& painter) const;
 
   QLineF widgetGuideLine(int index) const;
 
@@ -292,8 +296,7 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   QAction* m_showMiddleRectAction;
   QPointF m_lastContextMenuPos;
   int m_guideUnderMouse;
-  QLabel* m_guideMeasurementLabel;
-  int m_activeGuideIndex;
+  QString m_guideMeasurementText;
   QPoint m_guideDragCursorPos;
 
   DraggableObject m_innerRectArea;
