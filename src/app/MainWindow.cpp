@@ -751,7 +751,11 @@ bool MainWindow::compareFiles(const QString& fpath1, const QString& fpath2) {
     const QByteArray chunk2(file2.read(chunkSize));
     if (chunk1.size() != chunk2.size()) {
       return false;
-    } else if (chunk1.size() == 0) {
+    }
+    if (chunk1 != chunk2) {
+      return false;
+    }
+    if (chunk1.isEmpty()) {
       return true;
     }
   }

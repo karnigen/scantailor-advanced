@@ -746,6 +746,29 @@ void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
   QVERIFY(actionButtonsPresent);
 }
 
+void TestMainWindowAsync::compareFilesDetectsSameSizeChanges() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString firstPath = directory.filePath("first.ScanTailor");
+  const QString secondPath = directory.filePath("second.ScanTailor");
+  const QByteArray original("state=before");
+  const QByteArray changed("state=after!");
+  QCOMPARE(original.size(), changed.size());
+
+  QFile firstFile(firstPath);
+  QVERIFY(firstFile.open(QIODevice::WriteOnly));
+  QCOMPARE(firstFile.write(original), qint64(original.size()));
+  firstFile.close();
+
+  QFile secondFile(secondPath);
+  QVERIFY(secondFile.open(QIODevice::WriteOnly));
+  QCOMPARE(secondFile.write(changed), qint64(changed.size()));
+  secondFile.close();
+
+  QVERIFY(!MainWindow::compareFiles(firstPath, secondPath));
+  QVERIFY(MainWindow::compareFiles(firstPath, firstPath));
+}
+
 void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
   MainWindow window;
   QVERIFY(QMetaObject::invokeMethod(&window, "showSupportedImageFormats", Qt::DirectConnection));
