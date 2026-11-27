@@ -45,6 +45,7 @@
 #include <atomic>
 #include <cmath>
 #include <exception>
+#include <limits>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -2293,9 +2294,23 @@ void MainWindow::exportPagesToPdf() {
     return;
   }
 
+  const PageSequence pages = m_thumbSequence->toPageSequence();
+  int minimumDpi = 150;
+  if (pages.numPages() > 0) {
+    minimumDpi = std::numeric_limits<int>::max();
+    const auto& outputFilter = m_stages->outputFilter();
+    for (const PageInfo& page : pages) {
+      const Dpi dpi(outputFilter->outputDpi(page.id()));
+      minimumDpi = std::min({minimumDpi, dpi.horizontal(), dpi.vertical()});
+    }
+  }
+
+  const QString projectName = m_projectFile.empty() ? QStringLiteral("Unnamed")
+                                                    : QFileInfo(core::toQString(m_projectFile)).completeBaseName();
+  const QString defaultFileName = QStringLiteral("%1_%2.pdf").arg(projectName).arg(minimumDpi);
   QString outputFilePath = QFileDialog::getSaveFileName(
       this, tr("Export Processed Pages as PDF"),
-      QDir(core::toQString(m_outFileNameGen.outDir())).filePath(QStringLiteral("output.pdf")), tr("PDF files (*.pdf)"));
+      QDir(core::toQString(m_outFileNameGen.outDir())).filePath(defaultFileName), tr("PDF files (*.pdf)"));
   if (outputFilePath.isEmpty()) {
     return;
   }
@@ -2303,7 +2318,6 @@ void MainWindow::exportPagesToPdf() {
     outputFilePath += QStringLiteral(".pdf");
   }
 
-  const PageSequence pages = m_thumbSequence->toPageSequence();
   QProgressDialog progress(tr("Creating multi-page PDF..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()), this);
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(0);

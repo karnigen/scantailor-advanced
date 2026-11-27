@@ -160,6 +160,10 @@ OptionsWidget* Filter::optionsWidget() {
   return m_optionsWidget.get();
 }
 
+Dpi Filter::outputDpi(const PageId& pageId) const {
+  return m_settings->getParams(pageId).outputDpi();
+}
+
 std::vector<PageOrderOption> Filter::pageOrderOptions() const {
   return m_pageOrderOptions;
 }
