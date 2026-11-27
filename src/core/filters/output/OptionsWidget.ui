@@ -93,7 +93,7 @@
         <item>
          <widget class="QPushButton" name="changeDpiButton">
           <property name="text">
-           <string>Change ...</string>
+           <string>Apply to ...</string>
           </property>
           <property name="toolTip">
            <string>Change the output resolution and choose which pages to update.</string>
@@ -1722,7 +1722,7 @@
         <item>
          <widget class="QPushButton" name="changeDewarpingButton">
           <property name="text">
-           <string>Change ...</string>
+           <string>Apply to ...</string>
           </property>
           <property name="toolTip">
            <string>Change the dewarping mode and choose which pages to update.</string>
