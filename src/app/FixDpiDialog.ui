@@ -60,9 +60,6 @@
           <string>Custom</string>
          </property>
         </item>
-        <property name="toolTip">
-         <string>Choose dpi.</string>
-        </property>
        </widget>
       </item>
       <item>

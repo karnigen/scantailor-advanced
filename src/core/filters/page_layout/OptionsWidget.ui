@@ -46,9 +46,6 @@
           <property name="checked">
            <bool>false</bool>
           </property>
-          <property name="toolTip">
-           <string>Toggle this option: Auto Margins.</string>
-          </property>
          </widget>
         </item>
         <item>
@@ -220,9 +217,6 @@ QToolButton:pressed {
             <property name="maximum">
              <double>9999.000000000000000</double>
             </property>
-            <property name="toolTip">
-             <string>Adjust top margin.</string>
-            </property>
            </widget>
           </item>
           <item row="1" column="1">
@@ -236,9 +230,6 @@ QToolButton:pressed {
             <property name="maximum">
              <double>9999.000000000000000</double>
             </property>
-            <property name="toolTip">
-             <string>Adjust bottom margin.</string>
-            </property>
            </widget>
           </item>
           <item row="2" column="1">
@@ -251,9 +242,6 @@ QToolButton:pressed {
             </property>
             <property name="maximum">
              <double>9999.000000000000000</double>
-            </property>
-            <property name="toolTip">
-             <string>Adjust left margin.</string>
             </property>
            </widget>
           </item>
@@ -274,9 +262,6 @@ QToolButton:pressed {
             </property>
             <property name="maximum">
              <double>9999.000000000000000</double>
-            </property>
-            <property name="toolTip">
-             <string>Adjust right margin.</string>
             </property>
            </widget>
           </item>
@@ -324,9 +309,6 @@ QToolButton:pressed {
         </item>
         <item>
          <widget class="QComboBox" name="sourceDpiCombo">
-          <property name="toolTip">
-           <string>Choose source dpi.</string>
-          </property>
          </widget>
         </item>
         <item>

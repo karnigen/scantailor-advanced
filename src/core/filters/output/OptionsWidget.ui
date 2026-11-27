@@ -150,9 +150,6 @@
         </item>
         <item>
          <widget class="QComboBox" name="colorModeSelector">
-          <property name="toolTip">
-           <string>Choose color mode selector.</string>
-          </property>
          </widget>
         </item>
         <item>
@@ -279,18 +276,12 @@
              <property name="text">
               <string>Savitzky-Golay smoothing</string>
              </property>
-             <property name="toolTip">
-              <string>Toggle this option: Savitzky-Golay smoothing.</string>
-             </property>
             </widget>
            </item>
            <item>
             <widget class="QCheckBox" name="morphologicalSmoothingCB">
              <property name="text">
               <string>Morphological smoothing</string>
-             </property>
-             <property name="toolTip">
-              <string>Toggle this option: Morphological smoothing.</string>
              </property>
             </widget>
            </item>
@@ -348,9 +339,6 @@
            </item>
            <item>
             <widget class="QComboBox" name="fillingColorBox">
-             <property name="toolTip">
-              <string>Choose filling color.</string>
-             </property>
             </widget>
            </item>
            <item>
@@ -407,9 +395,6 @@
            </item>
            <item>
             <widget class="QComboBox" name="thresholdMethodBox">
-             <property name="toolTip">
-              <string>Choose threshold method.</string>
-             </property>
             </widget>
            </item>
            <item>
@@ -744,9 +729,6 @@
                   <property name="value">
                    <number>0</number>
                   </property>
-                  <property name="toolTip">
-                   <string>Adjust reduce noise.</string>
-                  </property>
                  </widget>
                 </item>
                 <item>
@@ -886,9 +868,6 @@
                   <property name="text">
                    <string>Normalize</string>
                   </property>
-                  <property name="toolTip">
-                   <string>Toggle this option: Normalize.</string>
-                  </property>
                  </widget>
                 </item>
                 <item>
@@ -1002,9 +981,6 @@
            </item>
            <item>
             <widget class="QComboBox" name="pictureShapeSelector">
-             <property name="toolTip">
-              <string>Choose picture shape selector.</string>
-             </property>
             </widget>
            </item>
            <item>
@@ -1426,9 +1402,6 @@
           <property name="orientation">
            <enum>Qt::Horizontal</enum>
           </property>
-          <property name="toolTip">
-           <string>Adjust despeckle.</string>
-          </property>
          </widget>
         </item>
        </layout>
@@ -1606,9 +1579,6 @@
         </property>
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="toolTip">
-         <string>Adjust depth perception.</string>
         </property>
        </widget>
       </item>

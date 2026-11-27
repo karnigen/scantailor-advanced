@@ -56,9 +56,6 @@
          <height>0</height>
         </size>
        </property>
-       <property name="toolTip">
-        <string>Choose profile.</string>
-       </property>
       </widget>
      </item>
      <item>
@@ -371,9 +368,6 @@
                   <property name="text">
                    <string>Reset</string>
                   </property>
-                  <property name="toolTip">
-                   <string>Click to reset.</string>
-                  </property>
                  </widget>
                 </item>
                 <item>
@@ -466,9 +460,6 @@
               </item>
               <item>
                <widget class="QComboBox" name="layoutModeCB">
-                <property name="toolTip">
-                 <string>Choose layout mode.</string>
-                </property>
                </widget>
               </item>
               <item>
@@ -807,9 +798,6 @@
                   <property name="singleStep">
                    <double>0.010000000000000</double>
                   </property>
-                  <property name="toolTip">
-                   <string>Adjust angle.</string>
-                  </property>
                  </widget>
                 </item>
                 <item>
@@ -1028,9 +1016,6 @@
                         <property name="maximum">
                          <double>99999.000000000000000</double>
                         </property>
-                        <property name="toolTip">
-                         <string>Adjust height.</string>
-                        </property>
                        </widget>
                       </item>
                       <item row="0" column="1">
@@ -1043,9 +1028,6 @@
                         </property>
                         <property name="maximum">
                          <double>99999.000000000000000</double>
-                        </property>
-                        <property name="toolTip">
-                         <string>Adjust width.</string>
                         </property>
                        </widget>
                       </item>
@@ -1263,9 +1245,6 @@
                     <property name="checked">
                      <bool>false</bool>
                     </property>
-                    <property name="toolTip">
-                     <string>Toggle this option: Auto Margins.</string>
-                    </property>
                    </widget>
                   </item>
                   <item>
@@ -1435,9 +1414,6 @@ QToolButton:pressed {
                        <property name="maximum">
                         <double>9999.000000000000000</double>
                        </property>
-                       <property name="toolTip">
-                        <string>Adjust right margin.</string>
-                       </property>
                       </widget>
                      </item>
                      <item row="1" column="1">
@@ -1448,9 +1424,6 @@ QToolButton:pressed {
                        <property name="maximum">
                         <double>9999.000000000000000</double>
                        </property>
-                       <property name="toolTip">
-                        <string>Adjust bottom margin.</string>
-                       </property>
                       </widget>
                      </item>
                      <item row="0" column="1">
@@ -1460,9 +1433,6 @@ QToolButton:pressed {
                        </property>
                        <property name="maximum">
                         <double>9999.000000000000000</double>
-                       </property>
-                       <property name="toolTip">
-                        <string>Adjust top margin.</string>
                        </property>
                       </widget>
                      </item>
@@ -1480,9 +1450,6 @@ QToolButton:pressed {
                        </property>
                        <property name="maximum">
                         <double>9999.000000000000000</double>
-                       </property>
-                       <property name="toolTip">
-                        <string>Adjust left margin.</string>
                        </property>
                       </widget>
                      </item>
@@ -2150,18 +2117,12 @@ QToolButton:pressed {
                          <property name="text">
                           <string>Savitzky-Golay smoothing</string>
                          </property>
-                         <property name="toolTip">
-                          <string>Toggle this option: Savitzky-Golay smoothing.</string>
-                         </property>
                         </widget>
                        </item>
                        <item>
                         <widget class="QCheckBox" name="morphologicalSmoothingCB">
                          <property name="text">
                           <string>Morphological smoothing</string>
-                         </property>
-                         <property name="toolTip">
-                          <string>Toggle this option: Morphological smoothing.</string>
                          </property>
                         </widget>
                        </item>
@@ -2219,9 +2180,6 @@ QToolButton:pressed {
                        </item>
                        <item>
                         <widget class="QComboBox" name="fillingColorBox">
-                         <property name="toolTip">
-                          <string>Choose filling color.</string>
-                         </property>
                         </widget>
                        </item>
                        <item>
@@ -2507,9 +2465,6 @@ QToolButton:pressed {
                               <property name="value">
                                <number>0</number>
                               </property>
-                              <property name="toolTip">
-                               <string>Adjust reduce noise.</string>
-                              </property>
                              </widget>
                             </item>
                             <item>
@@ -2648,9 +2603,6 @@ QToolButton:pressed {
                               </property>
                               <property name="text">
                                <string>Normalize</string>
-                              </property>
-                              <property name="toolTip">
-                               <string>Toggle this option: Normalize.</string>
                               </property>
                              </widget>
                             </item>
@@ -2795,9 +2747,6 @@ QToolButton:pressed {
                        </item>
                        <item>
                         <widget class="QComboBox" name="thresholdMethodBox">
-                         <property name="toolTip">
-                          <string>Choose threshold method.</string>
-                         </property>
                         </widget>
                        </item>
                        <item>
@@ -3259,9 +3208,6 @@ QToolButton:pressed {
                        </item>
                        <item>
                         <widget class="QComboBox" name="pictureShapeSelector">
-                         <property name="toolTip">
-                          <string>Choose picture shape selector.</string>
-                         </property>
                         </widget>
                        </item>
                        <item>
@@ -3418,9 +3364,6 @@ QToolButton:pressed {
                   </item>
                   <item>
                    <widget class="QComboBox" name="colorModeSelector">
-                    <property name="toolTip">
-                     <string>Choose color mode selector.</string>
-                    </property>
                    </widget>
                   </item>
                   <item>
@@ -3496,9 +3439,6 @@ QToolButton:pressed {
                   </property>
                   <property name="duplicatesEnabled">
                    <bool>true</bool>
-                  </property>
-                  <property name="toolTip">
-                   <string>Choose dpi selector.</string>
                   </property>
                  </widget>
                 </item>
@@ -3732,9 +3672,6 @@ QToolButton:pressed {
                     <property name="orientation">
                      <enum>Qt::Horizontal</enum>
                     </property>
-                    <property name="toolTip">
-                     <string>Adjust despeckle.</string>
-                    </property>
                    </widget>
                   </item>
                  </layout>
@@ -3868,9 +3805,6 @@ QToolButton:pressed {
                   </property>
                   <property name="orientation">
                    <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="toolTip">
-                   <string>Adjust depth perception.</string>
                   </property>
                  </widget>
                 </item>
