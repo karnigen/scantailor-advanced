@@ -4,6 +4,7 @@
 #include "tst_core_qt.h"
 
 #include <Dpi.h>
+#include <PageSizePresets.h>
 #include <PathUtils.h>
 #include <SmartFilenameOrdering.h>
 #include <Units.h>
@@ -446,6 +447,12 @@ void TestCoreQt::testPageSizePresetsApplyPhysicalDimensions() {
 
   widthSpinBox->setValue(widthSpinBox->value() + 1.0);
   QCOMPARE(pageSizeCombo->currentIndex(), 0);
+}
+
+void TestCoreQt::testPageSizePresetNameMatchesEitherOrientation() {
+  QCOMPARE(page_sizes::matchingName(QSizeF(210.0, 297.0)), QStringLiteral("A4"));
+  QCOMPARE(page_sizes::matchingName(QSizeF(297.0, 210.0)), QStringLiteral("A4"));
+  QVERIFY(page_sizes::matchingName(QSizeF(210.0, 300.0)).isEmpty());
 }
 
 void TestCoreQt::testPageDimensionsCommitAfterEditing() {

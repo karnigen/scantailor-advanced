@@ -181,6 +181,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void drawGuideMeasurement(QPainter& painter) const;
 
+  void drawCommonSizeLabel(QPainter& painter) const;
+
   QLineF widgetGuideLine(int index) const;
 
   int getGuideUnderMouse(const QPointF& screenMousePos, const InteractionState& state) const;

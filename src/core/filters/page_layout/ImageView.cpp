@@ -4,6 +4,7 @@
 #include "ImageView.h"
 
 #include <NullTaskStatus.h>
+#include <PageSizePresets.h>
 #include <PolygonUtils.h>
 #include <UnitsConverter.h>
 #include <imageproc/GrayImage.h>
@@ -23,6 +24,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPalette>
 #include <QPen>
 #include <QPixmap>
 #include <QStringList>
@@ -333,8 +335,10 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
   }
 
   if (!m_alignment.isNull()) {
-    pen.setStyle(Qt::DashLine);
-    painter.setPen(pen);
+    QPen commonSizePen(QColor(0x00, 0x86, 0x66));
+    commonSizePen.setCosmetic(true);
+    commonSizePen.setWidthF(2.0);
+    painter.setPen(commonSizePen);
     painter.drawRect(m_outerRect);
 
     // Draw guides.
@@ -353,6 +357,7 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
         painter.drawLine(guide);
       }
     }
+    drawCommonSizeLabel(painter);
   }
   drawGuideMeasurement(painter);
 }  // ImageView::onPaint
@@ -1158,6 +1163,76 @@ void ImageView::drawGuideMeasurement(QPainter& painter) const {
                          fontMetrics.height());
     painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, lines.at(index));
   }
+  painter.restore();
+}
+
+void ImageView::drawCommonSizeLabel(QPainter& painter) const {
+  const QLocale locale;
+  const auto formatMillimetres = [&locale](const double value) {
+    QString formatted(locale.toString(value, 'f', 1));
+    if (formatted.size() >= 2 && formatted.at(formatted.size() - 2) == locale.decimalPoint()
+        && formatted.endsWith(QLatin1Char('0'))) {
+      formatted.chop(2);
+    }
+    return formatted;
+  };
+
+  const QString dimensions
+      = tr("%1 × %2 mm")
+            .arg(formatMillimetres(m_aggregateHardSizeMM.width()), formatMillimetres(m_aggregateHardSizeMM.height()));
+  const QString presetName(page_sizes::matchingName(m_aggregateHardSizeMM));
+  const QString text(presetName.isEmpty() ? dimensions : tr("%1 - %2").arg(presetName, dimensions));
+
+  const QFont font(QToolTip::font());
+  const QFontMetrics fontMetrics(font);
+  constexpr int padding = 4;
+  const QSize labelSize(fontMetrics.horizontalAdvance(text) + 2 * padding, fontMetrics.height() + 2 * padding);
+  const QRect bounds(viewport()->rect());
+  if (bounds.isEmpty()) {
+    return;
+  }
+
+  const QRectF frameRect(virtualToWidget().mapRect(m_outerRect));
+  QRect labelRect;
+  const auto tryPosition = [&](const int x, const int y) {
+    const QRect candidate(QPoint(x, y), labelSize);
+    if (!bounds.contains(candidate)) {
+      return false;
+    }
+    labelRect = candidate;
+    return true;
+  };
+  const int frameLeft = qFloor(frameRect.left());
+  const int frameTop = qFloor(frameRect.top());
+  const int frameRight = qCeil(frameRect.right());
+  const int frameBottom = qCeil(frameRect.bottom());
+  if (labelSize.width() > bounds.width() || labelSize.height() > bounds.height()) {
+    return;
+  }
+  const int maxX = bounds.right() - labelSize.width() + 1;
+  const int maxY = bounds.bottom() - labelSize.height() + 1;
+  const int centeredX = qBound(bounds.left(), qRound(frameRect.center().x() - labelSize.width() / 2.0), maxX);
+  const int centeredY = qBound(bounds.top(), qRound(frameRect.center().y() - labelSize.height() / 2.0), maxY);
+  if (!tryPosition(frameRight - labelSize.width() + 1, frameTop - labelSize.height() - padding)
+      && !tryPosition(frameRight + padding, frameTop) && !tryPosition(frameRight + padding, centeredY)
+      && !tryPosition(centeredX, frameTop - labelSize.height() - padding)
+      && !tryPosition(frameLeft - labelSize.width() - padding, frameTop)
+      && !tryPosition(frameLeft - labelSize.width() - padding, centeredY)
+      && !tryPosition(frameRight - labelSize.width() + 1, frameBottom + padding)
+      && !tryPosition(centeredX, frameBottom + padding)) {
+    return;
+  }
+
+  painter.save();
+  painter.setWorldTransform(QTransform());
+  painter.setFont(font);
+  painter.setPen(Qt::NoPen);
+  QColor background(QToolTip::palette().color(QPalette::ToolTipBase));
+  background.setAlpha(220);
+  painter.setBrush(background);
+  painter.drawRect(labelRect);
+  painter.setPen(QToolTip::palette().color(QPalette::ToolTipText));
+  painter.drawText(labelRect.adjusted(padding, 0, -padding, 0), Qt::AlignCenter, text);
   painter.restore();
 }
 

@@ -19,6 +19,7 @@ set(common_sources
     OutOfMemoryHandler.cpp OutOfMemoryHandler.h
     PageSelectionAccessor.cpp PageSelectionAccessor.h
     PageSelectionProvider.h
+    PageSizePresets.cpp PageSizePresets.h
     ContentSpanFinder.cpp ContentSpanFinder.h
     ImageTransformation.cpp ImageTransformation.h
     ImagePixmapUnion.h

@@ -23,6 +23,6 @@ set(sources
     Utils.cpp Utils.h)
 
 add_library(select_content STATIC ${sources} ${ui_files})
-target_link_libraries(select_content PUBLIC core PRIVATE tomlplusplus::tomlplusplus)
+target_link_libraries(select_content PUBLIC core)
 
 translation_sources(scantailor ${sources} ${ui_files})
