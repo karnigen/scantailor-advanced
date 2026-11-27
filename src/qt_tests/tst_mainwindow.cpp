@@ -1075,6 +1075,16 @@ void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
   QVERIFY(shortcutHelp.contains("Alt+D"));
 }
 
+void TestMainWindowAsync::filterShortcutsUseCtrlNumberRow() {
+  MainWindow window;
+  for (int i = 1; i <= 6; ++i) {
+    const QString actionName = QStringLiteral("actionSwitchFilter%1").arg(i);
+    QAction* action = window.findChild<QAction*>(actionName);
+    QVERIFY(action);
+    QCOMPARE(action->shortcut(), QKeySequence(QStringLiteral("Ctrl+%1").arg(i)));
+  }
+}
+
 void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
   MainWindow window;
   bool promptShown = false;

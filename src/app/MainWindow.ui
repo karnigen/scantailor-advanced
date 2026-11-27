@@ -1395,13 +1395,13 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="shortcut">
-    <string notr="true">O</string>
+    <string notr="true">Ctrl+1</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
    <property name="toolTip">
-    <string>Open the manual Fix Orientation stage. It does not automatically detect upside-down text. Shortcut: O.</string>
+    <string>Open the manual Fix Orientation stage. It does not automatically detect upside-down text. Shortcut: Ctrl+1.</string>
    </property>
   </action>
   <action name="actionSwitchFilter2">
@@ -1409,10 +1409,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to split pages</string>
+    <string>Switch filter to split pages. Shortcut: Ctrl+2.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">E</string>
+    <string notr="true">Ctrl+2</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1423,10 +1423,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to deskew</string>
+    <string>Switch filter to deskew. Shortcut: Ctrl+3.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">N</string>
+    <string notr="true">Ctrl+3</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1437,10 +1437,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to select content</string>
+    <string>Switch filter to select content. Shortcut: Ctrl+4.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">V</string>
+    <string notr="true">Ctrl+4</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1451,10 +1451,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to margins</string>
+    <string>Switch filter to margins. Shortcut: Ctrl+5.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">K</string>
+    <string notr="true">Ctrl+5</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1465,10 +1465,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to output</string>
+    <string>Switch filter to output. Shortcut: Ctrl+6.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">P</string>
+    <string notr="true">Ctrl+6</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>

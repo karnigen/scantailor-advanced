@@ -13,7 +13,6 @@
 #include "ImageViewTab.h"
 
 class ImageViewBase;
-class QShortcut;
 
 namespace output {
 class TabbedImageView : public QTabWidget {
@@ -50,7 +49,5 @@ class TabbedImageView : public QTabWidget {
   std::unordered_map<QWidget*, ImageViewTab> m_registry;
   std::unique_ptr<TabImageRectMap> m_tabImageRectMap;
   int m_prevImageViewTabIndex;
-
-  QShortcut* m_tabShortcuts[5];
 };
 }  // namespace output

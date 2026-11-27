@@ -14,6 +14,7 @@ class TestMainWindowAsync : public QObject {
   void deferredSavesPreserveOrder_data();
   void deferredSavesPreserveOrder();
   void keyboardShortcutsShowConciseStageNames();
+  void filterShortcutsUseCtrlNumberRow();
   void saveProjectPromptUsesActionButtons();
   void reloadProjectConfirmsDiscardWithoutOfferingSave();
   void closeProjectSaveCreatesHistoryBackup();
