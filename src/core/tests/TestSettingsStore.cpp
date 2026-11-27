@@ -6,6 +6,8 @@
 #include <QTemporaryDir>
 #include <catch2/catch_test_macros.hpp>
 
+#include <core/PathUtils.h>
+
 #include "SettingsStore.h"
 
 TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
@@ -14,7 +16,7 @@ TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
   const QString filePath = tempDir.filePath("config.toml");
 
   {
-    SettingsStore settings(filePath);
+    SettingsStore settings(core::toFileSystemPath(filePath));
     settings.setValue("settings/enabled", true);
     settings.setValue("settings/limit", 256);
     settings.setValue("settings/ratio", 1.25);
@@ -24,7 +26,7 @@ TEST_CASE("SettingsStoreTestSuite / test_values_round_trip") {
     settings.setValue("window/logicalSize", QSizeF(400.5, 300.25));
   }
 
-  SettingsStore settings(filePath);
+  SettingsStore settings(core::toFileSystemPath(filePath));
   CHECK(settings.boolValue("settings/enabled"));
   CHECK(settings.intValue("settings/limit") == 256);
   CHECK(settings.doubleValue("settings/ratio") == 1.25);
@@ -46,12 +48,13 @@ TEST_CASE("SettingsStoreTestSuite / test_string_lists_round_trip_as_toml_arrays"
   const QString filePath = tempDir.filePath("config.toml");
 
   {
-    SettingsStore settings(filePath);
+    SettingsStore settings(core::toFileSystemPath(filePath));
     settings.setStringList("project/recent", {"/scans/first.ScanTailor", "/scans/second.ScanTailor"});
     settings.setStringList("project/recent", {"/scans/third.ScanTailor"});
   }
 
-  CHECK(SettingsStore(filePath).stringList("project/recent") == QStringList{"/scans/third.ScanTailor"});
+  CHECK(SettingsStore(core::toFileSystemPath(filePath)).stringList("project/recent")
+        == QStringList{"/scans/third.ScanTailor"});
 }
 
 TEST_CASE("SettingsStoreTestSuite / test_persistence_error_clears_after_successful_retry",
@@ -64,7 +67,7 @@ TEST_CASE("SettingsStoreTestSuite / test_persistence_error_clears_after_successf
   blocker.close();
 
   const QString filePath = QDir(blockedDirectory).filePath(QStringLiteral("config.toml"));
-  SettingsStore settings(filePath);
+  SettingsStore settings(core::toFileSystemPath(filePath));
   settings.setValue(QStringLiteral("settings/first"), true);
   CHECK(settings.hasError());
 

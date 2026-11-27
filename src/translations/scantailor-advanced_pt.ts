@@ -3065,6 +3065,26 @@ Deve removê-los do projeto.</translation>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Configurações a copiar</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Usar para tamanho comum</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Copiar para as páginas de destino a opção desta página de inclusão na correspondência de tamanho comum.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Alinhamento (horizontal e vertical)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Copiar o alinhamento horizontal e vertical desta página.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation>Aplicar a</translation>
@@ -3164,13 +3184,8 @@ Deve removê-los do projeto.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Inserir uma guia horizontal</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Inserir uma guia vertical</translation>
+        <source>Add guide</source>
+        <translation>Inserir guia</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>
@@ -3196,9 +3211,25 @@ Deve removê-los do projeto.</translation>
 <context>
     <name>page_layout::OptionsWidget</name>
     <message>
+        <source>Use for common size</source>
+        <translation>Usar para tamanho comum</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Incluir esta página no cálculo do tamanho comum e ajustá-la a esse tamanho.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Bloquear tamanho comum</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Manter o tamanho comum atual fixo até desativar.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Aplicar Margens</translation>
+        <source>Apply Settings</source>
+        <translation>Aplicar configurações</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3739,6 +3770,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation>Aplicar a...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>DPI de origem</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Copiar o DPI horizontal de origem desta página para as páginas de destino.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Copiar o DPI vertical de origem desta página para as páginas de destino.</translation>
     </message>
 </context>
 </TS>

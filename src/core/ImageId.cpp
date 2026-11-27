@@ -3,11 +3,7 @@
 
 #include "ImageId.h"
 
-#include <QFileInfo>
-
-ImageId::ImageId(const QString& filePath, const int page) : m_filePath(filePath), m_page(page) {}
-
-ImageId::ImageId(const QFileInfo& fileInfo, const int page) : m_filePath(fileInfo.absoluteFilePath()), m_page(page) {}
+ImageId::ImageId(std::filesystem::path filePath, const int page) : m_filePath(std::move(filePath)), m_page(page) {}
 
 bool operator==(const ImageId& lhs, const ImageId& rhs) {
   return ((lhs.page() == rhs.page()) && (lhs.filePath() == rhs.filePath()));

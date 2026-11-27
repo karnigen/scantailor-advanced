@@ -7,8 +7,13 @@
 #include <UnitsProvider.h>
 #include <core/IconProvider.h>
 
+#include <QFont>
+#include <QGridLayout>
 #include <QIntValidator>
 #include <QLineEdit>
+#include <QTextDocument>
+#include <QToolButton>
+#include <QVBoxLayout>
 #include <utility>
 
 #include "../../Utils.h"
@@ -30,6 +35,8 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
       m_sourceDpiFocusWidget(nullptr),
       m_leftRightLinked(true),
       m_topBottomLinked(true),
+      m_alignmentButtonGroup(nullptr),
+      m_zeroMarginsBtn(nullptr),
       m_connectionManager(std::bind(&OptionsWidget::setupUiConnections, this)) {
   {
     SettingsStore appSettings;
@@ -38,8 +45,32 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
   }
 
   setupUi(this);
+  m_zeroMarginsBtn = new QToolButton(this);
+  m_zeroMarginsBtn->setText(QStringLiteral("0"));
+  m_zeroMarginsBtn->setToolTip(tr("Set all four margins to zero."));
+  m_zeroMarginsBtn->setAccessibleName(tr("Set all margins to zero"));
+  m_zeroMarginsBtn->setAutoRaise(true);
+  m_zeroMarginsBtn->setFixedSize(20, 20);
+
+  gridLayout->removeWidget(topBottomLink);
+  gridLayout->removeWidget(leftRightLink);
+  auto* marginActionsLayout = new QVBoxLayout;
+  marginActionsLayout->setSpacing(0);
+  marginActionsLayout->setContentsMargins(0, 0, 0, 0);
+  marginActionsLayout->addWidget(topBottomLink, 0, Qt::AlignCenter);
+  marginActionsLayout->addWidget(m_zeroMarginsBtn, 0, Qt::AlignCenter);
+  marginActionsLayout->addWidget(leftRightLink, 0, Qt::AlignCenter);
+  gridLayout->addLayout(marginActionsLayout, 0, 2, 4, 1, Qt::AlignCenter);
+
   setupIcons();
   setupSourceDpiControls();
+  QFont helpFont = textBrowser->font();
+  helpFont.setFamily(QStringLiteral("MS Shell Dlg 2"));
+  helpFont.setPointSizeF(7.0);
+  textBrowser->document()->setDefaultFont(helpFont);
+  textBrowser->append(
+      QStringLiteral("‣ ")
+      + tr("Arrow keys move page content by 1 screen pixel; Alt+Arrow keys move it by 0.1 screen pixel."));
 
   updateLinkDisplay(topBottomLink, m_topBottomLinked);
   updateLinkDisplay(leftRightLink, m_leftRightLinked);
@@ -239,6 +270,19 @@ void OptionsWidget::leftRightLinkClicked() {
   leftRightLinkToggled(m_leftRightLinked);
 }
 
+void OptionsWidget::zeroMarginsClicked() {
+  {
+    auto block = m_connectionManager.getScopedBlock();
+    topMarginSpinBox->setValue(0.0);
+    bottomMarginSpinBox->setValue(0.0);
+    leftMarginSpinBox->setValue(0.0);
+    rightMarginSpinBox->setValue(0.0);
+  }
+
+  m_marginsMM = Margins(0.0, 0.0, 0.0, 0.0);
+  emit marginsSetLocally(m_marginsMM);
+}
+
 void OptionsWidget::alignWithOthersToggled() {
   m_alignment.setNull(!alignWithOthersCB->isChecked());
 
@@ -312,12 +356,14 @@ void OptionsWidget::alignmentButtonClicked() {
   emit alignmentChanged(m_alignment);
 }
 
-void OptionsWidget::showApplyMarginsDialog() {
-  auto* dialog = new ApplyMarginsDialog(this, m_pageId, m_pageSelectionAccessor);
+void OptionsWidget::showApplySettingsDialog() {
+  commitSourceDpiIfValid();
+  auto* dialog
+      = new ApplyMarginsDialog(this, m_pageId, m_pageSelectionAccessor, m_dpi.horizontal() > 1, m_dpi.vertical() > 1);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  dialog->setWindowTitle(tr("Apply Margins"));
-  connect(dialog, SIGNAL(accepted(const std::set<PageId>&, bool, bool, bool, bool)), this,
-          SLOT(applyMargins(const std::set<PageId>&, bool, bool, bool, bool)));
+  dialog->setWindowTitle(tr("Apply Settings"));
+  connect(dialog, SIGNAL(accepted(const std::set<PageId>&, bool, bool, bool, bool, bool, bool)), this,
+          SLOT(applySettings(const std::set<PageId>&, bool, bool, bool, bool, bool, bool)));
   dialog->show();
 }
 
@@ -325,48 +371,91 @@ void OptionsWidget::showApplyAlignmentDialog() {
   auto* dialog = new ApplyDialog(this, m_pageId, m_pageSelectionAccessor);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setWindowTitle(tr("Apply Alignment"));
-  connect(dialog, SIGNAL(accepted(const std::set<PageId>&)), this, SLOT(applyAlignment(const std::set<PageId>&)));
+  connect(dialog, SIGNAL(accepted(const std::set<PageId>&, bool, bool)), this,
+          SLOT(applyAlignment(const std::set<PageId>&, bool, bool)));
   dialog->show();
 }
 
-void OptionsWidget::applyMargins(const std::set<PageId>& pages,
-                                 bool applyLeft,
-                                 bool applyRight,
-                                 bool applyTop,
-                                 bool applyBottom) {
-  if (pages.empty()) {
+void OptionsWidget::applySettings(const std::set<PageId>& pages,
+                                  bool applyLeft,
+                                  bool applyRight,
+                                  bool applyTop,
+                                  bool applyBottom,
+                                  bool applyDpiX,
+                                  bool applyDpiY) {
+  if (pages.empty() || (!applyLeft && !applyRight && !applyTop && !applyBottom && !applyDpiX && !applyDpiY)) {
     return;
   }
 
-  const bool autoMarginsEnabled = m_settings->isPageAutoMarginsEnabled(m_pageId);
-  for (const PageId& pageId : pages) {
-    m_settings->setPageAutoMarginsEnabled(pageId, autoMarginsEnabled);
-    if (autoMarginsEnabled) {
-      m_settings->invalidateContentSize(pageId);
-    } else {
-      Margins target = m_settings->getHardMarginsMM(pageId);
-      if (applyLeft) {
-        target.setLeft(m_marginsMM.left());
+  const bool copyMargins = applyLeft || applyRight || applyTop || applyBottom;
+  if (copyMargins) {
+    const bool autoMarginsEnabled = m_settings->isPageAutoMarginsEnabled(m_pageId);
+    for (const PageId& pageId : pages) {
+      m_settings->setPageAutoMarginsEnabled(pageId, autoMarginsEnabled);
+      if (autoMarginsEnabled) {
+        m_settings->invalidateContentSize(pageId);
+      } else {
+        Margins target = m_settings->getHardMarginsMM(pageId);
+        if (applyLeft) {
+          target.setLeft(m_marginsMM.left());
+        }
+        if (applyRight) {
+          target.setRight(m_marginsMM.right());
+        }
+        if (applyTop) {
+          target.setTop(m_marginsMM.top());
+        }
+        if (applyBottom) {
+          target.setBottom(m_marginsMM.bottom());
+        }
+        m_settings->setHardMarginsMM(pageId, target);
       }
-      if (applyRight) {
-        target.setRight(m_marginsMM.right());
-      }
-      if (applyTop) {
-        target.setTop(m_marginsMM.top());
-      }
-      if (applyBottom) {
-        target.setBottom(m_marginsMM.bottom());
-      }
-      m_settings->setHardMarginsMM(pageId, target);
     }
   }
 
-  emit aggregateHardSizeChanged();
-  emit invalidateAllThumbnails();
+  std::set<ImageId> updatedImages;
+  if ((applyDpiX || applyDpiY) && m_pages) {
+    const PageSequence pageSequence = m_pages->toPageSequence(PAGE_VIEW);
+    for (const PageInfo& pageInfo : pageSequence) {
+      if (pages.find(pageInfo.id()) == pages.end() || updatedImages.find(pageInfo.imageId()) != updatedImages.end()) {
+        continue;
+      }
+
+      const Dpi targetDpi = pageInfo.metadata().dpi();
+      const Dpi dpi(applyDpiX ? m_dpi.horizontal() : targetDpi.horizontal(),
+                    applyDpiY ? m_dpi.vertical() : targetDpi.vertical());
+      if (dpi == targetDpi) {
+        continue;
+      }
+
+      ImageMetadata metadata = pageInfo.metadata();
+      metadata.setDpi(dpi);
+      m_pages->updateImageMetadata(pageInfo.imageId(), metadata);
+      updatedImages.insert(pageInfo.imageId());
+    }
+
+    if (!updatedImages.empty()) {
+      for (const PageInfo& pageInfo : m_pages->toPageSequence(PAGE_VIEW)) {
+        if (updatedImages.find(pageInfo.imageId()) != updatedImages.end()) {
+          emit invalidateThumbnail(pageInfo);
+        }
+      }
+    }
+  }
+
+  if (copyMargins) {
+    emit aggregateHardSizeChanged();
+  }
+  if (copyMargins || !updatedImages.empty()) {
+    emit invalidateAllThumbnails();
+  }
+  if (!updatedImages.empty()) {
+    emit reloadRequested();
+  }
 }
 
-void OptionsWidget::applyAlignment(const std::set<PageId>& pages) {
-  if (pages.empty()) {
+void OptionsWidget::applyAlignment(const std::set<PageId>& pages, const bool copyCommonSize, const bool copyAlignment) {
+  if (pages.empty() || (!copyCommonSize && !copyAlignment)) {
     return;
   }
 
@@ -375,26 +464,19 @@ void OptionsWidget::applyAlignment(const std::set<PageId>& pages) {
       continue;
     }
 
-    m_settings->setPageAlignment(pageId, m_alignment);
+    Alignment targetAlignment = m_settings->getPageAlignment(pageId);
+    if (copyCommonSize) {
+      targetAlignment.setNull(m_alignment.isNull());
+    }
+    if (copyAlignment) {
+      targetAlignment.setHorizontal(m_alignment.horizontal());
+      targetAlignment.setVertical(m_alignment.vertical());
+    }
+    m_settings->setPageAlignment(pageId, targetAlignment);
   }
 
-  emit invalidateAllThumbnails();
-}
-
-void OptionsWidget::matchSizeToAllPages() {
-  std::set<PageId> allPages;
-  m_pageSelectionAccessor.allPages().selectAll().swap(allPages);
-  if (allPages.empty()) {
-    return;
-  }
-  m_alignment.setNull(false);
-  {
-    auto block = m_connectionManager.getScopedBlock();
-    alignWithOthersCB->setChecked(true);
-    updateAlignmentButtonsEnabled();
-  }
-  applyAlignment(allPages);
   emit aggregateHardSizeChanged();
+  emit invalidateAllThumbnails();
 }
 
 void OptionsWidget::freezeAggregateHardSizeToggled(const bool checked) {
@@ -451,6 +533,7 @@ void OptionsWidget::updateMarginsControlsEnabled() {
   rightMarginSpinBox->setEnabled(enabled);
   topBottomLink->setEnabled(enabled);
   leftRightLink->setEnabled(enabled);
+  m_zeroMarginsBtn->setEnabled(enabled);
 }
 
 #define CONNECT(...) m_connectionManager.addConnection(connect(__VA_ARGS__))
@@ -465,14 +548,13 @@ void OptionsWidget::setupUiConnections() {
   CONNECT(vAlignmentModeCB, SIGNAL(currentIndexChanged(int)), this, SLOT(verticalAlignmentModeChanged(int)));
   CONNECT(topBottomLink, SIGNAL(clicked()), this, SLOT(topBottomLinkClicked()));
   CONNECT(leftRightLink, SIGNAL(clicked()), this, SLOT(leftRightLinkClicked()));
-  CONNECT(applyMarginsBtn, SIGNAL(clicked()), this, SLOT(showApplyMarginsDialog()));
-  CONNECT(fixDpiBtn, SIGNAL(clicked()), this, SLOT(onFixDpiClicked()));
+  CONNECT(m_zeroMarginsBtn, SIGNAL(clicked()), this, SLOT(zeroMarginsClicked()));
+  CONNECT(applySettingsBtn, SIGNAL(clicked()), this, SLOT(showApplySettingsDialog()));
   CONNECT(sourceDpiCombo, SIGNAL(activated(int)), this, SLOT(sourceDpiComboActivated(int)));
   CONNECT(sourceXDpi, SIGNAL(editingFinished()), this, SLOT(sourceDpiEditingFinished()));
   CONNECT(sourceYDpi, SIGNAL(editingFinished()), this, SLOT(sourceDpiEditingFinished()));
   CONNECT(alignWithOthersCB, SIGNAL(toggled(bool)), this, SLOT(alignWithOthersToggled()));
   CONNECT(applyAlignmentBtn, SIGNAL(clicked()), this, SLOT(showApplyAlignmentDialog()));
-  CONNECT(matchSizeToAllBtn, SIGNAL(clicked()), this, SLOT(matchSizeToAllPages()));
   CONNECT(freezeAggregateHardSizeCb, SIGNAL(clicked(bool)), this, SLOT(freezeAggregateHardSizeToggled(bool)));
   for (const auto& kv : m_alignmentByButton) {
     CONNECT(kv.first, SIGNAL(clicked()), this, SLOT(alignmentButtonClicked()));
@@ -561,11 +643,12 @@ void OptionsWidget::setupIcons() {
   m_brokenChainIcon = iconProvider.getIcon("stock-vchain-broken");
 }
 
-void OptionsWidget::onFixDpiClicked() {
-  emit fixDpiRequested();
-}
-
 void OptionsWidget::setupSourceDpiControls() {
+  QSizePolicy comboSizePolicy = sourceDpiCombo->sizePolicy();
+  comboSizePolicy.setHorizontalPolicy(QSizePolicy::Fixed);
+  sourceDpiCombo->setSizePolicy(comboSizePolicy);
+  sourceDpiCombo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+
   sourceDpiCombo->addItem(tr("Custom"), QVariant());
   sourceDpiCombo->addItem(QStringLiteral("300 x 300"), QSize(300, 300));
   sourceDpiCombo->addItem(QStringLiteral("400 x 400"), QSize(400, 400));
@@ -625,6 +708,11 @@ void OptionsWidget::commitSourceDpiIfValid() {
   }
 
   m_pages->updateImageMetadata(m_pageId.imageId(), updated);
+  for (const PageInfo& pageInfo : m_pages->toPageSequence(PAGE_VIEW)) {
+    if (pageInfo.imageId() == m_pageId.imageId()) {
+      emit invalidateThumbnail(pageInfo);
+    }
+  }
   m_dpi = dpi;
   emit invalidateAllThumbnails();
   emit reloadRequested();
@@ -683,7 +771,6 @@ void OptionsWidget::keepSourceDpiFieldsEnabled() {
   sourceDpiTimesLabel->setEnabled(true);
   sourceXDpi->setEnabled(true);
   sourceYDpi->setEnabled(true);
-  fixDpiBtn->setEnabled(true);
 }
 
 bool OptionsWidget::isSourceDpiFieldFocused() const {

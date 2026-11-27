@@ -66,7 +66,8 @@ class Filter : public AbstractFilter {
   void setContentBox(const PageId& pageId,
                      const ImageTransformation& xform,
                      const QRectF& pageRect,
-                     const QRectF& contentRect);
+                     const QRectF& contentRect,
+                     bool pageBoundaryEnabled = false);
 
   void invalidateContentBox(const PageId& pageId);
 

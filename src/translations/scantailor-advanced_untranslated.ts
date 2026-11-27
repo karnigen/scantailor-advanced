@@ -2374,6 +2374,26 @@ You should remove them from the project.</source>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Apply to</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2454,11 +2474,7 @@ You should remove them from the project.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Add a horizontal guide</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add a vertical guide</source>
+        <source>Add guide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2480,6 +2496,22 @@ You should remove them from the project.</source>
 </context>
 <context>
     <name>page_layout::OptionsWidget</name>
+    <message>
+        <source>Use for common size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation type="unfinished"></translation>
+    </message>
     <message>
         <source>Form</source>
         <translation type="unfinished"></translation>
@@ -2565,7 +2597,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Apply Margins</source>
+        <source>Apply Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2875,6 +2907,21 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Apply to ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

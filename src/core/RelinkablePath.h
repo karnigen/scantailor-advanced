@@ -4,7 +4,7 @@
 #ifndef SCANTAILOR_CORE_RELINKABLEPATH_H_
 #define SCANTAILOR_CORE_RELINKABLEPATH_H_
 
-#include <QString>
+#include <filesystem>
 
 /**
  * \brief Represents a file or directory.
@@ -14,9 +14,9 @@ class RelinkablePath {
  public:
   enum Type { File, Dir };
 
-  RelinkablePath(const QString& path, Type type);
+  RelinkablePath(std::filesystem::path path, Type type);
 
-  const QString& normalizedPath() const { return m_normalizedPath; }
+  const std::filesystem::path& normalizedPath() const { return m_normalizedPath; }
 
   Type type() const { return m_type; }
 
@@ -30,10 +30,10 @@ class RelinkablePath {
    * \return The normalized string on success or an empty string on failure.
    *         Failure can happen because of unresolvable "/../" components.
    */
-  static QString normalize(const QString& path);
+  static std::filesystem::path normalize(const std::filesystem::path& path);
 
  private:
-  QString m_normalizedPath;
+  std::filesystem::path m_normalizedPath;
   Type m_type;
 };
 

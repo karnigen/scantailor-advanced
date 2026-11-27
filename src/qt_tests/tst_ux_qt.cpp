@@ -7,6 +7,7 @@
 #include <ConfigurationDialog.h>
 #include <ErrorWidget.h>
 #include <ThumbnailViewMode.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QCheckBox>
@@ -76,6 +77,14 @@ void TestUxQt::testCollapsibleGroupBoxStateAndSignal() {
   QVERIFY(!group.isCollapsed());
   QCOMPARE(spy.count(), 2);
   QCOMPARE(spy.at(1).at(0).toBool(), false);
+
+  group.setCollapsed(true);
+  auto* collapseButton = group.findChild<QToolButton*>(QStringLiteral("collapseButton"));
+  QVERIFY(collapseButton);
+  group.show();
+  QTRY_VERIFY(collapseButton->isVisible());
+  QTest::mouseClick(collapseButton, Qt::LeftButton);
+  QVERIFY(!group.isCollapsed());
 }
 
 void TestUxQt::testErrorWidgetCreation() {
@@ -96,9 +105,9 @@ void TestUxQt::testConfigurationDialogShowsPathsAndReloadsSettings() {
   auto* reloadButton = dialog.findChild<QPushButton*>(QStringLiteral("configurationReloadButton"));
 
   QVERIFY(filePath);
-  QVERIFY(filePath->text().contains(SettingsStore::configFilePath()));
+  QVERIFY(filePath->text().contains(core::toQString(SettingsStore::configFilePath())));
   QVERIFY(profilesPath);
-  QVERIFY(profilesPath->text().contains(SettingsStore::profilesDirectory()));
+  QVERIFY(profilesPath->text().contains(core::toQString(SettingsStore::profilesDirectory())));
   QVERIFY(directoryStatus);
   QVERIFY(directoryStatus->text().contains(QStringLiteral("writable")));
   QVERIFY(contents);
@@ -108,7 +117,7 @@ void TestUxQt::testConfigurationDialogShowsPathsAndReloadsSettings() {
   QVERIFY(reloadButton);
 
   QTest::mouseClick(copyButton, Qt::LeftButton);
-  QCOMPARE(QApplication::clipboard()->text(), SettingsStore::configFilePath());
+  QCOMPARE(QApplication::clipboard()->text(), core::toQString(SettingsStore::configFilePath()));
 
   settings.setValue(QStringLiteral("testing/dialog"), QStringLiteral("after reload"));
   QTest::mouseClick(reloadButton, Qt::LeftButton);

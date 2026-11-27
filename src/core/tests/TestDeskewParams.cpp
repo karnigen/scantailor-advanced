@@ -4,6 +4,7 @@
 #include <DefaultParams.h>
 #include <Dpi.h>
 #include <ImageTransformation.h>
+#include <PathUtils.h>
 #include <filters/deskew/Dependencies.h>
 #include <filters/deskew/Params.h>
 #include <filters/deskew/Settings.h>
@@ -55,7 +56,7 @@ TEST_CASE("DeskewParamsTestSuite / legacy_dependencies_are_stale_for_deskew_algo
 
 TEST_CASE("DeskewParamsTestSuite / pending_recompute_is_persisted_as_stale_dependencies") {
   Settings settings;
-  const PageId pageId(ImageId(QStringLiteral("pending-recompute.tif")));
+  const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("pending-recompute.tif"))));
   QPolygonF outline;
   outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
   const Dependencies currentDependencies(outline, OrthogonalRotation(), true);
@@ -75,7 +76,7 @@ TEST_CASE("DeskewParamsTestSuite / pending_recompute_is_persisted_as_stale_depen
 
 TEST_CASE("DeskewParamsTestSuite / pending_oblique_recompute_is_persisted_as_stale_dependencies") {
   Settings settings;
-  const PageId pageId(ImageId(QStringLiteral("pending-oblique-recompute.tif")));
+  const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("pending-oblique-recompute.tif"))));
   QPolygonF outline;
   outline << QPointF(0, 0) << QPointF(100, 0) << QPointF(100, 100) << QPointF(0, 100);
   const Dependencies currentDependencies(outline, OrthogonalRotation(), true);

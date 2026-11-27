@@ -90,9 +90,13 @@
     </property>
     <addaction name="actionNewProject"/>
     <addaction name="actionOpenProject"/>
+    <addaction name="actionReloadProject"/>
     <addaction name="separator"/>
     <addaction name="actionSaveProject"/>
     <addaction name="actionSaveProjectAs"/>
+    <addaction name="separator"/>
+    <addaction name="actionExportProcessedImages"/>
+    <addaction name="actionExportPagesToPdf"/>
     <addaction name="separator"/>
     <addaction name="actionCloseProject"/>
     <addaction name="separator"/>
@@ -103,7 +107,8 @@
      <string>Help</string>
     </property>
     <addaction name="actionKeyboardShortcuts"/>
-     <addaction name="actionCommandLineArguments"/>
+    <addaction name="actionSupportedImageFormats"/>
+    <addaction name="actionCommandLineArguments"/>
     <addaction name="actionConfiguration"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
@@ -935,7 +940,7 @@ QToolButton:pressed {
           </size>
          </property>
          <property name="statusTip">
-          <string>Use Home, End, PgUp/Q, PgDown/W to navigate between pages or Shift+PgUp/Q and Shift+PgDown/W to navigate between selected ones. Alt+Wheel - scale thumbnails.</string>
+          <string>Use Home, End, PgUp/Q, PgDown/W or Ctrl+Wheel to navigate one page at a time; Shift+Wheel moves 10 pages at a time. Shift+PgUp/Q and Shift+PgDown/W navigate between selected pages. Alt+Wheel scales thumbnails.</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignHCenter|Qt::AlignTop</set>
@@ -1133,6 +1138,22 @@ QToolButton:pressed {
     <string>Save the current project to a different file.</string>
    </property>
   </action>
+  <action name="actionExportProcessedImages">
+   <property name="text">
+    <string>Export Processed Pages as Images ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Export processed pages in an available image format, including WebP.</string>
+   </property>
+  </action>
+  <action name="actionExportPagesToPdf">
+   <property name="text">
+    <string>Export Processed Pages as PDF ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Export all processed pages as one multi-page PDF.</string>
+   </property>
+  </action>
   <action name="actionNextPage">
    <property name="text">
     <string>Next Page</string>
@@ -1187,6 +1208,14 @@ QToolButton:pressed {
    </property>
    <property name="toolTip">
     <string>Open an existing project. Shortcut: Ctrl+O.</string>
+   </property>
+  </action>
+  <action name="actionReloadProject">
+   <property name="text">
+    <string>Reload Project</string>
+   </property>
+   <property name="toolTip">
+    <string>Reload the current project from disk, discarding unsaved changes.</string>
    </property>
   </action>
   <action name="actionPrevPageQ">
@@ -1309,6 +1338,14 @@ QToolButton:pressed {
     <string>Show available keyboard shortcuts.</string>
    </property>
   </action>
+  <action name="actionSupportedImageFormats">
+  <property name="text">
+   <string>Supported Image Formats...</string>
+  </property>
+  <property name="toolTip">
+   <string>Show supported input and output image formats and TIFF compression options.</string>
+  </property>
+  </action>
   <action name="actionCommandLineArguments">
    <property name="text">
     <string>Command Line Arguments...</string>
@@ -1327,7 +1364,7 @@ QToolButton:pressed {
   </action>
   <action name="actionFixDpi">
    <property name="text">
-    <string>Fix DPI ...</string>
+    <string>Check / Set DPI ...</string>
    </property>
    <property name="shortcut">
     <string notr="true"/>

@@ -6,15 +6,16 @@
 #include <QFile>
 #include <QStringList>
 
+#include "PathUtils.h"
 #include "SettingsStore.h"
 
 void RecentProjects::read() {
   SettingsStore settings;
-  std::list<QString> newList;
+  std::list<std::filesystem::path> newList;
 
   const QStringList paths = settings.stringList("project/recent");
   for (const QString& path : paths) {
-    newList.push_back(path);
+    newList.push_back(core::toFileSystemPath(path));
   }
 
   m_projectFiles.swap(newList);
@@ -23,11 +24,11 @@ void RecentProjects::read() {
 void RecentProjects::write(const int maxItems) const {
   SettingsStore settings;
   QStringList paths;
-  for (const QString& path : m_projectFiles) {
+  for (const std::filesystem::path& path : m_projectFiles) {
     if (paths.size() >= maxItems) {
       break;
     }
-    paths.push_back(path);
+    paths.push_back(core::toQString(path));
   }
   settings.setStringList("project/recent", paths);
 }
@@ -38,7 +39,7 @@ bool RecentProjects::validate() {
   auto it(m_projectFiles.begin());
   const auto end(m_projectFiles.end());
   while (it != end) {
-    if (QFile::exists(*it)) {
+    if (QFile::exists(core::toQString(*it))) {
       ++it;
     } else {
       m_projectFiles.erase(it++);
@@ -48,7 +49,7 @@ bool RecentProjects::validate() {
   return allOk;
 }
 
-void RecentProjects::setMostRecent(const QString& filePath) {
+void RecentProjects::setMostRecent(const std::filesystem::path& filePath) {
   const auto begin(m_projectFiles.begin());
   const auto end(m_projectFiles.end());
   auto it(std::find(begin, end, filePath));

@@ -10,6 +10,8 @@
 class RelinkablePath;
 class QHBoxLayout;
 class QAbstractButton;
+class QEvent;
+class QObject;
 
 class RelinkablePathVisualization : public QWidget {
   Q_OBJECT
@@ -27,6 +29,7 @@ class RelinkablePathVisualization : public QWidget {
 
  protected:
   void paintEvent(QPaintEvent* evt) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
  private:
   struct PathComponent;
@@ -35,11 +38,14 @@ class RelinkablePathVisualization : public QWidget {
 
   void onClicked(int componentIdx, const QString& prefixPath, const QString& suffixPath, int type);
 
+  void refreshHoverHighlight();
+
   void stylePathComponentButton(QAbstractButton* btn, bool exists);
 
   static void checkForExistence(std::vector<PathComponent>& components);
 
   QHBoxLayout* m_layout;
+  bool m_hoverSuppressedUntilMove = false;
 };
 
 

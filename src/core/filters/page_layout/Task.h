@@ -40,7 +40,8 @@ class Task {
   FilterResultPtr process(const TaskStatus& status,
                           const FilterData& data,
                           const QRectF& pageRect,
-                          const QRectF& contentRect);
+                          const QRectF& contentRect,
+                          bool pageBoundaryEnabled);
 
  private:
   class UiUpdater;

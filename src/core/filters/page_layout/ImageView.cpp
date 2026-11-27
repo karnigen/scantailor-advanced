@@ -4,25 +4,69 @@
 #include "ImageView.h"
 
 #include <NullTaskStatus.h>
+#include <PageSizePresets.h>
 #include <PolygonUtils.h>
 #include <UnitsConverter.h>
 #include <imageproc/GrayImage.h>
 #include <imageproc/Transform.h>
 
+#include <QColor>
+#include <QComboBox>
+#include <QCursor>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
+#include <QFontMetrics>
+#include <QFormLayout>
+#include <QIcon>
+#include <QKeyEvent>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPalette>
+#include <QPen>
+#include <QPixmap>
+#include <QStringList>
+#include <QToolTip>
+#include <cmath>
 #include <functional>
 
 #include "ImagePresentation.h"
 #include "OptionsWidget.h"
 #include "Params.h"
 #include "Settings.h"
+#include "Units.h"
+#include "UnitsProvider.h"
 #include "Utils.h"
 
 using namespace imageproc;
 
 namespace page_layout {
+namespace {
+QIcon guideActionIcon(const Qt::Orientation orientation) {
+  QPixmap pixmap(16, 16);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  QPen pen(QColor(0x00, 0x9d, 0x9f));
+  pen.setWidth(2);
+  pen.setCapStyle(Qt::RoundCap);
+  painter.setPen(pen);
+  if (orientation == Qt::Horizontal) {
+    painter.drawLine(2, 8, 14, 8);
+  } else {
+    painter.drawLine(8, 2, 8, 14);
+  }
+  return QIcon(pixmap);
+}
+
+bool marginsEqual(const Margins& lhs, const Margins& rhs) {
+  return lhs.left() == rhs.left() && lhs.top() == rhs.top() && lhs.right() == rhs.right()
+         && lhs.bottom() == rhs.bottom();
+}
+}  // namespace
+
 ImageView::ImageView(const std::shared_ptr<Settings>& settings,
                      const PageId& pageId,
                      const QImage& image,
@@ -152,6 +196,7 @@ ImageView::ImageView(const std::shared_ptr<Settings>& settings,
   setupGuides();
 
   recalcBoxesAndFit(optWidget.marginsMM());
+  addDefaultGuidesIfNeeded();
 }
 
 ImageView::~ImageView() = default;
@@ -208,6 +253,7 @@ void ImageView::alignmentChanged(const Alignment& alignment) {
   const Settings::AggregateSizeChanged sizeChanged = m_settings->setPageAlignment(m_pageId, alignment);
 
   recalcBoxesAndFit(calcHardMarginsMM());
+  addDefaultGuidesIfNeeded();
 
   enableGuidesInteraction(!m_alignment.isNull());
   forceInscribeGuides();
@@ -229,6 +275,7 @@ void ImageView::aggregateHardSizeChanged() {
 }
 
 void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) {
+  const std::unique_ptr<Params> pageParams(m_settings->getPageParams(m_pageId));
   QColor bgColor;
   QColor fgColor;
   if (m_alignment.isNull()) {
@@ -269,12 +316,29 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
     painter.drawRect(m_middleRect);
   }
   if (!m_nullContentRect) {
+    QPen contentPen(QColor(0x00, 0x00, 0xff));
+    contentPen.setStyle(Qt::DotLine);
+    contentPen.setCosmetic(true);
+    contentPen.setWidthF(2.0);
+    painter.setPen(contentPen);
     painter.drawRect(m_innerRect);
   }
 
+  if (pageParams && pageParams->isPageBoundaryEnabled()) {
+    QPen boundaryPen(QColor(0xff, 0x7f, 0x00));
+    boundaryPen.setStyle(Qt::DotLine);
+    boundaryPen.setCosmetic(true);
+    boundaryPen.setWidthF(2.0);
+    painter.setPen(boundaryPen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(pageParams->pageRect());
+  }
+
   if (!m_alignment.isNull()) {
-    pen.setStyle(Qt::DashLine);
-    painter.setPen(pen);
+    QPen commonSizePen(QColor(0x00, 0x86, 0x66));
+    commonSizePen.setCosmetic(true);
+    commonSizePen.setWidthF(2.0);
+    painter.setPen(commonSizePen);
     painter.drawRect(m_outerRect);
 
     // Draw guides.
@@ -293,8 +357,40 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
         painter.drawLine(guide);
       }
     }
+    drawCommonSizeLabel(painter);
   }
+  drawGuideMeasurement(painter);
 }  // ImageView::onPaint
+
+void ImageView::keyPressEvent(QKeyEvent* event) {
+  QPointF delta;
+  switch (event->key()) {
+    case Qt::Key_Left:
+      delta.setX(-1.0);
+      break;
+    case Qt::Key_Right:
+      delta.setX(1.0);
+      break;
+    case Qt::Key_Up:
+      delta.setY(-1.0);
+      break;
+    case Qt::Key_Down:
+      delta.setY(1.0);
+      break;
+    default:
+      ImageViewBase::keyPressEvent(event);
+      return;
+  }
+
+  if (event->modifiers().testFlag(Qt::AltModifier)) {
+    delta *= 0.1;
+  }
+
+  dragInitiated(QPointF(0.0, 0.0));
+  innerRectMoveRequest(delta);
+  dragFinished();
+  event->accept();
+}
 
 Proximity ImageView::cornerProximity(const int edgeMask, const QRectF* box, const QPointF& mousePos) const {
   const QRectF r(virtualToWidget().mapRect(*box));
@@ -411,8 +507,6 @@ void ImageView::innerRectDragContinuation(int edgeMask, const QPointF& mousePos)
   fp += QPointF(effectiveDx, effectiveDy);
   setWidgetFocalPoint(fp);
 
-  m_aggregateHardSizeMM = m_settings->getAggregateHardSizeMM(m_pageId, origRectToSizeMM(m_middleRect), m_alignment);
-
   recalcOuterRect();
 
   updatePresentationTransform(DONT_FIT);
@@ -473,8 +567,6 @@ void ImageView::middleRectDragContinuation(const int edgeMask, const QPointF& mo
     forceNonNegativeHardMargins(m_middleRect);  // invalidates widgetRect
   }
 
-  m_aggregateHardSizeMM = m_settings->getAggregateHardSizeMM(m_pageId, origRectToSizeMM(m_middleRect), m_alignment);
-
   recalcOuterRect();
 
   updatePresentationTransform(DONT_FIT);
@@ -503,15 +595,23 @@ void ImageView::recalcBoxesAndFit(const Margins& marginsMm) {
   const QTransform virtToMm(virtualToImage() * m_pixelsToMmXform);
   const QTransform mmToVirt(m_mmToPixelsXform * imageToVirtual());
 
-  QPolygonF polyMm(virtToMm.map(m_innerRect));
-  Utils::extendPolyRectWithMargins(polyMm, marginsMm);
+  const QPolygonF contentPolyMm(virtToMm.map(m_innerRect));
+  const std::unique_ptr<Params> params(m_settings->getPageParams(m_pageId));
+  Margins hardMarginsMm(constrainHardMarginsMM(marginsMm, *params, contentPolyMm));
+  if (!marginsEqual(hardMarginsMm, marginsMm)) {
+    m_settings->setHardMarginsMM(m_pageId, hardMarginsMm);
+    m_aggregateHardSizeMM = m_settings->getAggregateHardSizeMM();
+    emit marginsSetLocally(hardMarginsMm);
+  }
 
+  QPolygonF polyMm(contentPolyMm);
+  Utils::extendPolyRectWithMargins(polyMm, hardMarginsMm);
   const QRectF middleRect(mmToVirt.map(polyMm).boundingRect());
 
   const QSizeF hardSizeMm(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
-  const Margins softMarginsMm(Utils::calcSoftMarginsMM(
-      hardSizeMm, m_aggregateHardSizeMM, m_alignment, m_settings->getPageParams(m_pageId)->contentRect(),
-      m_settings->getPageParams(m_pageId)->contentSizeMM(), m_settings->getPageParams(m_pageId)->pageRect()));
+  const Margins softMarginsMm(Utils::calcSoftMarginsMM(hardSizeMm, m_aggregateHardSizeMM, m_alignment,
+                                                       params->contentRect(), params->contentSizeMM(),
+                                                       params->pageRect()));
 
   Utils::extendPolyRectWithMargins(polyMm, softMarginsMm);
 
@@ -526,6 +626,16 @@ void ImageView::recalcBoxesAndFit(const Margins& marginsMm) {
   updatePhysSize();
 
   forceInscribeGuides();
+}
+
+Margins ImageView::constrainHardMarginsMM(const Margins& marginsMm,
+                                          const Params& params,
+                                          const QPolygonF& contentRectMm) const {
+  if (m_alignment.isNull() || (!params.isPageBoundaryEnabled() && params.contentSizeMM().isEmpty())) {
+    return marginsMm;
+  }
+
+  return Utils::constrainHardMarginsMM(contentRectMm, marginsMm, m_aggregateHardSizeMM);
 }
 
 /**
@@ -593,12 +703,20 @@ void ImageView::recalcOuterRect() {
   const QTransform virtToMm(virtualToImage() * m_pixelsToMmXform);
   const QTransform mmToVirt(m_mmToPixelsXform * imageToVirtual());
 
+  const std::unique_ptr<Params> params(m_settings->getPageParams(m_pageId));
+  const QPolygonF contentRectMm(virtToMm.map(m_innerRect));
+  const Margins hardMarginsMm(constrainHardMarginsMM(calcHardMarginsMM(), *params, contentRectMm));
+  if (!marginsEqual(hardMarginsMm, calcHardMarginsMM())) {
+    recalcBoxesAndFit(hardMarginsMm);
+    return;
+  }
+
   QPolygonF polyMm(virtToMm.map(m_middleRect));
 
   const QSizeF hardSizeMm(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
-  const Margins softMarginsMm(Utils::calcSoftMarginsMM(
-      hardSizeMm, m_aggregateHardSizeMM, m_alignment, m_settings->getPageParams(m_pageId)->contentRect(),
-      m_settings->getPageParams(m_pageId)->contentSizeMM(), m_settings->getPageParams(m_pageId)->pageRect()));
+  const Margins softMarginsMm(Utils::calcSoftMarginsMM(hardSizeMm, m_aggregateHardSizeMM, m_alignment,
+                                                       params->contentRect(), params->contentSizeMM(),
+                                                       params->pageRect()));
 
   Utils::extendPolyRectWithMargins(polyMm, softMarginsMm);
 
@@ -606,16 +724,6 @@ void ImageView::recalcOuterRect() {
   updatePhysSize();
 
   forceInscribeGuides();
-}
-
-QSizeF ImageView::origRectToSizeMM(const QRectF& rect) const {
-  const QTransform virtToMm(virtualToImage() * m_pixelsToMmXform);
-
-  const QLineF horLine(rect.topLeft(), rect.topRight());
-  const QLineF vertLine(rect.topLeft(), rect.bottomLeft());
-
-  const QSizeF sizeMm(virtToMm.map(horLine).length(), virtToMm.map(vertLine).length());
-  return sizeMm;
 }
 
 ImageView::AggregateSizeChanged ImageView::commitHardMargins(const Margins& marginsMm) {
@@ -648,14 +756,16 @@ void ImageView::updatePhysSize() {
 }
 
 void ImageView::setupContextMenuInteraction() {
-  m_addHorizontalGuideAction = m_contextMenu->addAction(tr("Add a horizontal guide"));
-  m_addVerticalGuideAction = m_contextMenu->addAction(tr("Add a vertical guide"));
+  m_setGuidePositionAction = m_contextMenu->addAction(tr("Set position"));
+  m_addHorizontalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Horizontal), tr("Add guide"));
+  m_addVerticalGuideAction = m_contextMenu->addAction(guideActionIcon(Qt::Vertical), tr("Add guide"));
   m_removeAllGuidesAction = m_contextMenu->addAction(tr("Remove all guides from the project"));
   m_removeGuideUnderMouseAction = m_contextMenu->addAction(tr("Remove this guide"));
   m_addHorizontalGuideAction->setToolTip(tr("Add a horizontal alignment guide at the cursor position."));
   m_addVerticalGuideAction->setToolTip(tr("Add a vertical alignment guide at the cursor position."));
   m_removeAllGuidesAction->setToolTip(tr("Remove every alignment guide from the project."));
   m_removeGuideUnderMouseAction->setToolTip(tr("Remove the alignment guide under the cursor."));
+  m_setGuidePositionAction->setToolTip(tr("Set the position of this guide precisely."));
   m_guideActionsSeparator = m_contextMenu->addSeparator();
   m_showMiddleRectAction = m_contextMenu->addAction(tr("Show hard margins rectangle"));
   m_showMiddleRectAction->setToolTip(tr("Show or hide the detected hard-margins boundary."));
@@ -668,6 +778,7 @@ void ImageView::setupContextMenuInteraction() {
           [this]() { addVerticalGuide(widgetToGuideCs().map(m_lastContextMenuPos).x()); });
   connect(m_removeAllGuidesAction, &QAction::triggered, std::bind(&ImageView::removeAllGuides, this));
   connect(m_removeGuideUnderMouseAction, &QAction::triggered, [this]() { removeGuide(m_guideUnderMouse); });
+  connect(m_setGuidePositionAction, &QAction::triggered, [this]() { setGuidePosition(m_guideUnderMouse); });
   connect(m_showMiddleRectAction, &QAction::toggled, [this](bool checked) {
     if (!m_alignment.isNull() && !m_nullContentRect) {
       enableMiddleRectInteraction(checked);
@@ -681,31 +792,30 @@ void ImageView::onContextMenuEvent(QContextMenuEvent* event, InteractionState& i
     // No context menus during resizing.
     return;
   }
-  if (m_alignment.isNull()) {
-    return;
-  }
 
   const QPointF eventPos = QPointF(0.5, 0.5) + event->pos();
-  // No context menus outside the outer rect.
-  if (!m_outerRect.contains(widgetToVirtual().map(eventPos))) {
-    return;
-  }
+  m_lastContextMenuPos = eventPos;
+  const QPointF guidePos(widgetToGuideCs().map(eventPos));
+  const bool hasGuideArea = !m_outerRect.isEmpty();
+  m_addHorizontalGuideAction->setEnabled(!m_alignment.isNull() && hasGuideArea
+                                         && std::abs(guidePos.y()) <= m_outerRect.height() / 2.0);
+  m_addVerticalGuideAction->setEnabled(!m_alignment.isNull() && hasGuideArea
+                                       && std::abs(guidePos.x()) <= m_outerRect.width() / 2.0);
 
-  m_guideUnderMouse = getGuideUnderMouse(eventPos, interaction);
+  m_guideUnderMouse = m_alignment.isNull() ? -1 : getGuideUnderMouse(eventPos, interaction);
+  m_removeAllGuidesAction->setEnabled(!m_alignment.isNull());
+  m_removeGuideUnderMouseAction->setEnabled(!m_alignment.isNull());
+  m_showMiddleRectAction->setEnabled(!m_alignment.isNull());
   if (m_guideUnderMouse == -1) {
-    m_addHorizontalGuideAction->setVisible(true);
-    m_addVerticalGuideAction->setVisible(true);
     m_removeAllGuidesAction->setVisible(!m_guides.empty());
     m_removeGuideUnderMouseAction->setVisible(false);
+    m_setGuidePositionAction->setVisible(false);
     m_guideActionsSeparator->setVisible(!m_nullContentRect);
     m_showMiddleRectAction->setVisible(!m_nullContentRect);
-
-    m_lastContextMenuPos = eventPos;
   } else {
-    m_addHorizontalGuideAction->setVisible(false);
-    m_addVerticalGuideAction->setVisible(false);
     m_removeAllGuidesAction->setVisible(false);
     m_removeGuideUnderMouseAction->setVisible(true);
+    m_setGuidePositionAction->setVisible(true);
     m_guideActionsSeparator->setVisible(false);
     m_showMiddleRectAction->setVisible(false);
   }
@@ -714,10 +824,131 @@ void ImageView::onContextMenuEvent(QContextMenuEvent* event, InteractionState& i
 }
 
 void ImageView::setupGuides() {
+  if (m_settings->guides().empty()) {
+    return;
+  }
+
+  m_settings->setGuidesInitialized(true);
   for (const Guide& guide : m_settings->guides()) {
     m_guides[m_guidesFreeIndex] = m_mmToPixelsXform.map(guide);
     setupGuideInteraction(m_guidesFreeIndex++);
   }
+}
+
+void ImageView::addDefaultGuidesIfNeeded() {
+  if (m_alignment.isNull() || m_settings->guidesInitialized() || !m_settings->guides().empty()) {
+    return;
+  }
+
+  m_settings->setGuidesInitialized(true);
+  const QPointF pageCenter(m_xform.resultingPreCropArea().boundingRect().center());
+  const QPointF guideCenter(pageCenter - m_outerRect.center());
+  addHorizontalGuide(guideCenter.y());
+  addVerticalGuide(guideCenter.x());
+}
+
+void ImageView::setGuidePosition(const int index) {
+  const auto guideIt = m_guides.find(index);
+  if (guideIt == m_guides.end()) {
+    return;
+  }
+
+  const Guide& guide = guideIt->second;
+  const bool horizontalGuide = guide.getOrientation() == Qt::Horizontal;
+  const double extent = horizontalGuide ? m_outerRect.height() : m_outerRect.width();
+  if (extent <= 0.0) {
+    return;
+  }
+
+  const Units units = UnitsProvider::getInstance().getUnits();
+  const Dpi& dpi = m_xform.origDpi();
+  const auto pixelsToUnits = [this, horizontalGuide, &dpi](const double pixels) {
+    const QPointF pixelVector = horizontalGuide ? QPointF(0.0, pixels) : QPointF(pixels, 0.0);
+    const QPointF mmVector = m_pixelsToMmXform.map(pixelVector) - m_pixelsToMmXform.map(QPointF());
+    double horizontal = mmVector.x();
+    double vertical = mmVector.y();
+    UnitsProvider::getInstance().convertFrom(horizontal, vertical, MILLIMETRES, dpi);
+    return std::abs(horizontalGuide ? vertical : horizontal);
+  };
+  const auto unitsToPixels = [this, horizontalGuide, &dpi](const double value) {
+    double horizontal = horizontalGuide ? 0.0 : value;
+    double vertical = horizontalGuide ? value : 0.0;
+    UnitsProvider::getInstance().convertTo(horizontal, vertical, MILLIMETRES, dpi);
+    const QPointF mmVector(horizontal, vertical);
+    const QPointF pixelVector = m_mmToPixelsXform.map(mmVector) - m_mmToPixelsXform.map(QPointF());
+    return std::abs(horizontalGuide ? pixelVector.y() : pixelVector.x());
+  };
+
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("setGuidePositionDialog"));
+  dialog.setWindowTitle(tr("Set guide position"));
+
+  auto* sideCombo = new QComboBox(&dialog);
+  sideCombo->setObjectName(QStringLiteral("guidePositionSideCombo"));
+  sideCombo->addItem(horizontalGuide ? tr("Top") : tr("Left"), true);
+  sideCombo->addItem(horizontalGuide ? tr("Bottom") : tr("Right"), false);
+
+  const double halfExtent = extent / 2.0;
+  const double firstDistance = halfExtent + guide.getPosition();
+  const double secondDistance = extent - firstDistance;
+  const QString firstSide = horizontalGuide ? tr("Top") : tr("Left");
+  const QString secondSide = horizontalGuide ? tr("Bottom") : tr("Right");
+  const auto currentSideText = [&](const QString& side, const double distance) {
+    return tr("%1: %2 %3 (%4%)")
+        .arg(side, QLocale().toString(pixelsToUnits(distance), 'f', 2), unitsToLocalizedString(units),
+             QLocale().toString(distance / extent * 100.0, 'f', 2));
+  };
+  auto* currentPositionLabel = new QLabel(&dialog);
+  currentPositionLabel->setObjectName(QStringLiteral("guidePositionCurrentValues"));
+  currentPositionLabel->setWordWrap(false);
+  currentPositionLabel->setText(currentSideText(firstSide, firstDistance) + QLatin1Char('\n')
+                                + currentSideText(secondSide, secondDistance));
+
+  auto* unitsCombo = new QComboBox(&dialog);
+  unitsCombo->setObjectName(QStringLiteral("guidePositionUnitsCombo"));
+  unitsCombo->addItem(tr("Units (%1)").arg(unitsToLocalizedString(units)), false);
+  unitsCombo->addItem(tr("Percent (%)"), true);
+
+  auto* valueSpinBox = new QDoubleSpinBox(&dialog);
+  valueSpinBox->setObjectName(QStringLiteral("guidePositionSpinBox"));
+  valueSpinBox->setDecimals(3);
+  valueSpinBox->setSingleStep(0.1);
+
+  QFormLayout* formLayout = new QFormLayout(&dialog);
+  formLayout->addRow(tr("Current position:"), currentPositionLabel);
+  formLayout->addRow(tr("Measure from:"), sideCombo);
+  formLayout->addRow(tr("Value type:"), unitsCombo);
+  formLayout->addRow(tr("Distance:"), valueSpinBox);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  formLayout->addRow(buttonBox);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  sideCombo->setCurrentIndex(firstDistance <= halfExtent ? 0 : 1);
+  const auto updateValue = [&, this]() {
+    const bool fromFirstSide = sideCombo->currentData().toBool();
+    const double currentDistance = fromFirstSide ? firstDistance : extent - firstDistance;
+    const bool usePercent = unitsCombo->currentData().toBool();
+    const double maxValue = usePercent ? 100.0 : pixelsToUnits(extent);
+    valueSpinBox->setRange(0.0, maxValue);
+    valueSpinBox->setSuffix(usePercent ? QStringLiteral(" %") : QStringLiteral(" ") + unitsToLocalizedString(units));
+    valueSpinBox->setValue(usePercent ? currentDistance / extent * 100.0 : pixelsToUnits(currentDistance));
+  };
+  connect(sideCombo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, updateValue);
+  connect(unitsCombo, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, updateValue);
+  updateValue();
+
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  const double distance = unitsCombo->currentData().toBool() ? valueSpinBox->value() / 100.0 * extent
+                                                             : unitsToPixels(valueSpinBox->value());
+  const bool fromFirstSide = sideCombo->currentData().toBool();
+  guideIt->second.setPosition(fromFirstSide ? distance - halfExtent : halfExtent - distance);
+  update();
+  syncGuidesSettings();
 }
 
 void ImageView::addHorizontalGuide(double y) {
@@ -842,11 +1073,167 @@ void ImageView::guideMoveRequest(const int index, QLineF line) {
   }
 
   m_guides[index] = widgetToGuideCs().map(line);
+  m_guideDragCursorPos = viewport()->mapFromGlobal(QCursor::pos());
+  updateGuideMeasurement(index);
   update();
 }
 
 void ImageView::guideDragFinished() {
+  m_guideMeasurementText.clear();
+  update();
   syncGuidesSettings();
+}
+
+void ImageView::updateGuideMeasurement(const int index) {
+  const Guide& guide = m_guides.at(index);
+  const bool horizontalGuide = guide.getOrientation() == Qt::Horizontal;
+  const double extent = horizontalGuide ? m_outerRect.height() : m_outerRect.width();
+  if (extent <= 0.0) {
+    m_guideMeasurementText.clear();
+    return;
+  }
+
+  const double halfExtent = extent / 2.0;
+  const double firstDistance = halfExtent + guide.getPosition();
+  const double secondDistance = halfExtent - guide.getPosition();
+  const Units units = UnitsProvider::getInstance().getUnits();
+  const auto formatDistance = [this, horizontalGuide, units](const double distance) {
+    const QPointF millimetres
+        = m_pixelsToMmXform.map(horizontalGuide ? QPointF(0.0, distance) : QPointF(distance, 0.0));
+    double horizontal = millimetres.x();
+    double vertical = millimetres.y();
+    UnitsProvider::getInstance().convertFrom(horizontal, vertical, MILLIMETRES, m_xform.origDpi());
+    const double value = horizontalGuide ? vertical : horizontal;
+    return QStringLiteral("%1 %2").arg(QLocale().toString(value, 'f', 2), unitsToLocalizedString(units));
+  };
+  const QString firstPercent = QLocale().toString(firstDistance / extent * 100.0, 'f', 2);
+  const QString secondPercent = QLocale().toString(secondDistance / extent * 100.0, 'f', 2);
+  if (horizontalGuide) {
+    m_guideMeasurementText
+        = tr("Top: %1 (%2%)\nBottom: %3 (%4%)")
+              .arg(formatDistance(firstDistance), firstPercent, formatDistance(secondDistance), secondPercent);
+  } else {
+    m_guideMeasurementText
+        = tr("Left: %1 (%2%)\nRight: %3 (%4%)")
+              .arg(formatDistance(firstDistance), firstPercent, formatDistance(secondDistance), secondPercent);
+  }
+}
+
+void ImageView::drawGuideMeasurement(QPainter& painter) const {
+  if (m_guideMeasurementText.isEmpty()) {
+    return;
+  }
+
+  const QFont font(QToolTip::font());
+  const QFontMetrics fontMetrics(font);
+  const QStringList lines(m_guideMeasurementText.split(QLatin1Char('\n')));
+  int textWidth = 0;
+  for (const QString& line : lines) {
+    textWidth = qMax(textWidth, fontMetrics.horizontalAdvance(line));
+  }
+
+  constexpr int kMargin = 5;
+  constexpr int kBorder = 1;
+  const QSize labelSize(textWidth + 2 * kMargin + 2 * kBorder,
+                        lines.size() * fontMetrics.height() + 2 * kMargin + 2 * kBorder);
+  const QRect bounds(viewport()->rect());
+  QPoint labelPos = m_guideDragCursorPos + QPoint(14, 14);
+  if (labelPos.x() + labelSize.width() > bounds.right() + 1) {
+    labelPos.rx() = m_guideDragCursorPos.x() - labelSize.width() - 14;
+  }
+  if (labelPos.y() + labelSize.height() > bounds.bottom() + 1) {
+    labelPos.ry() = m_guideDragCursorPos.y() - labelSize.height() - 14;
+  }
+  const int maxX = qMax(bounds.left(), bounds.right() - labelSize.width() + 1);
+  const int maxY = qMax(bounds.top(), bounds.bottom() - labelSize.height() + 1);
+  labelPos.setX(qBound(bounds.left(), labelPos.x(), maxX));
+  labelPos.setY(qBound(bounds.top(), labelPos.y(), maxY));
+
+  painter.save();
+  painter.setWorldTransform(QTransform());
+  painter.setFont(font);
+  painter.setPen(QToolTip::palette().color(QPalette::Mid));
+  painter.setBrush(QToolTip::palette().color(QPalette::ToolTipBase));
+  const QRect labelRect(labelPos, labelSize);
+  painter.drawRect(labelRect.adjusted(0, 0, -1, -1));
+  painter.setPen(QToolTip::palette().color(QPalette::ToolTipText));
+  for (int index = 0; index < lines.size(); ++index) {
+    const QRect textRect(labelRect.left() + kMargin + kBorder,
+                         labelRect.top() + kMargin + kBorder + index * fontMetrics.height(), textWidth,
+                         fontMetrics.height());
+    painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, lines.at(index));
+  }
+  painter.restore();
+}
+
+void ImageView::drawCommonSizeLabel(QPainter& painter) const {
+  const QLocale locale;
+  const auto formatMillimetres = [&locale](const double value) {
+    QString formatted(locale.toString(value, 'f', 1));
+    if (formatted.size() >= 2 && formatted.at(formatted.size() - 2) == locale.decimalPoint()
+        && formatted.endsWith(QLatin1Char('0'))) {
+      formatted.chop(2);
+    }
+    return formatted;
+  };
+
+  const QString dimensions
+      = tr("%1 × %2 mm")
+            .arg(formatMillimetres(m_aggregateHardSizeMM.width()), formatMillimetres(m_aggregateHardSizeMM.height()));
+  const QString presetName(page_sizes::matchingName(m_aggregateHardSizeMM));
+  const QString text(presetName.isEmpty() ? dimensions : tr("%1 - %2").arg(presetName, dimensions));
+
+  const QFont font(QToolTip::font());
+  const QFontMetrics fontMetrics(font);
+  constexpr int padding = 4;
+  const QSize labelSize(fontMetrics.horizontalAdvance(text) + 2 * padding, fontMetrics.height() + 2 * padding);
+  const QRect bounds(viewport()->rect());
+  if (bounds.isEmpty()) {
+    return;
+  }
+
+  const QRectF frameRect(virtualToWidget().mapRect(m_outerRect));
+  QRect labelRect;
+  const auto tryPosition = [&](const int x, const int y) {
+    const QRect candidate(QPoint(x, y), labelSize);
+    if (!bounds.contains(candidate)) {
+      return false;
+    }
+    labelRect = candidate;
+    return true;
+  };
+  const int frameLeft = qFloor(frameRect.left());
+  const int frameTop = qFloor(frameRect.top());
+  const int frameRight = qCeil(frameRect.right());
+  const int frameBottom = qCeil(frameRect.bottom());
+  if (labelSize.width() > bounds.width() || labelSize.height() > bounds.height()) {
+    return;
+  }
+  const int maxX = bounds.right() - labelSize.width() + 1;
+  const int maxY = bounds.bottom() - labelSize.height() + 1;
+  const int centeredX = qBound(bounds.left(), qRound(frameRect.center().x() - labelSize.width() / 2.0), maxX);
+  const int centeredY = qBound(bounds.top(), qRound(frameRect.center().y() - labelSize.height() / 2.0), maxY);
+  if (!tryPosition(frameRight - labelSize.width() + 1, frameTop - labelSize.height() - padding)
+      && !tryPosition(frameRight + padding, frameTop) && !tryPosition(frameRight + padding, centeredY)
+      && !tryPosition(centeredX, frameTop - labelSize.height() - padding)
+      && !tryPosition(frameLeft - labelSize.width() - padding, frameTop)
+      && !tryPosition(frameLeft - labelSize.width() - padding, centeredY)
+      && !tryPosition(frameRight - labelSize.width() + 1, frameBottom + padding)
+      && !tryPosition(centeredX, frameBottom + padding)) {
+    return;
+  }
+
+  painter.save();
+  painter.setWorldTransform(QTransform());
+  painter.setFont(font);
+  painter.setPen(Qt::NoPen);
+  QColor background(QToolTip::palette().color(QPalette::ToolTipBase));
+  background.setAlpha(220);
+  painter.setBrush(background);
+  painter.drawRect(labelRect);
+  painter.setPen(QToolTip::palette().color(QPalette::ToolTipText));
+  painter.drawText(labelRect.adjusted(padding, 0, -padding, 0), Qt::AlignCenter, text);
+  painter.restore();
 }
 
 QLineF ImageView::widgetGuideLine(const int index) const {
@@ -928,8 +1315,6 @@ void ImageView::innerRectMoveRequest(const QPointF& mousePos, const Qt::Keyboard
   QPointF fp(m_beforeResizing.focalPoint);
   fp += delta;
   setWidgetFocalPoint(fp);
-
-  m_aggregateHardSizeMM = m_settings->getAggregateHardSizeMM(m_pageId, origRectToSizeMM(m_middleRect), m_alignment);
 
   recalcOuterRect();
 

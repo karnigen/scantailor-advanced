@@ -85,31 +85,31 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
   void leftRightLinkClicked();
 
+  void zeroMarginsClicked();
+
   void alignWithOthersToggled();
 
   void alignmentButtonClicked();
 
-  void showApplyMarginsDialog();
+  void showApplySettingsDialog();
 
   void showApplyAlignmentDialog();
 
-  void matchSizeToAllPages();
-
   void freezeAggregateHardSizeToggled(bool checked);
-
-  void onFixDpiClicked();
 
   void sourceDpiComboActivated(int index);
 
   void sourceDpiEditingFinished();
 
-  void applyMargins(const std::set<PageId>& pages,
-                    bool applyLeft = true,
-                    bool applyRight = true,
-                    bool applyTop = true,
-                    bool applyBottom = true);
+  void applySettings(const std::set<PageId>& pages,
+                     bool applyLeft = true,
+                     bool applyRight = true,
+                     bool applyTop = true,
+                     bool applyBottom = true,
+                     bool applyDpiX = true,
+                     bool applyDpiY = true);
 
-  void applyAlignment(const std::set<PageId>& pages);
+  void applyAlignment(const std::set<PageId>& pages, bool copyCommonSize, bool copyAlignment);
 
  private:
   using AlignmentByButton = std::unordered_map<QToolButton*, Alignment>;
@@ -163,6 +163,7 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
   bool m_leftRightLinked;
   bool m_topBottomLinked;
   QButtonGroup* m_alignmentButtonGroup;
+  QToolButton* m_zeroMarginsBtn;
 
   ConnectionManager m_connectionManager;
 };

@@ -3,16 +3,22 @@
 
 #include "ProjectOpeningContext.h"
 
+#include <core/PathUtils.h>
+#include <QDir>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QStringList>
 #include <cassert>
+#include <utility>
 
 #include "FixDpiDialog.h"
 #include "ProjectPages.h"
 #include "version.h"
 
-ProjectOpeningContext::ProjectOpeningContext(QWidget* parent, const QString& projectFile, const QDomDocument& doc)
-    : m_projectFile(projectFile), m_reader(doc, projectFile), m_parent(parent) {}
+ProjectOpeningContext::ProjectOpeningContext(QWidget* parent,
+                                             std::filesystem::path projectFile,
+                                             const QDomDocument& doc)
+    : m_projectFile(std::move(projectFile)), m_reader(doc, m_projectFile), m_parent(parent) {}
 
 ProjectOpeningContext::~ProjectOpeningContext() {
   // Deleting a null pointer is OK.
@@ -89,6 +95,38 @@ void ProjectOpeningContext::proceed() {
       deleteLater();
       return;
     }
+  }
+
+  const std::filesystem::path& outputDirectoryPath = m_reader.outputDirectory();
+  if (outputDirectoryPath.empty()) {
+    QMessageBox::warning(m_parent, tr("Error"), tr("The project has no output directory configured."));
+    deleteLater();
+    return;
+  }
+
+  const QString outputDirectory = core::toQString(outputDirectoryPath);
+  QFileInfo outputDirectoryInfo(outputDirectory);
+  if (!outputDirectoryInfo.exists()) {
+    const QString message(tr("Output directory \"%1\" does not exist. Create it?").arg(outputDirectory));
+    if (QMessageBox::question(m_parent, tr("Create Directory?"), message, QMessageBox::Yes | QMessageBox::No)
+        != QMessageBox::Yes) {
+      deleteLater();
+      return;
+    }
+
+    if (!QDir().mkpath(outputDirectory)) {
+      QMessageBox::warning(m_parent, tr("Error"), tr("Unable to create output directory:\n%1").arg(outputDirectory));
+      deleteLater();
+      return;
+    }
+    outputDirectoryInfo.refresh();
+  }
+
+  if (!outputDirectoryInfo.isDir() || !outputDirectoryInfo.isWritable()) {
+    QMessageBox::warning(m_parent, tr("Error"),
+                         tr("Output path is not a writable directory:\n%1").arg(outputDirectory));
+    deleteLater();
+    return;
   }
 
   if (m_reader.pages()->validateDpis()) {

@@ -23,7 +23,9 @@ class Params {
          const QRectF& contentRect,
          const QSizeF& contentSizeMm,
          const Alignment& alignment,
-         bool autoMargins);
+         bool autoMargins,
+         bool pageBoundaryEnabled = false,
+         const QSizeF& pageBoundarySizeMm = QSizeF());
 
   explicit Params(const QDomElement& el);
 
@@ -39,6 +41,10 @@ class Params {
 
   bool isAutoMarginsEnabled() const;
 
+  bool isPageBoundaryEnabled() const;
+
+  const QSizeF& pageBoundarySizeMM() const;
+
   QDomElement toXml(QDomDocument& doc, const QString& name) const;
 
  private:
@@ -48,6 +54,8 @@ class Params {
   QSizeF m_contentSizeMM;
   Alignment m_alignment;
   bool m_autoMargins;
+  bool m_pageBoundaryEnabled;
+  QSizeF m_pageBoundarySizeMM;
 };
 
 
@@ -73,6 +81,14 @@ inline const Alignment& Params::alignment() const {
 
 inline bool Params::isAutoMarginsEnabled() const {
   return m_autoMargins;
+}
+
+inline bool Params::isPageBoundaryEnabled() const {
+  return m_pageBoundaryEnabled;
+}
+
+inline const QSizeF& Params::pageBoundarySizeMM() const {
+  return m_pageBoundarySizeMM;
 }
 }  // namespace page_layout
 #endif  // ifndef SCANTAILOR_PAGE_LAYOUT_PARAMS_H_

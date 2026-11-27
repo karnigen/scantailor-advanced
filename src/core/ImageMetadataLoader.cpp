@@ -5,10 +5,10 @@
 
 #include <QFile>
 #include <QIODevice>
-#include <QString>
 
 #include "ImageMetadata.h"
 #include "JpegMetadataLoader.h"
+#include "PathUtils.h"
 #include "PngMetadataLoader.h"
 #include "TiffMetadataLoader.h"
 
@@ -39,9 +39,9 @@ ImageMetadataLoader::Status ImageMetadataLoader::loadImpl(QIODevice& ioDevice,
   return FORMAT_NOT_RECOGNIZED;
 }
 
-ImageMetadataLoader::Status ImageMetadataLoader::loadImpl(const QString& filePath,
+ImageMetadataLoader::Status ImageMetadataLoader::loadImpl(const std::filesystem::path& filePath,
                                                           const VirtualFunction<void, const ImageMetadata&>& out) {
-  QFile file(filePath);
+  QFile file(core::toQString(filePath));
   if (!file.open(QIODevice::ReadOnly)) {
     return GENERIC_ERROR;
   }

@@ -4,10 +4,9 @@
 #ifndef SCANTAILOR_CORE_PROJECTWRITER_H_
 #define SCANTAILOR_CORE_PROJECTWRITER_H_
 
-#include <foundation/Hashes.h>
-
 #include <QString>
 #include <Qt>
+#include <filesystem>
 #include <list>
 #include <memory>
 #include <unordered_map>
@@ -39,7 +38,10 @@ class ProjectWriter {
 
   ~ProjectWriter();
 
-  bool write(const QString& filePath, const std::vector<FilterPtr>& filters, QString* errorMessage = nullptr) const;
+  bool write(const std::filesystem::path& filePath,
+             const std::vector<FilterPtr>& filters,
+             QString* errorMessage = nullptr,
+             int backupCount = 0) const;
 
   /**
    * \p out will be called like this: out(ImageId, numeric_image_id)
@@ -55,17 +57,17 @@ class ProjectWriter {
 
  private:
   struct Directory {
-    QString path;
+    std::filesystem::path path;
     int numericId;
 
-    Directory(const QString& path, int numericId) : path(path), numericId(numericId) {}
+    Directory(std::filesystem::path path, int numericId) : path(std::move(path)), numericId(numericId) {}
   };
 
   struct File {
-    QString path;
+    std::filesystem::path path;
     int numericId;
 
-    File(const QString& path, int numericId) : path(path), numericId(numericId) {}
+    File(std::filesystem::path path, int numericId) : path(std::move(path)), numericId(numericId) {}
   };
 
   struct Image {
@@ -131,8 +133,8 @@ class ProjectWriter {
 
   using MetadataByImage = std::unordered_map<ImageId, ImageMetadata>;
 
-  using Directories = OrderedUniqueContainer<Directory, QString, hashes::hash<QString>>;
-  using Files = OrderedUniqueContainer<File, QString, hashes::hash<QString>>;
+  using Directories = OrderedUniqueContainer<Directory, std::filesystem::path, std::hash<std::filesystem::path>>;
+  using Files = OrderedUniqueContainer<File, std::filesystem::path, std::hash<std::filesystem::path>>;
   using Images = OrderedUniqueContainer<Image, ImageId, std::hash<ImageId>>;
   using Pages = OrderedUniqueContainer<Page, PageId, std::hash<PageId>>;
 
@@ -146,11 +148,11 @@ class ProjectWriter {
 
   void writeImageMetadata(QDomDocument& doc, QDomElement& imageEl, const ImageId& imageId) const;
 
-  int dirId(const QString& dirPath) const;
+  int dirId(const std::filesystem::path& dirPath) const;
 
-  int fileId(const QString& filePath) const;
+  int fileId(const std::filesystem::path& filePath) const;
 
-  QString packFilePath(const QString& filePath) const;
+  QString packFilePath(const std::filesystem::path& filePath) const;
 
   int imageId(const ImageId& imageId) const;
 

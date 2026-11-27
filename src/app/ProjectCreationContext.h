@@ -6,8 +6,8 @@
 
 #include <QObject>
 #include <QPointer>
-#include <QString>
 #include <Qt>
+#include <filesystem>
 #include <vector>
 
 #include "ImageFileInfo.h"
@@ -22,13 +22,13 @@ class ProjectCreationContext : public QObject {
   DECLARE_NON_COPYABLE(ProjectCreationContext)
 
  public:
-  explicit ProjectCreationContext(QWidget* parent, const QString& initialDirectory = QString());
+  explicit ProjectCreationContext(QWidget* parent, std::filesystem::path initialDirectory = {});
 
   ~ProjectCreationContext() override;
 
   const std::vector<ImageFileInfo>& files() const { return m_files; }
 
-  const QString& outDir() const { return m_outDir; }
+  const std::filesystem::path& outDir() const { return m_outDir; }
 
   Qt::LayoutDirection layoutDirection() const { return m_layoutDirection; }
 
@@ -53,10 +53,10 @@ class ProjectCreationContext : public QObject {
 
   QPointer<ProjectFilesDialog> m_projectFilesDialog;
   QPointer<FixDpiDialog> m_fixDpiDialog;
-  QString m_outDir;
+  std::filesystem::path m_outDir;
   std::vector<ImageFileInfo> m_files;
   Qt::LayoutDirection m_layoutDirection;
-  QString m_initialDirectory;
+  std::filesystem::path m_initialDirectory;
   QWidget* m_parent;
 };
 

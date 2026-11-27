@@ -3,6 +3,7 @@
 
 #include "ProjectWriter.h"
 
+#include <QBuffer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -17,6 +18,8 @@
 #include "PageId.h"
 #include "PageInfo.h"
 #include "PageView.h"
+#include "PathUtils.h"
+#include "ProjectBackup.h"
 #include "ProjectMigration.h"
 #include "ProjectPages.h"
 #include "version.h"
@@ -41,9 +44,8 @@ ProjectWriter::ProjectWriter(const std::shared_ptr<ProjectPages>& pageSequence,
   for (const PageInfo& page : m_pageSequence) {
     const PageId& pageId = page.id();
     const ImageId& imageId = pageId.imageId();
-    const QString& filePath = imageId.filePath();
-    const QFileInfo fileInfo(filePath);
-    const QString dirPath(fileInfo.absolutePath());
+    const std::filesystem::path& filePath(imageId.filePath());
+    const std::filesystem::path dirPath(core::toFileSystemPath(QFileInfo(core::toQString(filePath)).absolutePath()));
 
     m_metadataByImage[imageId] = page.metadata();
 
@@ -85,23 +87,28 @@ static QString toRelativeIfPossible(const QString& projectDirPath, const QString
   return rel;
 }
 
-bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>& filters, QString* errorMessage) const {
+bool ProjectWriter::write(const std::filesystem::path& filePath,
+                          const std::vector<FilterPtr>& filters,
+                          QString* errorMessage,
+                          const int backupCount) const {
+  const QString qtFilePath(core::toQString(filePath));
   if (errorMessage) {
     errorMessage->clear();
   }
 
-  QString backupFilePath;
+  std::filesystem::path backupFilePath;
   if (!ProjectMigration::createBackupForFormat3(filePath, &backupFilePath, errorMessage)) {
     return false;
   }
 
-  const QString projectDirPath(QFileInfo(filePath).absolutePath());
+  const QString projectDirPath(QFileInfo(qtFilePath).absolutePath());
 
   QDomDocument doc;
   QDomElement rootEl(doc.createElement("project"));
   doc.appendChild(rootEl);
   rootEl.setAttribute("version", PROJECT_VERSION);
-  rootEl.setAttribute("outputDirectory", toRelativeIfPossible(projectDirPath, m_outFileNameGen.outDir()));
+  rootEl.setAttribute("outputDirectory",
+                      toRelativeIfPossible(projectDirPath, core::toQString(m_outFileNameGen.outDir())));
   rootEl.setAttribute("layoutDirection", m_layoutDirection == Qt::LeftToRight ? "LTR" : "RTL");
 
   rootEl.appendChild(processDirectories(doc, projectDirPath));
@@ -119,21 +126,75 @@ bool ProjectWriter::write(const QString& filePath, const std::vector<FilterPtr>&
     filtersEl.appendChild((*it)->saveSettings(*this, doc));
   }
 
-  QSaveFile file(filePath);
+  QByteArray serializedProject;
+  QBuffer buffer(&serializedProject);
+  if (!buffer.open(QIODevice::WriteOnly)) {
+    if (errorMessage) {
+      *errorMessage = buffer.errorString();
+    }
+    return false;
+  }
+  QTextStream strm(&buffer);
+  doc.save(strm, 2);
+  strm.flush();
+  if (strm.status() != QTextStream::Ok) {
+    if (errorMessage) {
+      *errorMessage = QString("Could not serialize project data.");
+    }
+    return false;
+  }
+  buffer.close();
+
+  QSaveFile file(qtFilePath);
   if (!file.open(QIODevice::WriteOnly)) {
     if (errorMessage) {
       *errorMessage = file.errorString();
     }
     return false;
   }
-
-  QTextStream strm(&file);
-  doc.save(strm, 2);
-  strm.flush();
-  if (strm.status() != QTextStream::Ok) {
+  if (backupCount > 0 && QFileInfo::exists(qtFilePath)) {
+    QFile existingProject(qtFilePath);
+    if (!existingProject.open(QIODevice::ReadOnly)) {
+      file.cancelWriting();
+      if (errorMessage) {
+        *errorMessage = existingProject.errorString();
+      }
+      return false;
+    }
+    bool projectChanged = existingProject.size() != serializedProject.size();
+    qint64 offset = 0;
+    const qint64 chunkSize = 1024 * 1024;
+    while (!projectChanged && offset < serializedProject.size()) {
+      const qint64 bytesToRead = qMin(chunkSize, serializedProject.size() - offset);
+      const QByteArray existingChunk = existingProject.read(bytesToRead);
+      if (existingProject.error() != QFileDevice::NoError) {
+        file.cancelWriting();
+        if (errorMessage) {
+          *errorMessage = existingProject.errorString();
+        }
+        return false;
+      }
+      if (existingChunk.size() != bytesToRead
+          || existingChunk != serializedProject.mid(offset, static_cast<int>(bytesToRead))) {
+        projectChanged = true;
+      }
+      offset += bytesToRead;
+    }
+    if (projectChanged) {
+      QString backupError;
+      if (!createProjectBackup(filePath, backupCount, &backupError)) {
+        file.cancelWriting();
+        if (errorMessage) {
+          *errorMessage = backupError;
+        }
+        return false;
+      }
+    }
+  }
+  if (file.write(serializedProject) != serializedProject.size()) {
     file.cancelWriting();
     if (errorMessage) {
-      *errorMessage = QString("Could not serialize project data.");
+      *errorMessage = file.errorString();
     }
     return false;
   }
@@ -152,7 +213,7 @@ QDomElement ProjectWriter::processDirectories(QDomDocument& doc, const QString& 
   for (const Directory& dir : m_dirs) {
     QDomElement dirEl(doc.createElement("directory"));
     dirEl.setAttribute("id", dir.numericId);
-    dirEl.setAttribute("path", toRelativeIfPossible(projectDirPath, dir.path));
+    dirEl.setAttribute("path", toRelativeIfPossible(projectDirPath, core::toQString(dir.path)));
     dirsEl.appendChild(dirEl);
   }
   return dirsEl;
@@ -162,8 +223,8 @@ QDomElement ProjectWriter::processFiles(QDomDocument& doc) const {
   QDomElement filesEl(doc.createElement("files"));
 
   for (const File& file : m_files) {
-    const QFileInfo fileInfo(file.path);
-    const QString& dirPath = fileInfo.absolutePath();
+    const QFileInfo fileInfo(core::toQString(file.path));
+    const std::filesystem::path dirPath(core::toFileSystemPath(fileInfo.absolutePath()));
     QDomElement fileEl(doc.createElement("file"));
     fileEl.setAttribute("id", file.numericId);
     fileEl.setAttribute("dirId", dirId(dirPath));
@@ -238,13 +299,13 @@ QDomElement ProjectWriter::processPages(QDomDocument& doc) const {
   return pagesEl;
 }  // ProjectWriter::processPages
 
-int ProjectWriter::dirId(const QString& dirPath) const {
+int ProjectWriter::dirId(const std::filesystem::path& dirPath) const {
   const Directories::const_iterator it(m_dirs.find(dirPath));
   assert(it != m_dirs.end());
   return it->numericId;
 }
 
-int ProjectWriter::fileId(const QString& filePath) const {
+int ProjectWriter::fileId(const std::filesystem::path& filePath) const {
   const Files::const_iterator it(m_files.find(filePath));
   if (it != m_files.end()) {
     return it->numericId;
@@ -253,7 +314,7 @@ int ProjectWriter::fileId(const QString& filePath) const {
   }
 }
 
-QString ProjectWriter::packFilePath(const QString& filePath) const {
+QString ProjectWriter::packFilePath(const std::filesystem::path& filePath) const {
   const Files::const_iterator it(m_files.find(filePath));
   if (it != m_files.end()) {
     return QString::number(it->numericId);

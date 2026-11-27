@@ -25,7 +25,8 @@ ImageView::ImageView(const QImage& image,
                      const ImageTransformation& xform,
                      const QRectF& contentRect,
                      const QRectF& pageRect,
-                     const bool pageRectEnabled)
+                     const bool pageRectEnabled,
+                     const bool pageRectSizeLocked)
     : ImageViewBase(image, downscaledImage, ImagePresentation(xform.transform(), xform.resultingPreCropArea())),
       m_dragHandler(*this),
       m_zoomHandler(*this),
@@ -34,6 +35,7 @@ ImageView::ImageView(const QImage& image,
       m_contentRect(contentRect),
       m_pageRect(pageRect),
       m_pageRectEnabled(pageRectEnabled),
+      m_pageRectSizeLocked(pageRectSizeLocked),
       m_pageRectReloadRequested(false),
       m_minBoxSize(10.0, 10.0),
       m_contentMask(contentMask),
@@ -46,7 +48,7 @@ ImageView::ImageView(const QImage& image,
          "on content to automatically adjust the content area."));
 
   const QString contentRectDragTip(tr("Drag lines or corners to resize the content box."));
-  const QString pageRectDragTip(tr("Drag lines or corners to resize the page box."));
+  const QString pageRectDragTip(tr("Drag lines or corners to resize the page boundary."));
   static const int masks_by_edge[] = {TOP, RIGHT, BOTTOM, LEFT};
   static const int masks_by_corner[] = {TOP | LEFT, TOP | RIGHT, BOTTOM | RIGHT, BOTTOM | LEFT};
   for (int i = 0; i < 4; ++i) {
@@ -101,7 +103,7 @@ ImageView::ImageView(const QImage& image,
       makeLastFollower(m_contentRectCornerHandlers[i]);
       makeLastFollower(m_contentRectEdgeHandlers[i]);
     }
-    if (m_pageRectEnabled) {
+    if (m_pageRectEnabled && !m_pageRectSizeLocked) {
       makeLastFollower(m_pageRectCornerHandlers[i]);
       makeLastFollower(m_pageRectEdgeHandlers[i]);
     }
@@ -124,8 +126,8 @@ ImageView::ImageView(const QImage& image,
     m_pageRectArea.setMoveRequestCallback(std::bind(&ImageView::pageRectMoveRequest, this, std::placeholders::_1));
     m_pageRectArea.setDragFinishedCallback(std::bind(&ImageView::pageRectDragFinished, this));
     m_pageRectAreaHandler.setObject(&m_pageRectArea);
-    m_pageRectAreaHandler.setProximityStatusTip(tr("Hold left mouse button to drag the page box."));
-    m_pageRectAreaHandler.setInteractionStatusTip(tr("Release left mouse button to finish dragging."));
+    m_pageRectAreaHandler.setProximityStatusTip(tr("Hold Shift and drag to move the page boundary."));
+    m_pageRectAreaHandler.setInteractionStatusTip(tr("Release the mouse button to finish moving the page boundary."));
 
     Qt::CursorShape cursor = Qt::DragMoveCursor;
     m_contentRectAreaHandler.setKeyboardModifiers({Qt::ShiftModifier});
@@ -402,7 +404,7 @@ void ImageView::forceInsideImage(QRectF& widgetRect, const int edgeMask) const {
 }
 
 void ImageView::forcePageRectDescribeContent() {
-  if (!m_contentRect.isValid()) {
+  if (!m_contentRect.isValid() || m_pageRectSizeLocked) {
     return;
   }
 
@@ -565,6 +567,14 @@ void ImageView::setPageRectEnabled(const bool state) {
   update();
 }
 
+void ImageView::setPageRectSizeLocked(const bool locked) {
+  if (m_pageRectSizeLocked == locked) {
+    return;
+  }
+  m_pageRectSizeLocked = locked;
+  enablePageRectInteraction(m_pageRectEnabled);
+}
+
 void ImageView::enableContentRectInteraction(const bool state) {
   if (state) {
     for (int i = 0; i < 4; ++i) {
@@ -584,8 +594,13 @@ void ImageView::enableContentRectInteraction(const bool state) {
 void ImageView::enablePageRectInteraction(const bool state) {
   if (state) {
     for (int i = 0; i < 4; ++i) {
-      makeLastFollower(m_pageRectCornerHandlers[i]);
-      makeLastFollower(m_pageRectEdgeHandlers[i]);
+      if (m_pageRectSizeLocked) {
+        m_pageRectCornerHandlers[i].unlink();
+        m_pageRectEdgeHandlers[i].unlink();
+      } else {
+        makeLastFollower(m_pageRectCornerHandlers[i]);
+        makeLastFollower(m_pageRectEdgeHandlers[i]);
+      }
     }
     makeLastFollower(m_pageRectAreaHandler);
   } else {

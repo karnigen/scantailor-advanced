@@ -21,6 +21,8 @@
 
 #include <toml++/toml.h>
 
+#include <core/PathUtils.h>
+
 #include <atomic>
 #include <cmath>
 #include <limits>
@@ -38,8 +40,8 @@ namespace {
 
 constexpr int kTomlSchemaVersion = 1;
 
-QString g_configDirectory;
-QString g_configFilePath;
+std::filesystem::path g_configDirectory;
+std::filesystem::path g_configFilePath;
 bool g_configDirectoryWritable = false;
 bool g_configDirectoryExplicit = false;
 bool g_initialized = false;
@@ -1115,7 +1117,8 @@ bool SettingsStore::initialize(const QString& configDirectory,
     return true;
   }
 
-  const QString requestedDirectory = configDirectory.isEmpty() ? defaultConfigDirectory() : configDirectory;
+  const QString requestedDirectory
+      = configDirectory.isEmpty() ? core::toQString(defaultConfigDirectory()) : configDirectory;
   if (requestedDirectory.isEmpty()) {
     if (errorMessage) {
       *errorMessage = QObject::tr("The platform did not provide a configuration directory.");
@@ -1218,8 +1221,8 @@ bool SettingsStore::initialize(const QString& configDirectory,
     }
   }
 
-  g_configDirectory = directory;
-  g_configFilePath = tomlPath;
+  g_configDirectory = core::toFileSystemPath(directory);
+  g_configFilePath = core::toFileSystemPath(tomlPath);
   g_configDirectoryExplicit = explicitDirectory;
   g_configDirectoryWritable = writable;
   g_initialized = true;
@@ -1229,30 +1232,30 @@ bool SettingsStore::initialize(const QString& configDirectory,
   return true;
 }
 
-QString SettingsStore::defaultConfigDirectory() {
+std::filesystem::path SettingsStore::defaultConfigDirectory() {
   const QString root = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
   if (root.isEmpty()) {
-    return QString();
+    return {};
   }
-  return QDir(root).filePath(QString::fromUtf8(APPLICATION_NAME));
+  return core::toFileSystemPath(QDir(root).filePath(QString::fromUtf8(APPLICATION_NAME)));
 }
 
-QString SettingsStore::configDirectory() {
+std::filesystem::path SettingsStore::configDirectory() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
   return g_configDirectory;
 }
 
-QString SettingsStore::configFilePath() {
+std::filesystem::path SettingsStore::configFilePath() {
   if (!g_initialized) {
     initialize(QString(), false);
   }
   return g_configFilePath;
 }
 
-QString SettingsStore::profilesDirectory() {
-  return QDir(configDirectory()).filePath(QStringLiteral("profiles"));
+std::filesystem::path SettingsStore::profilesDirectory() {
+  return configDirectory() / "profiles";
 }
 
 bool SettingsStore::configDirectoryExplicit() {
@@ -1279,11 +1282,11 @@ SettingsStore::SettingsStore() {
     initialize(QString(), false);
   }
   m_filePath = configFilePath();
-  m_backend = std::make_unique<TomlBackend>(m_filePath);
+  m_backend = std::make_unique<TomlBackend>(core::toQString(m_filePath));
 }
 
-SettingsStore::SettingsStore(const QString& filePath)
-    : m_filePath(filePath), m_backend(std::make_unique<TomlBackend>(filePath)) {}
+SettingsStore::SettingsStore(std::filesystem::path filePath)
+    : m_filePath(std::move(filePath)), m_backend(std::make_unique<TomlBackend>(core::toQString(m_filePath))) {}
 
 SettingsStore::~SettingsStore() = default;
 SettingsStore::SettingsStore(SettingsStore&&) noexcept = default;
@@ -1377,6 +1380,6 @@ void SettingsStore::remove(const QString& key) {
 void SettingsStore::sync() {
   const QString error = m_backend->sync();
   if (!error.isEmpty()) {
-    reportWriteError(m_filePath, error);
+    reportWriteError(core::toQString(m_filePath), error);
   }
 }

@@ -6,6 +6,7 @@
 
 #include <QDialog>
 #include <QString>
+#include <filesystem>
 #include <memory>
 
 #include "OutputFileNameGenerator.h"
@@ -19,8 +20,8 @@ class OutOfMemoryDialog : public QDialog {
  public:
   explicit OutOfMemoryDialog(QWidget* parent = nullptr);
 
-  void setParams(const QString& projectFile,
-                 const QString& initialDirectory,
+  void setParams(const std::filesystem::path& projectFile,
+                 const std::filesystem::path& initialDirectory,
                  // may be empty
                  std::shared_ptr<StageSequence> stages,
                  std::shared_ptr<ProjectPages> pages,
@@ -34,13 +35,13 @@ class OutOfMemoryDialog : public QDialog {
   void saveProjectAs();
 
  private:
-  bool saveProjectWithFeedback(const QString& projectFile);
+  bool saveProjectWithFeedback(const std::filesystem::path& projectFile);
 
   void showSaveSuccessScreen();
 
   Ui::OutOfMemoryDialog ui;
-  QString m_projectFile;
-  QString m_initialDirectory;
+  std::filesystem::path m_projectFile;
+  std::filesystem::path m_initialDirectory;
   std::shared_ptr<StageSequence> m_stages;
   std::shared_ptr<ProjectPages> m_pages;
   SelectedPage m_selectedPage;

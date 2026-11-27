@@ -4,30 +4,11 @@
 #ifndef SCANTAILOR_APP_RELINKINGLISTVIEW_H_
 #define SCANTAILOR_APP_RELINKINGLISTVIEW_H_
 
-#include <QListView>
+#include <QTreeView>
 
-class QPainter;
-class QRect;
-class QModelIndex;
-
-class RelinkingListView : public QListView {
+class RelinkingListView : public QTreeView {
  public:
   explicit RelinkingListView(QWidget* parent = nullptr);
-
- protected:
-  void paintEvent(QPaintEvent* e) override;
-
- private:
-  class Delegate;
-  class IndicationGroup;
-
-  class GroupAggregator;
-
-  void maybeDrawStatusLayer(QPainter* painter, const QModelIndex& itemIndex, const QRect& itemPaintRect);
-
-  void drawStatusLayer(QPainter* painter);
-
-  bool m_statusLayerDrawn;
 };
 
 

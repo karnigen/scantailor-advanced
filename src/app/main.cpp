@@ -9,6 +9,7 @@
 #include <core/FontIconPack.h>
 #include <core/IconProvider.h>
 #include <core/ImageAllocationLimit.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 #include <core/StyledIconPack.h>
 
@@ -42,7 +43,7 @@ int main(int argc, char* argv[]) {
   parser.setApplicationDescription(
       QObject::tr("ScanTailor Advanced. Specify a project file or an existing directory to use as the initial "
                   "input/output location. The default configuration directory is %1.")
-          .arg(SettingsStore::defaultConfigDirectory()));
+          .arg(core::toQString(SettingsStore::defaultConfigDirectory())));
   parser.addHelpOption();
   const QCommandLineOption configOption({"c", "config"},
                                         QObject::tr("Store settings in this directory (config.toml is created "
@@ -139,7 +140,7 @@ int main(int argc, char* argv[]) {
   }
   IconProvider::getInstance().setIconPack(StyledIconPack::createDefault());
 
-  auto* mainWnd = new MainWindow(initialDirectory);
+  auto* mainWnd = new MainWindow(core::toFileSystemPath(initialDirectory));
   mainWnd->setAttribute(Qt::WA_DeleteOnClose);
   if (!settings.boolValue("mainWindow/maximized", true)) {
     mainWnd->show();

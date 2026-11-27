@@ -12,6 +12,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <set>
@@ -69,7 +70,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   Q_OBJECT
  public:
-  explicit MainWindow(const QString& initialDirectory = QString());
+  explicit MainWindow(std::filesystem::path initialDirectory = {});
 
   ~MainWindow() override;
 
@@ -94,6 +95,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
  private:
   enum MainAreaAction { UPDATE_MAIN_AREA, CLEAR_MAIN_AREA };
+
+  static bool isPathWithinDirectory(const QString& path, const QString& directory);
+
+  void warnAboutExternalImages();
 
  private slots:
 
@@ -125,8 +130,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void toggleTwoPageSpreadReadingOrder();
 
   void thumbViewFocusToggled(bool checked);
-
-  void thumbViewScrolled();
 
   void filterSelectionChanged(const QItemSelection& selected);
 
@@ -176,6 +179,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void openProject();
 
+  void reloadProject();
+
   void projectOpened(ProjectOpeningContext* context);
 
   void closeProject();
@@ -191,6 +196,12 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void showAboutDialog();
 
   void showKeyboardShortcuts();
+
+  void showSupportedImageFormats();
+
+  void exportProcessedImages();
+
+  void exportPagesToPdf();
 
   void showCommandLineArguments();
 
@@ -234,8 +245,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   std::shared_ptr<AbstractCommand<void>> relinkingDialogRequester() override;
 
   void switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
-                          const QString& outDir,
-                          const QString& projectFilePath = QString(),
+                          const std::filesystem::path& outDir,
+                          const std::filesystem::path& projectFilePath = {},
                           const ProjectReader* projectReader = nullptr);
 
   void updateThumbViewMinWidth();
@@ -279,6 +290,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   bool isProjectLoaded() const;
 
+  void updateProjectModifiedState();
+
   bool isBelowSelectContent() const;
 
   bool isBelowSelectContent(int filterIdx) const;
@@ -303,7 +316,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void closeProjectWithoutSaving();
 
-  bool saveProjectWithFeedback(const QString& projectFile);
+  bool saveProjectWithFeedback(const std::filesystem::path& projectFile);
 
   void showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId& existing);
 
@@ -329,7 +342,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void setDockWidgetsVisible(bool state);
 
-  void scaleThumbnails(int scaleFactor);
+  void scaleThumbnails(double scaleFactor, bool anchorUnderMouse = false);
 
   void updateMaxLogicalThumbSize();
 
@@ -344,7 +357,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QSizeF m_maxLogicalThumbSize;
   std::shared_ptr<ProjectPages> m_pages;
   std::shared_ptr<StageSequence> m_stages;
-  QString m_projectFile;
+  std::filesystem::path m_projectFile;
   OutputFileNameGenerator m_outFileNameGen;
   std::shared_ptr<ThumbnailPixmapCache> m_thumbnailCache;
   std::unique_ptr<ThumbnailSequence> m_thumbSequence;
@@ -368,7 +381,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QObjectCleanupHandler m_optionsWidgetCleanup;
   QObjectCleanupHandler m_imageWidgetCleanup;
   std::unique_ptr<OutOfMemoryDialog> m_outOfMemoryDialog;
-  QString m_initialDirectory;
+  std::filesystem::path m_initialDirectory;
   int m_curFilter;
   int m_pendingFilter = -1;
   bool m_waitingForCancelledTasks = false;
@@ -382,8 +395,12 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   bool m_debug;
   bool m_closing;
   QTimer m_autoSaveTimer;
+  QTimer m_projectModifiedTimer;
+  bool m_projectModified = false;
   StatusBarPanel* m_statusBarPanel;
   QActionGroup* m_unitsMenuActionGroup;
+  int m_thumbnailNavigationWheelDelta = 0;
+  int m_thumbnailFastNavigationWheelDelta = 0;
   QTimer m_maxLogicalThumbSizeUpdater;
   QTimer m_sceneItemsPosUpdater;
 };

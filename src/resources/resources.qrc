@@ -68,6 +68,7 @@
     <file>icons/magnifying-glass.svg</file>
     <file>icons.xml</file>
     <file>font-icons.xml</file>
+    <file>page_sizes.toml</file>
     <file>GPLv3.html</file>
   </qresource>
 </RCC>

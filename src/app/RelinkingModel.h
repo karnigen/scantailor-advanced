@@ -5,18 +5,21 @@
 #define SCANTAILOR_APP_RELINKINGMODEL_H_
 
 #include <QAbstractListModel>
+#include <QColor>
 #include <QIcon>
 #include <QModelIndex>
 #include <QString>
+#include <QStringList>
 #include <QThread>
 #include <Qt>
+#include <filesystem>
 #include <memory>
 #include <set>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "AbstractRelinker.h"
-#include "Hashes.h"
 #include "NonCopyable.h"
 #include "RelinkablePath.h"
 #include "VirtualFunction.h"
@@ -27,7 +30,27 @@ class RelinkingModel : public QAbstractListModel {
  public:
   enum Status { Exists, Missing, StatusUpdatePending, StatusUpdateFailed };
 
-  enum { TypeRole = Qt::UserRole, UncommittedPathRole, UncommittedStatusRole };
+  enum EntryKind { CommonImageRoot, ImageFile, OutputDirectory };
+
+  enum {
+    TypeRole = Qt::UserRole,
+    UncommittedPathRole,
+    UncommittedStatusRole,
+    EntryKindRole,
+    TreeGroupRole,
+    TreeSourceRowRole
+  };
+
+  struct Summary {
+    int imagesInsideRoot = 0;
+    int imagesOutsideRoot = 0;
+    int missingPaths = 0;
+    int failedPaths = 0;
+    int pendingPaths = 0;
+    bool hasOutput = false;
+    bool outputInsideRoot = false;
+    Status outputStatus = StatusUpdatePending;
+  };
 
   RelinkingModel();
 
@@ -52,7 +75,17 @@ class RelinkingModel : public QAbstractListModel {
 
   void addPath(const RelinkablePath& path);
 
-  void replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type);
+  void addCommonImageRoot();
+
+  void addOutputPath(const RelinkablePath& path);
+
+  static QString findCommonImageRoot(const QStringList& imagePaths);
+
+  Summary summary() const;
+
+  static QColor foregroundColorForStatus(Status status);
+
+  void replacePrefix(const QString& prefix, const QString& replacement, RelinkablePath::Type type, EntryKind entryKind);
 
   /**
    * Returns true if we have different original paths remapped to the same one.
@@ -70,16 +103,20 @@ class RelinkingModel : public QAbstractListModel {
   void customEvent(QEvent* event) override;
 
  private:
+  void addPath(const RelinkablePath& path, EntryKind entryKind);
+
+  QString commonImageRootPath() const;
+
   class StatusUpdateThread;
   class StatusUpdateResponse;
 
   /** Stands for File System Object (file or directory). */
   struct Item {
-    QString origPath;
+    std::filesystem::path origPath;
 
     /**< That's the path passed through addPath(). It never changes. */
-    QString committedPath;
-    QString uncommittedPath;
+    std::filesystem::path committedPath;
+    std::filesystem::path uncommittedPath;
 
     /**< Same as committedPath when m_haveUncommittedChanges == false. */
     RelinkablePath::Type type;
@@ -88,20 +125,22 @@ class RelinkingModel : public QAbstractListModel {
 
     /**< Same as committedStatus when m_haveUncommittedChanges == false. */
 
-    explicit Item(const RelinkablePath& path);
+    EntryKind entryKind;
+
+    Item(const RelinkablePath& path, EntryKind entryKind);
   };
 
   class Relinker : public AbstractRelinker {
    public:
-    void addMapping(const QString& from, const QString& to);
+    void addMapping(const std::filesystem::path& from, const std::filesystem::path& to);
 
     /** Returns path.normalizedPath() if there is no mapping for it. */
-    QString substitutionPathFor(const RelinkablePath& path) const override;
+    std::filesystem::path substitutionPathFor(const RelinkablePath& path) const override;
 
     void swap(Relinker& other);
 
    private:
-    std::unordered_map<QString, QString, hashes::hash<QString>> m_mappings;
+    std::unordered_map<std::filesystem::path, std::filesystem::path> m_mappings;
   };
 
 
@@ -110,7 +149,7 @@ class RelinkingModel : public QAbstractListModel {
   QPixmap m_fileIcon;
   QPixmap m_folderIcon;
   std::vector<Item> m_items;
-  std::set<QString> m_origPathSet;
+  std::set<std::pair<std::filesystem::path, EntryKind>> m_origPathSet;
   const std::shared_ptr<Relinker> m_relinker;
   std::unique_ptr<StatusUpdateThread> m_statusUpdateThread;
   bool m_haveUncommittedChanges;

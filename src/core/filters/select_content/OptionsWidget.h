@@ -56,7 +56,11 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
     bool isFineTuningCornersEnabled() const;
 
+    const QString& pageSizePresetId() const;
+
     void setFineTuneCornersEnabled(bool fineTune);
+
+    void setPageSizePresetId(const QString& pageSizePresetId);
 
     AutoManualMode contentDetectionMode() const;
 
@@ -70,6 +74,7 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
     AutoManualMode m_contentDetectionMode;
     AutoManualMode m_pageDetectionMode;
     bool m_fineTuneCornersEnabled;
+    QString m_pageSizePresetId;
   };
 
 
@@ -95,6 +100,8 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
   void pageRectChangedLocally(const QRectF& pageRect);
 
+  void pageRectSizeLockChanged(bool locked);
+
   void pageRectStateChanged(bool state);
 
  private slots:
@@ -107,6 +114,8 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
   void pageDetectToggled(AutoManualMode mode);
 
+  void pageSizePresetChanged(int index);
+
   void fineTuningChanged(bool checked);
 
   void dimensionsChangedLocally(double);
@@ -117,6 +126,12 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
   void updatePageModeIndication(AutoManualMode mode);
 
   void updatePageDetectOptionsDisplay();
+
+  void updatePageSizePresetDisplay();
+
+  void populatePageSizePresets();
+
+  void updatePageRectFromDimensions();
 
   void commitCurrentParams();
 
@@ -187,6 +202,14 @@ inline void OptionsWidget::UiData::setFineTuneCornersEnabled(bool fineTune) {
 
 inline bool OptionsWidget::UiData::isFineTuningCornersEnabled() const {
   return m_fineTuneCornersEnabled;
+}
+
+inline const QString& OptionsWidget::UiData::pageSizePresetId() const {
+  return m_pageSizePresetId;
+}
+
+inline void OptionsWidget::UiData::setPageSizePresetId(const QString& pageSizePresetId) {
+  m_pageSizePresetId = pageSizePresetId;
 }
 }  // namespace select_content
 #endif  // ifndef SCANTAILOR_SELECT_CONTENT_OPTIONSWIDGET_H_

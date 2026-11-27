@@ -5,6 +5,7 @@
 
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 
 #include <QApplication>
 #include <QFileInfo>
@@ -1381,7 +1382,7 @@ std::unique_ptr<QGraphicsItem> ThumbnailSequence::Impl::getThumbnail(const PageI
 
 std::unique_ptr<ThumbnailSequence::LabelGroup> ThumbnailSequence::Impl::getLabelGroup(const PageInfo& pageInfo) {
   const PageId& pageId = pageInfo.id();
-  const QFileInfo fileInfo(pageId.imageId().filePath());
+  const QFileInfo fileInfo(core::toQString(pageId.imageId().filePath()));
   const QString fileName(fileInfo.completeBaseName());
 
   QString text;

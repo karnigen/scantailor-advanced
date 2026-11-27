@@ -5,31 +5,44 @@
 
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QCoreApplication>
+#include <QDebug>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEventLoop>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFileSystemModel>
 #include <QFrame>
+#include <QImageReader>
 #include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPalette>
+#include <QProgressDialog>
+#include <QPushButton>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
 #include <QSortFilterProxyModel>
 #include <QStackedLayout>
 #include <QStringList>
+#include <QTemporaryFile>
 #include <QTextBrowser>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QtWidgets/QInputDialog>
 #include <algorithm>
+#include <atomic>
+#include <cmath>
 #include <exception>
 #include <memory>
 
@@ -57,8 +70,10 @@
 #include "PageOrientationPropagator.h"
 #include "PageSelectionAccessor.h"
 #include "PageSequence.h"
+#include "ProcessedPagesExporter.h"
 #include "ProcessingIndicationWidget.h"
 #include "ProcessingTaskQueue.h"
+#include "ProjectBackup.h"
 #include "ProjectCreationContext.h"
 #include "ProjectMigration.h"
 #include "ProjectOpeningContext.h"
@@ -124,6 +139,48 @@ QString menuTitleWithoutMnemonic(const QString& title, QChar* mnemonic = nullptr
   return visibleTitle;
 }
 
+bool runExporterWithProgress(
+    QProgressDialog& progress,
+    const std::function<bool(const ProcessedPagesExporter::ProgressCallback&, QString*)>& exportOperation,
+    QString* errorMessage) {
+  std::atomic_bool cancelRequested = false;
+  QObject::connect(&progress, &QProgressDialog::canceled, &progress,
+                   [&cancelRequested]() { cancelRequested.store(true); });
+
+  bool success = false;
+  QString workerError;
+  QEventLoop eventLoop;
+  QThread* worker = QThread::create([&]() {
+    const ProcessedPagesExporter::ProgressCallback progressCallback
+        = [&progress, &cancelRequested](const int completed, const int total) {
+            return QMetaObject::invokeMethod(
+                       &progress,
+                       [&progress, completed, total]() {
+                         progress.setMaximum(total);
+                         progress.setValue(completed);
+                       },
+                       Qt::BlockingQueuedConnection)
+                   && !cancelRequested.load();
+          };
+    success = exportOperation(progressCallback, &workerError);
+  });
+  QObject::connect(worker, &QThread::finished, &eventLoop, &QEventLoop::quit);
+
+  progress.setAutoClose(false);
+  progress.setAutoReset(false);
+  progress.show();
+  worker->start();
+  eventLoop.exec();
+  worker->wait();
+  delete worker;
+  progress.close();
+
+  if (errorMessage) {
+    *errorMessage = workerError;
+  }
+  return success;
+}
+
 }  // namespace
 
 class MainWindow::PageSelectionProviderImpl : public PageSelectionProvider {
@@ -143,7 +200,7 @@ class MainWindow::PageSelectionProviderImpl : public PageSelectionProvider {
 };
 
 
-MainWindow::MainWindow(const QString& initialDirectory)
+MainWindow::MainWindow(std::filesystem::path initialDirectory)
     : m_pages(std::make_shared<ProjectPages>()),
       m_stages(std::make_shared<StageSequence>(m_pages, newPageSelectionAccessor())),
       m_workerThreadPool(std::make_unique<WorkerThreadPool>()),
@@ -155,7 +212,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
       m_ignorePageOrderingChanges(0),
       m_debug(false),
       m_closing(false) {
-  m_initialDirectory = initialDirectory;
+  m_initialDirectory = std::move(initialDirectory);
   ApplicationSettings& settings = ApplicationSettings::getInstance();
 
   m_maxLogicalThumbSize = settings.getMaxLogicalThumbnailSize();
@@ -285,6 +342,9 @@ MainWindow::MainWindow(const QString& initialDirectory)
   connect(actionGotoPage, SIGNAL(triggered(bool)), this, SLOT(execGotoPageDialog()));
   connect(actionAbout, SIGNAL(triggered(bool)), this, SLOT(showAboutDialog()));
   connect(actionKeyboardShortcuts, &QAction::triggered, this, &MainWindow::showKeyboardShortcuts);
+  connect(actionSupportedImageFormats, &QAction::triggered, this, &MainWindow::showSupportedImageFormats);
+  connect(actionExportProcessedImages, &QAction::triggered, this, &MainWindow::exportProcessedImages);
+  connect(actionExportPagesToPdf, &QAction::triggered, this, &MainWindow::exportPagesToPdf);
   connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
   connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
@@ -335,9 +395,6 @@ MainWindow::MainWindow(const QString& initialDirectory)
           SLOT(pastLastPageContextMenuRequested(const QPoint&)));
   connect(selectionModeBtn, SIGNAL(clicked(bool)), m_thumbSequence.get(), SLOT(setSelectionModeEnabled(bool)));
 
-  connect(thumbView->verticalScrollBar(), SIGNAL(sliderMoved(int)), this, SLOT(thumbViewScrolled()));
-  connect(thumbView->verticalScrollBar(), &QScrollBar::actionTriggered, this,
-          [this](int) { QTimer::singleShot(0, this, [this]() { thumbViewScrolled(); }); });
   connect(focusButton, &QToolButton::clicked, this, [this](bool checked) {
     SettingsStore().setValue("mainWindow/keepCurrentPageInView", checked);
     thumbViewFocusToggled(checked);
@@ -375,6 +432,7 @@ MainWindow::MainWindow(const QString& initialDirectory)
 
   connect(actionNewProject, SIGNAL(triggered(bool)), this, SLOT(newProject()));
   connect(actionOpenProject, SIGNAL(triggered(bool)), this, SLOT(openProject()));
+  connect(actionReloadProject, &QAction::triggered, this, &MainWindow::reloadProject);
   connect(actionSaveProject, SIGNAL(triggered(bool)), this, SLOT(saveProjectTriggered()));
   connect(actionSaveProjectAs, SIGNAL(triggered(bool)), this, SLOT(saveProjectAsTriggered()));
   connect(actionCloseProject, SIGNAL(triggered(bool)), this, SLOT(closeProject()));
@@ -385,6 +443,10 @@ MainWindow::MainWindow(const QString& initialDirectory)
   updateMainArea();
 
   SettingsStore qSettings;
+  const QByteArray dockState = qSettings.byteArrayValue("mainWindow/dockState");
+  if (!dockState.isEmpty()) {
+    restoreState(dockState, 1);
+  }
   if (!qSettings.boolValue("mainWindow/maximized", true)) {
     if (!restoreGeometry(qSettings.byteArrayValue("mainWindow/nonMaximizedGeometry"))) {
       resize(1014, 689);  // A sensible value.
@@ -396,9 +458,14 @@ MainWindow::MainWindow(const QString& initialDirectory)
 
   m_sceneItemsPosUpdater.setSingleShot(true);
   connect(&m_sceneItemsPosUpdater, &QTimer::timeout, m_thumbSequence.get(), &ThumbnailSequence::updateSceneItemsPos);
+
+  m_projectModifiedTimer.setSingleShot(true);
+  connect(&m_projectModifiedTimer, &QTimer::timeout, this, &MainWindow::updateProjectModifiedState);
+  qApp->installEventFilter(this);
 }
 
 MainWindow::~MainWindow() {
+  qApp->removeEventFilter(this);
   m_interactiveQueue->cancelAndClear();
   if (m_batchQueue) {
     m_batchQueue->cancelAndClear();
@@ -423,13 +490,13 @@ std::vector<PageRange> MainWindow::selectedRanges() const {
 }
 
 void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
-                                    const QString& outDir,
-                                    const QString& projectFilePath,
+                                    const std::filesystem::path& outDir,
+                                    const std::filesystem::path& projectFilePath,
                                     const ProjectReader* projectReader) {
   stopBatchProcessing(CLEAR_MAIN_AREA);
   m_interactiveQueue->cancelAndClear();
 
-  if (!outDir.isEmpty()) {
+  if (!outDir.empty()) {
     Utils::maybeCreateCacheDir(outDir);
   }
   m_pages = pages;
@@ -479,7 +546,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
 
   // Thumbnails are stored relative to the output directory,
   // so recreate the thumbnail cache.
-  if (outDir.isEmpty()) {
+  if (outDir.empty()) {
     m_thumbnailCache.reset();
   } else {
     m_thumbnailCache = Utils::createThumbnailCache(m_outFileNameGen.outDir());
@@ -488,12 +555,19 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
 
   removeFilterOptionsWidget();
   updateProjectActions();
+  m_projectModified
+      = isProjectLoaded() && (m_projectFile.empty() || !QFileInfo::exists(core::toQString(m_projectFile)));
   updateWindowTitle();
+  if (isProjectLoaded() && !m_projectModified) {
+    updateProjectModifiedState();
+  }
   updateMainArea();
 
-  if (!QDir(outDir).exists()) {
-    showRelinkingDialog();
-  }
+  connect(m_pages.get(), &ProjectPages::modified, this, [this]() {
+    if (isProjectLoaded()) {
+      m_projectModifiedTimer.start(300);
+    }
+  });
 }  // MainWindow::switchToNewProject
 
 void MainWindow::showNewOpenProjectPanel() {
@@ -566,24 +640,69 @@ void MainWindow::updateThumbViewMinWidth() {
 
 void MainWindow::setupThumbView() {
   updateThumbViewMinWidth();
+  thumbView->setRenderHint(QPainter::SmoothPixmapTransform, true);
   m_thumbSequence->attachView(thumbView);
   thumbView->installEventFilter(this);
+  thumbView->viewport()->installEventFilter(this);
 }
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
+  if (isProjectLoaded() && !m_closing
+      && (ev->type() == QEvent::MouseButtonRelease || ev->type() == QEvent::KeyRelease)) {
+    m_projectModifiedTimer.start(300);
+  }
+
   if ((obj == thumbView) && (ev->type() == QEvent::Resize)) {
     if (!m_sceneItemsPosUpdater.isActive()) {
       m_sceneItemsPosUpdater.start(150);
     }
   }
 
-  if ((obj == thumbView || obj == thumbView->verticalScrollBar()) && (ev->type() == QEvent::Wheel)) {
+  const bool isThumbnailView = (obj == thumbView) || (obj == thumbView->viewport());
+  if (isThumbnailView && ev->type() == QEvent::Wheel) {
     auto* wheelEvent = static_cast<QWheelEvent*>(ev);
+    const Qt::KeyboardModifiers modifiers = wheelEvent->modifiers();
+    const bool singlePageNavigation = modifiers == Qt::ControlModifier;
+    const bool fastPageNavigation = modifiers == Qt::ShiftModifier;
+    if (singlePageNavigation || fastPageNavigation) {
+      const QPoint pixelDelta = wheelEvent->pixelDelta();
+      const QPoint angleDelta = wheelEvent->angleDelta();
+      const int wheelDelta = !pixelDelta.isNull() ? (pixelDelta.y() != 0 ? pixelDelta.y() : pixelDelta.x())
+                                                  : (angleDelta.y() != 0 ? angleDelta.y() : angleDelta.x());
+      int& wheelDeltaAccumulator
+          = singlePageNavigation ? m_thumbnailNavigationWheelDelta : m_thumbnailFastNavigationWheelDelta;
+      wheelDeltaAccumulator += wheelDelta;
+      const int pageSteps = wheelDeltaAccumulator / 120;
+      wheelDeltaAccumulator %= 120;
+      if (pageSteps != 0 && !isBatchProcessingInProgress() && isProjectLoaded()) {
+        const PageInfo currentPage = m_thumbSequence->selectionLeader();
+        PageInfo targetPage = currentPage;
+        const bool moveBackward = pageSteps > 0;
+        const int pageStepSize = fastPageNavigation ? 10 : 1;
+        const int pagesToMove = std::abs(pageSteps) * pageStepSize;
+        for (int i = 0; i < pagesToMove && !targetPage.isNull(); ++i) {
+          const PageInfo nextPage
+              = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
+          if (nextPage.isNull()) {
+            break;
+          }
+          targetPage = nextPage;
+        }
+        if (!targetPage.isNull() && targetPage.id() != currentPage.id()) {
+          goToPage(targetPage.id());
+        }
+      }
+      wheelEvent->accept();
+      return true;
+    }
+
     if (wheelEvent->modifiers() == Qt::AltModifier) {
-      const QPoint& angleDelta = wheelEvent->angleDelta();
-      const int wheelDist = angleDelta.x() + angleDelta.y();
-      if (std::abs(wheelDist) >= 30) {
-        scaleThumbnails(std::copysign(1, wheelDist));
+      const QPoint pixelDelta = wheelEvent->pixelDelta();
+      const QPoint angleDelta = wheelEvent->angleDelta();
+      const double scaleSteps
+          = !pixelDelta.isNull() ? (pixelDelta.x() + pixelDelta.y()) / 40.0 : (angleDelta.x() + angleDelta.y()) / 120.0;
+      if (scaleSteps != 0.0) {
+        scaleThumbnails(scaleSteps, isThumbnailView);
       }
       wheelEvent->accept();
       return true;
@@ -609,6 +728,7 @@ void MainWindow::timerEvent(QTimerEvent* const event) {
     m_closing = true;
     SettingsStore settings;
     settings.setValue("mainWindow/maximized", isMaximized());
+    settings.setValue("mainWindow/dockState", saveState(1));
     if (!isMaximized()) {
       settings.setValue("mainWindow/nonMaximizedGeometry", saveGeometry());
     }
@@ -618,13 +738,27 @@ void MainWindow::timerEvent(QTimerEvent* const event) {
 
 MainWindow::SavePromptResult MainWindow::promptProjectSave() {
   QMessageBox msgBox(QMessageBox::Question, tr("Save Project"), tr("Save the project?"),
-                     QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, this);
-  msgBox.setDefaultButton(QMessageBox::Yes);
+                     QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, this);
+  msgBox.setDefaultButton(QMessageBox::Save);
+  auto* saveButton = msgBox.button(QMessageBox::Save);
+  saveButton->setShortcut(QKeySequence(Qt::AltModifier | Qt::Key_S));
+  saveButton->setToolTip(tr("Save the project. Shortcut: Alt+S."));
+  auto* discardButton = msgBox.button(QMessageBox::Discard);
+  discardButton->setShortcut(QKeySequence(Qt::AltModifier | Qt::Key_D));
+  discardButton->setToolTip(tr("Discard project changes. Shortcut: Alt+D."));
+  auto makeButtonTextFit = [](QAbstractButton* button) {
+    const int iconWidth = button->icon().isNull() ? 0 : button->iconSize().width();
+    const int requiredWidth = button->fontMetrics().horizontalAdvance(button->text()) + iconWidth + 48;
+    button->setMinimumWidth(qMax(button->sizeHint().width(), requiredWidth));
+  };
+  makeButtonTextFit(saveButton);
+  makeButtonTextFit(discardButton);
+  makeButtonTextFit(msgBox.button(QMessageBox::Cancel));
 
   switch (msgBox.exec()) {
-    case QMessageBox::Yes:
+    case QMessageBox::Save:
       return SAVE;
-    case QMessageBox::No:
+    case QMessageBox::Discard:
       return DONT_SAVE;
     default:
       return CANCEL;
@@ -654,7 +788,11 @@ bool MainWindow::compareFiles(const QString& fpath1, const QString& fpath2) {
     const QByteArray chunk2(file2.read(chunkSize));
     if (chunk1.size() != chunk2.size()) {
       return false;
-    } else if (chunk1.size() == 0) {
+    }
+    if (chunk1 != chunk2) {
+      return false;
+    }
+    if (chunk1.isEmpty()) {
       return true;
     }
   }
@@ -770,7 +908,6 @@ void MainWindow::setOptionsWidget(FilterOptionsWidget* widget, const Ownership o
   connect(widget, SIGNAL(invalidateThumbnail(const PageInfo&)), this, SLOT(invalidateThumbnail(const PageInfo&)));
   connect(widget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
   connect(widget, SIGNAL(goToPage(const PageId&)), this, SLOT(goToPage(const PageId&)));
-  connect(widget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }  // MainWindow::setOptionsWidget
 
 ImageViewBase* MainWindow::findPrimaryImageView(QWidget* root) {
@@ -869,7 +1006,7 @@ void MainWindow::setImageWidget(QWidget* widget, const Ownership ownership, Debu
     m_tabbedDebugImages->addTab(widget, "Main");
     AutoRemovingFile file;
     QString label;
-    while (!(file = debugImages->retrieveNext(&label)).get().isNull()) {
+    while (!(file = debugImages->retrieveNext(&label)).get().empty()) {
       QWidget* view = new DebugImageView(file);
       m_imageWidgetCleanup.add(view);
       m_tabbedDebugImages->addTab(view, label);
@@ -925,11 +1062,87 @@ void MainWindow::showRelinkingDialog() {
   dialog->setWindowModality(Qt::WindowModal);
 
   m_pages->listRelinkablePaths(dialog->pathCollector());
-  dialog->pathCollector()(RelinkablePath(m_outFileNameGen.outDir(), RelinkablePath::Dir));
+  dialog->addOutputPath(RelinkablePath(m_outFileNameGen.outDir(), RelinkablePath::Dir));
+  dialog->addCommonImageRoot();
+  dialog->selectFirstPath();
 
   connect(dialog, &QDialog::accepted, [this, dialog]() { this->performRelinking(dialog->relinker()); });
 
   dialog->show();
+}
+
+bool MainWindow::isPathWithinDirectory(const QString& path, const QString& directory) {
+  const QFileInfo pathInfo(path);
+  const QFileInfo directoryInfo(directory);
+  const QString absolutePath
+      = pathInfo.canonicalFilePath().isEmpty() ? pathInfo.absoluteFilePath() : pathInfo.canonicalFilePath();
+  const QString absoluteDirectory = directoryInfo.canonicalFilePath().isEmpty() ? directoryInfo.absoluteFilePath()
+                                                                                : directoryInfo.canonicalFilePath();
+  const QString relativePath = QDir::fromNativeSeparators(QDir(absoluteDirectory).relativeFilePath(absolutePath));
+
+  return !QDir::isAbsolutePath(relativePath) && relativePath != ".." && !relativePath.startsWith("../");
+}
+
+void MainWindow::warnAboutExternalImages() {
+  if (!isProjectLoaded() || m_projectFile.empty()) {
+    return;
+  }
+
+  QStringList imagePaths;
+  QStringList externalImages;
+  const QString projectDirectory = QFileInfo(core::toQString(m_projectFile)).absolutePath();
+  for (const ImageFileInfo& image : m_pages->toImageFileInfo()) {
+    const QString imagePath = image.fileInfo().filePath();
+    imagePaths.push_back(imagePath);
+    if (!isPathWithinDirectory(imagePath, projectDirectory)) {
+      externalImages.push_back(imagePath);
+    }
+  }
+  const QString commonImageRoot = RelinkingModel::findCommonImageRoot(imagePaths);
+  const QString outputDirectory = core::toQString(m_outFileNameGen.outDir());
+  const bool outputOutsideImageRoot
+      = !imagePaths.isEmpty()
+        && (commonImageRoot.isEmpty() || !isPathWithinDirectory(outputDirectory, commonImageRoot));
+  if (externalImages.isEmpty() && !outputOutsideImageRoot) {
+    return;
+  }
+
+  constexpr int displayedPathLimit = 5;
+  const qsizetype displayedPathCount = std::min<qsizetype>(displayedPathLimit, externalImages.size());
+  QString message;
+  if (!externalImages.isEmpty()) {
+    message
+        = tr("Some source images are outside the folder containing this project. This may be intentional, but it can "
+             "mean the project is using a different image set than expected.\n\n%1 external image(s):")
+              .arg(externalImages.size());
+  }
+  for (qsizetype i = 0; i < displayedPathCount; ++i) {
+    message += QStringLiteral("\n%1").arg(QDir::toNativeSeparators(externalImages.at(i)));
+  }
+  if (externalImages.size() > displayedPathLimit) {
+    message += tr("\n... and %1 more").arg(externalImages.size() - displayedPathLimit);
+  }
+
+  if (outputOutsideImageRoot) {
+    if (!message.isEmpty()) {
+      message += QStringLiteral("\n\n");
+    }
+    message += tr("The output directory is outside the common root of the source images. A common-root relink will "
+                  "not move it together with those images.\n\nOutput directory: %1\nCommon image root: %2")
+                   .arg(QDir::toNativeSeparators(outputDirectory),
+                        commonImageRoot.isEmpty() ? tr("not available") : QDir::toNativeSeparators(commonImageRoot));
+  }
+
+  QMessageBox messageBox(QMessageBox::Warning, tr("Project Paths Outside Expected Roots"), message,
+                         QMessageBox::NoButton, this);
+  QPushButton* relinkButton = messageBox.addButton(tr("Relink..."), QMessageBox::ActionRole);
+  QPushButton* continueButton = messageBox.addButton(tr("Continue"), QMessageBox::RejectRole);
+  messageBox.setDefaultButton(continueButton);
+  messageBox.setEscapeButton(continueButton);
+  messageBox.exec();
+  if (messageBox.clickedButton() == relinkButton) {
+    showRelinkingDialog();
+  }
 }
 
 void MainWindow::performRelinking(const std::shared_ptr<AbstractRelinker>& relinker) {
@@ -1058,7 +1271,7 @@ void MainWindow::currentPageChanged(const PageInfo& pageInfo,
 }
 
 void MainWindow::autoSaveProject() {
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     return;
   }
   if (!ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
@@ -1144,28 +1357,6 @@ void MainWindow::thumbViewFocusToggled(const bool checked) {
   if (checked) {
     const int scrollMargin = 20;  // Follow Page: keep thumbnail visible with padding (issue #51).
     thumbView->ensureVisible(rect, scrollMargin, scrollMargin);
-  }
-}
-
-void MainWindow::thumbViewScrolled() {
-  const QRectF rect(m_thumbSequence->selectionLeaderSceneRect());
-  if (rect.isNull()) {
-    // No items selected.
-    return;
-  }
-
-  const QRectF viewportRect(thumbView->viewport()->rect());
-  const QRectF viewportItemRect(thumbView->viewportTransform().mapRect(rect));
-
-  const double intersectionThreshold = 0.5;
-  if ((viewportItemRect.top() >= viewportRect.top())
-      && (viewportItemRect.top() + viewportItemRect.height() * intersectionThreshold <= viewportRect.bottom())) {
-    // Item is visible.
-  } else if ((viewportItemRect.bottom() <= viewportRect.bottom())
-             && (viewportItemRect.bottom() - viewportItemRect.height() * intersectionThreshold >= viewportRect.top())) {
-    // Item is visible.
-  } else {
-    focusButton->setChecked(false);
   }
 }
 
@@ -1258,7 +1449,8 @@ void MainWindow::waitForCancelledTasks() {
 }
 
 void MainWindow::finishWaitingForCancelledTasks() {
-  // TODO: If a cancelled worker remains blocked in I/O, it cannot report completion and this wait can persist indefinitely.
+  // TODO: If a cancelled worker remains blocked in I/O, it cannot report completion and this wait can persist
+  // indefinitely.
   if (!m_waitingForCancelledTasks || m_finishingCancelledTasks || !m_workerThreadPool->isIdle()) {
     return;
   }
@@ -1278,7 +1470,7 @@ void MainWindow::finishWaitingForCancelledTasks() {
     } else if (pendingSave == PendingSave::SaveAs) {
       saveProjectAsNow();
     } else if (pendingSave == PendingSave::AutoSave) {
-      if (!m_projectFile.isEmpty() && ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
+      if (!m_projectFile.empty() && ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
         saveProjectWithFeedback(m_projectFile);
       }
     }
@@ -1353,6 +1545,7 @@ void MainWindow::startBatchProcessing() {
   m_interactiveQueue->cancelAndClear();
 
   m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  updateProjectActions();
   // Use full page sequence in current display order so all pages are processed
   // (fixes batch missing pages when e.g. order is "decreasing deviation" and
   // selection was not at the first page).
@@ -1408,6 +1601,7 @@ void MainWindow::stopBatchProcessing(MainAreaAction mainArea) {
 
   m_batchQueue->cancelAndClear();
   m_batchQueue.reset();
+  updateProjectActions();
 
   filterList->setBatchProcessingInProgress(false);
   filterList->setEnabled(true);
@@ -1464,12 +1658,15 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     m_batchQueue->processingFinished(task);
   }
 
-  if (task->isCancelled()) {
-    return;
-  }
-
   if (isBatchProcessingInProgress()) {
     feedWorkerPool();
+  }
+
+  if (task->isCancelled()) {
+    if (isBatchProcessingInProgress() && m_batchQueue->allProcessed()) {
+      stopBatchProcessing();
+    }
+    return;
   }
 
   bool batchFailureRecorded = false;
@@ -1493,7 +1690,7 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
 
   try {
     if (isBatchTask) {
-      batchPageName = batchPage.isNull() ? tr("Unknown page") : batchPage.imageId().filePath();
+      batchPageName = batchPage.isNull() ? tr("Unknown page") : core::toQString(batchPage.imageId().filePath());
       if (!batchPage.isNull() && batchPage.imageId().isMultiPageFile()) {
         batchPageName += tr(" (page %1)").arg(batchPage.imageId().page());
       }
@@ -1658,6 +1855,13 @@ void MainWindow::fixedDpiSubmitted() {
       || (selectedPageBefore.metadata() != selectedPageAfter.metadata())) {
     reloadRequested();
   }
+
+  if (m_waitingForCancelledTasks) {
+    queueSave(PendingSave::Save);
+    QMainWindow::statusBar()->showMessage(tr("The project will be saved when cancelled tasks finish."));
+    return;
+  }
+  saveProjectInteractive();
 }
 
 void MainWindow::saveProjectTriggered() {
@@ -1670,9 +1874,9 @@ void MainWindow::saveProjectTriggered() {
 }
 
 bool MainWindow::saveProjectInteractive() {
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     saveProjectAsNow();
-    return !m_projectFile.isEmpty();
+    return !m_projectFile.empty();
   }
 
   if (!saveProjectWithFeedback(m_projectFile)) {
@@ -1708,19 +1912,18 @@ void MainWindow::saveProjectAsNow() {
   // XXX: this function is duplicated in OutOfMemoryDialog.
 
   QString projectDir;
-  if (!m_projectFile.isEmpty()) {
-    projectDir = QFileInfo(m_projectFile).absolutePath();
+  if (!m_projectFile.empty()) {
+    projectDir = QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     SettingsStore settings;
-    projectDir = m_initialDirectory;
+    projectDir = core::toQString(m_initialDirectory);
     if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
       projectDir = settings.stringValue("project/lastDir");
     }
   }
 
-  QString projectFile(QFileDialog::getSaveFileName(this, QString(), projectDir,
-                                                   tr("Scan Tailor Projects") + " (*.ScanTailor)", nullptr,
-                                                   QFileDialog::DontUseNativeDialog));
+  QString projectFile(QFileDialog::getSaveFileName(this, tr("Save Project"), projectDir,
+                                                   tr("Scan Tailor Projects") + " (*.ScanTailor)"));
   if (projectFile.isEmpty()) {
     return;
   }
@@ -1729,12 +1932,13 @@ void MainWindow::saveProjectAsNow() {
     projectFile += ".ScanTailor";
   }
 
-  if (saveProjectWithFeedback(projectFile)) {
-    m_projectFile = projectFile;
+  const std::filesystem::path projectFilePath(core::toFileSystemPath(projectFile));
+  if (saveProjectWithFeedback(projectFilePath)) {
+    m_projectFile = projectFilePath;
     updateWindowTitle();
 
     SettingsStore settings;
-    settings.setValue("project/lastDir", QFileInfo(m_projectFile).absolutePath());
+    settings.setValue("project/lastDir", QFileInfo(core::toQString(m_projectFile)).absolutePath());
 
     RecentProjects rp;
     rp.read();
@@ -1763,7 +1967,7 @@ void MainWindow::openProject() {
     return;
   }
 
-  QString projectDir(m_initialDirectory);
+  QString projectDir(core::toQString(m_initialDirectory));
   if (projectDir.isEmpty() || !QDir(projectDir).exists()) {
     projectDir = SettingsStore().stringValue("project/lastDir");
   }
@@ -1797,9 +2001,36 @@ void MainWindow::openProject(const QString& projectFile) {
 
   file.close();
 
-  auto* context = new ProjectOpeningContext(this, projectFile, doc);
+  auto* context = new ProjectOpeningContext(this, core::toFileSystemPath(projectFile), doc);
   connect(context, SIGNAL(done(ProjectOpeningContext*)), SLOT(projectOpened(ProjectOpeningContext*)));
   context->proceed();
+}
+
+void MainWindow::reloadProject() {
+  if (!isProjectLoaded() || m_projectFile.empty()) {
+    return;
+  }
+  if (m_waitingForCancelledTasks) {
+    QMessageBox::information(this, tr("Please wait"), tr("Cancelled tasks are still finishing. Please try again."));
+    return;
+  }
+  if (isBatchProcessingInProgress()) {
+    QMessageBox::information(this, tr("Please wait"), tr("Stop batch processing before reloading the project."));
+    return;
+  }
+
+  updateProjectModifiedState();
+  if (m_projectModified) {
+    QMessageBox messageBox(QMessageBox::Warning, tr("Reload Project"),
+                           tr("Discard all unsaved changes and reload the project from disk?"),
+                           QMessageBox::Discard | QMessageBox::Cancel, this);
+    messageBox.setDefaultButton(QMessageBox::Cancel);
+    if (messageBox.exec() != QMessageBox::Discard) {
+      return;
+    }
+  }
+
+  openProject(core::toQString(m_projectFile));
 }
 
 void MainWindow::projectOpened(ProjectOpeningContext* context) {
@@ -1808,10 +2039,11 @@ void MainWindow::projectOpened(ProjectOpeningContext* context) {
   rp.setMostRecent(context->projectFile());
   rp.write();
 
-  SettingsStore().setValue("project/lastDir", QFileInfo(context->projectFile()).absolutePath());
+  SettingsStore().setValue("project/lastDir", QFileInfo(core::toQString(context->projectFile())).absolutePath());
 
   switchToNewProject(context->projectReader()->pages(), context->projectReader()->outputDirectory(),
                      context->projectFile(), context->projectReader());
+  warnAboutExternalImages();
 }
 
 void MainWindow::closeProject() {
@@ -1891,6 +2123,15 @@ void MainWindow::showKeyboardShortcuts() {
           + "</th><th align='left'>" + tr("Shortcut").toHtmlEscaped() + "</th><th align='left'>"
           + tr("Context").toHtmlEscaped() + "</th></tr>";
 
+  const QStringList stageNames{
+      QCoreApplication::translate("fix_orientation::Filter", "Fix Orientation"),
+      QCoreApplication::translate("page_split::Filter", "Split Pages"),
+      QCoreApplication::translate("deskew::Filter", "Deskew & Oblique"),
+      QCoreApplication::translate("select_content::Filter", "Select Content"),
+      QCoreApplication::translate("page_layout::Filter", "Margins"),
+      QCoreApplication::translate("output::Filter", "Output"),
+  };
+
   QList<QAction*> actions;
   QSet<QAction*> uniqueActions;
   auto appendActions = [&actions, &uniqueActions](const QList<QAction*>& candidates) {
@@ -1931,8 +2172,12 @@ void MainWindow::showKeyboardShortcuts() {
     }
 
     QString label = action->text();
-    if (action->objectName().startsWith("actionSwitchFilter") && !action->toolTip().isEmpty()) {
-      label = action->toolTip();
+    if (action->objectName().startsWith("actionSwitchFilter")) {
+      bool ok = false;
+      const int stageNumber = action->objectName().mid(QStringLiteral("actionSwitchFilter").size()).toInt(&ok);
+      if (ok && stageNumber >= 1 && stageNumber <= stageNames.size()) {
+        label = stageNames.at(stageNumber - 1);
+      }
     }
     if (label.isEmpty()) {
       label = action->toolTip();
@@ -1973,6 +2218,13 @@ void MainWindow::showKeyboardShortcuts() {
     appendShortcutRow(label, shortcutTexts, context);
   }
 
+  appendShortcutRow(tr("Save project when prompted"),
+                    {QKeySequence(Qt::AltModifier | Qt::Key_S).toString(QKeySequence::NativeText)},
+                    tr("Save confirmation dialog"));
+  appendShortcutRow(tr("Discard changes when prompted"),
+                    {QKeySequence(Qt::AltModifier | Qt::Key_D).toString(QKeySequence::NativeText)},
+                    tr("Save confirmation dialog"));
+
   if (!actionNames.contains("deskewRotateLeft")) {
     appendShortcutRow(tr("Rotate left"), {QKeySequence(",").toString(QKeySequence::NativeText)}, tr("Active tool"));
   }
@@ -1998,6 +2250,157 @@ void MainWindow::showKeyboardShortcuts() {
 
   dialog.resize(640, 720);
   dialog.exec();
+}
+
+void MainWindow::exportProcessedImages() {
+  if (!isProjectLoaded() || isBatchProcessingInProgress()) {
+    return;
+  }
+
+  const QStringList formats = ProcessedPagesExporter::supportedImageFormats();
+  bool formatAccepted = false;
+  const int webpIndex = formats.indexOf(QStringLiteral("webp"));
+  const QString format = QInputDialog::getItem(this, tr("Export Processed Pages"), tr("Image format:"), formats,
+                                               qMax(0, webpIndex), false, &formatAccepted);
+  if (!formatAccepted || format.isEmpty()) {
+    return;
+  }
+
+  const QString outputDirectory = QFileDialog::getExistingDirectory(
+      this, tr("Select Export Directory"), core::toQString(m_outFileNameGen.outDir()), QFileDialog::ShowDirsOnly);
+  if (outputDirectory.isEmpty()) {
+    return;
+  }
+
+  const PageSequence pages = m_thumbSequence->toPageSequence();
+  QProgressDialog progress(tr("Exporting processed pages..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()),
+                           this);
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+
+  const OutputFileNameGenerator fileNameGenerator = m_outFileNameGen;
+  QString errorMessage;
+  const bool success = runExporterWithProgress(
+      progress,
+      [&pages, &fileNameGenerator, &outputDirectory, &format](
+          const ProcessedPagesExporter::ProgressCallback& progressCallback, QString* error) {
+        return ProcessedPagesExporter::exportImages(pages, fileNameGenerator, outputDirectory, format, progressCallback,
+                                                    error);
+      },
+      &errorMessage);
+  if (!success) {
+    QMessageBox::warning(this, tr("Image Export Failed"), errorMessage);
+    return;
+  }
+  QMessageBox::information(this, tr("Image Export Complete"),
+                           tr("Processed pages were exported to %1.").arg(outputDirectory));
+}
+
+void MainWindow::exportPagesToPdf() {
+  if (!isProjectLoaded() || isBatchProcessingInProgress()) {
+    return;
+  }
+
+  QString outputFilePath = QFileDialog::getSaveFileName(
+      this, tr("Export Processed Pages as PDF"),
+      QDir(core::toQString(m_outFileNameGen.outDir())).filePath(QStringLiteral("output.pdf")), tr("PDF files (*.pdf)"));
+  if (outputFilePath.isEmpty()) {
+    return;
+  }
+  if (!outputFilePath.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive)) {
+    outputFilePath += QStringLiteral(".pdf");
+  }
+
+  const PageSequence pages = m_thumbSequence->toPageSequence();
+  QProgressDialog progress(tr("Creating multi-page PDF..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()), this);
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+
+  const OutputFileNameGenerator fileNameGenerator = m_outFileNameGen;
+  QString errorMessage;
+  const bool success = runExporterWithProgress(
+      progress,
+      [&pages, &fileNameGenerator, &outputFilePath](const ProcessedPagesExporter::ProgressCallback& progressCallback,
+                                                    QString* error) {
+        return ProcessedPagesExporter::exportPdf(pages, fileNameGenerator, outputFilePath, progressCallback, error);
+      },
+      &errorMessage);
+  if (!success) {
+    QMessageBox::warning(this, tr("PDF Export Failed"), errorMessage);
+    return;
+  }
+  QMessageBox::information(this, tr("PDF Export Complete"),
+                           tr("The multi-page PDF was saved to %1.").arg(outputFilePath));
+}
+
+void MainWindow::showSupportedImageFormats() {
+  if (auto* dialog = findChild<QDialog*>(QStringLiteral("supportedImageFormatsDialog"))) {
+    dialog->raise();
+    dialog->activateWindow();
+    return;
+  }
+
+  auto* dialog = new QDialog(this);
+  dialog->setObjectName(QStringLiteral("supportedImageFormatsDialog"));
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle(tr("Supported Image Formats"));
+
+  auto* layout = new QVBoxLayout(dialog);
+  auto* browser = new QTextBrowser(dialog);
+  browser->setOpenLinks(false);
+  browser->setFrameShape(QFrame::NoFrame);
+
+  QStringList qtFormats;
+  for (const QByteArray& format : QImageReader::supportedImageFormats()) {
+    const QString extension = QString::fromLatin1(format).toLower();
+    if (extension != QStringLiteral("tif") && extension != QStringLiteral("tiff")) {
+      qtFormats.append(QLatin1Char('.') + extension);
+    }
+  }
+  qtFormats.removeDuplicates();
+  qtFormats.sort(Qt::CaseInsensitive);
+
+  QString html = "<html><body>";
+  html += "<h3>" + tr("Input formats").toHtmlEscaped() + "</h3>";
+  html += "<p>" + tr("TIFF (.tif, .tiff) is supported, including multi-page TIFF files.").toHtmlEscaped() + "</p>";
+  if (!qtFormats.isEmpty()) {
+    html += "<p>"
+            + tr("Other supported formats depend on the Qt image plugins available in this installation: %1.")
+                  .arg(qtFormats.join(", ").toHtmlEscaped())
+                  .toHtmlEscaped()
+            + "</p>";
+  }
+  html += "<p>" + tr("Only the first page is read from non-TIFF formats.").toHtmlEscaped() + "</p>";
+  html += "<h3>" + tr("Output format").toHtmlEscaped() + "</h3>";
+  html += "<p>"
+          + tr("Processed pages are kept as TIFF for project editing. Use File > Export Processed Pages as "
+               "Images to create image files in supported formats, including WebP, or File > Export Processed "
+               "Pages as PDF to create a multi-page PDF.")
+                .toHtmlEscaped()
+          + "</p>";
+  html += "<h3>" + tr("TIFF compression").toHtmlEscaped() + "</h3>";
+  html += "<table width='100%' cellspacing='0' cellpadding='7'>";
+  html += "<tr><th align='left'>" + tr("Output image type").toHtmlEscaped() + "</th><th align='left'>"
+          + tr("Settings option").toHtmlEscaped() + "</th><th align='left'>"
+          + tr("Available compression methods").toHtmlEscaped() + "</th></tr>";
+  html += "<tr><td>" + tr("1-bit black and white").toHtmlEscaped() + "</td><td>" + tr("B&W Compression").toHtmlEscaped()
+          + "</td><td>" + tr("None, LZW, Deflate, CCITT G4 (default)").toHtmlEscaped() + "</td></tr>";
+  html += "<tr><td>" + tr("Indexed, RGB and RGBA").toHtmlEscaped() + "</td><td>"
+          + tr("Color Compression").toHtmlEscaped() + "</td><td>"
+          + tr("None, LZW, Deflate, JPEG (default: LZW)").toHtmlEscaped() + "</td></tr>";
+  html += "</table>";
+  html += "<p>" + tr("LZW and Deflate are lossless. JPEG compression is lossy.").toHtmlEscaped() + "</p>";
+  html += "</body></html>";
+  browser->setHtml(html);
+  layout->addWidget(browser);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+  connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+  connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::close);
+  layout->addWidget(buttonBox);
+
+  dialog->resize(640, 520);
+  dialog->show();
 }
 
 void MainWindow::showConfigurationDialog() {
@@ -2156,13 +2559,17 @@ void MainWindow::disconnectFilterOptionsWidget() {
              SLOT(invalidateThumbnail(const PageInfo&)));
   disconnect(m_optionsWidget, SIGNAL(invalidateAllThumbnails()), this, SLOT(invalidateAllThumbnails()));
   disconnect(m_optionsWidget, SIGNAL(goToPage(const PageId&)), this, SLOT(goToPage(const PageId&)));
-  disconnect(m_optionsWidget, SIGNAL(fixDpiRequested()), this, SLOT(fixDpiDialogRequested()));
 }
 
 void MainWindow::updateProjectActions() {
   const bool loaded = isProjectLoaded();
+  const bool canExport = loaded && !isBatchProcessingInProgress();
+  actionReloadProject->setEnabled(loaded && !m_projectFile.empty() && !m_waitingForCancelledTasks
+                                  && !isBatchProcessingInProgress());
   actionSaveProject->setEnabled(loaded);
   actionSaveProjectAs->setEnabled(loaded);
+  actionExportProcessedImages->setEnabled(canExport);
+  actionExportPagesToPdf->setEnabled(canExport);
   actionFixDpi->setEnabled(loaded);
   actionRelinking->setEnabled(loaded);
   actionReverseTwoPageOrder->setEnabled(loaded);
@@ -2173,7 +2580,7 @@ bool MainWindow::isBatchProcessingInProgress() const {
 }
 
 bool MainWindow::isProjectLoaded() const {
-  return !m_outFileNameGen.outDir().isEmpty();
+  return !m_outFileNameGen.outDir().empty();
 }
 
 bool MainWindow::isBelowSelectContent() const {
@@ -2277,6 +2684,7 @@ void MainWindow::loadPageInteractive(const PageInfo& page) {
       m_processingIndicationWidget->processingRestartedEffect();
     }
     bool currentWidgetIsImage = (Utils::castOrFindChild<ImageViewBase*>(m_imageFrameLayout->widget(0)) != nullptr);
+    m_processingIndicationWidget->setBackgroundFadeEnabled(!currentWidgetIsImage);
     setImageWidget(m_processingIndicationWidget.get(), KEEP_OWNERSHIP, nullptr, currentWidgetIsImage);
     m_stages->filterAt(m_curFilter)->preUpdateUI(this, page);
   }
@@ -2293,13 +2701,46 @@ void MainWindow::loadPageInteractive(const PageInfo& page) {
 void MainWindow::updateWindowTitle() {
   QString projectName;
 
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     projectName = tr("Unnamed");
   } else {
-    projectName = QFileInfo(m_projectFile).completeBaseName();
+    projectName = QFileInfo(core::toQString(m_projectFile)).completeBaseName();
   }
   const QString version(QString::fromUtf8(VERSION));
-  setWindowTitle(tr("%2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
+  setWindowTitle(tr("[*] %2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
+  setWindowModified(m_projectModified);
+}
+
+void MainWindow::updateProjectModifiedState() {
+  bool modified = false;
+  if (isProjectLoaded()) {
+    if (m_projectFile.empty() || !QFileInfo::exists(core::toQString(m_projectFile))) {
+      modified = true;
+    } else {
+      const QString snapshotTemplate = QDir(QFileInfo(core::toQString(m_projectFile)).absolutePath())
+                                           .filePath(QStringLiteral(".scantailor-dirty-XXXXXX"));
+      QTemporaryFile snapshot(snapshotTemplate);
+      if (!snapshot.open()) {
+        qWarning().noquote() << "Unable to create a temporary project snapshot:" << snapshot.errorString();
+        modified = true;
+      } else {
+        const QString snapshotPath(snapshot.fileName());
+        snapshot.close();
+
+        ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
+        QString errorMessage;
+        if (!writer.write(core::toFileSystemPath(snapshotPath), m_stages->filters(), &errorMessage)) {
+          qWarning().noquote() << "Unable to check whether the project has unsaved changes:" << errorMessage;
+          modified = true;
+        } else {
+          modified = !compareFiles(core::toQString(m_projectFile), snapshotPath);
+        }
+      }
+    }
+  }
+
+  m_projectModified = modified;
+  setWindowModified(m_projectModified);
 }
 
 /**
@@ -2316,7 +2757,7 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  if (m_projectFile.isEmpty()) {
+  if (m_projectFile.empty()) {
     switch (promptProjectSave()) {
       case SAVE:
         if (!saveProjectInteractive()) {
@@ -2332,13 +2773,13 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  const QFileInfo projectFile(m_projectFile);
+  const QFileInfo projectFile(core::toQString(m_projectFile));
   const QFileInfo backupFile(projectFile.absoluteDir(), QString::fromLatin1("Backup.") + projectFile.fileName());
   const QString backupFilePath(backupFile.absoluteFilePath());
 
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
-  if (!writer.write(backupFilePath, m_stages->filters())) {
+  if (!writer.write(core::toFileSystemPath(backupFilePath), m_stages->filters())) {
     // Backup file could not be written???
     QFile::remove(backupFilePath);
     switch (promptProjectSave()) {
@@ -2356,7 +2797,7 @@ bool MainWindow::closeProjectInteractive() {
     return true;
   }
 
-  if (compareFiles(m_projectFile, backupFilePath)) {
+  if (compareFiles(core::toQString(m_projectFile), backupFilePath)) {
     // The project hasn't really changed.
     QFile::remove(backupFilePath);
     closeProjectWithoutSaving();
@@ -2365,7 +2806,7 @@ bool MainWindow::closeProjectInteractive() {
 
   switch (promptProjectSave()) {
     case SAVE: {
-      QString backupPath;
+      std::filesystem::path backupPath;
       QString errorMessage;
       if (!ProjectMigration::createBackupForFormat3(m_projectFile, &backupPath, &errorMessage)) {
         QMessageBox::warning(
@@ -2374,8 +2815,16 @@ bool MainWindow::closeProjectInteractive() {
                 .arg(errorMessage));
         return false;
       }
+      if (!createProjectBackup(m_projectFile, ApplicationSettings::getInstance().getProjectBackupCount(),
+                               &errorMessage)) {
+        QFile::remove(backupFilePath);
+        QMessageBox::warning(this, tr("Error"),
+                             tr("The previous project version could not be preserved, so it was not overwritten.\n\n%1")
+                                 .arg(errorMessage));
+        return false;
+      }
     }
-      if (!Utils::overwritingRename(backupFilePath, m_projectFile)) {
+      if (!Utils::overwritingRename(backupFilePath, core::toQString(m_projectFile))) {
         QMessageBox::warning(this, tr("Error"), tr("Error saving the project file!"));
         return false;
       }
@@ -2393,19 +2842,22 @@ bool MainWindow::closeProjectInteractive() {
 
 void MainWindow::closeProjectWithoutSaving() {
   auto pages = std::make_shared<ProjectPages>();
-  switchToNewProject(pages, QString());
+  switchToNewProject(pages, {});
 }
 
-bool MainWindow::saveProjectWithFeedback(const QString& projectFile) {
+bool MainWindow::saveProjectWithFeedback(const std::filesystem::path& projectFile) {
   ProjectWriter writer(m_pages, m_selectedPage, m_outFileNameGen);
 
   QString errorMessage;
-  if (!writer.write(projectFile, m_stages->filters(), &errorMessage)) {
+  if (!writer.write(projectFile, m_stages->filters(), &errorMessage,
+                    ApplicationSettings::getInstance().getProjectBackupCount())) {
     const QString message = errorMessage.isEmpty() ? tr("Error saving the project file!")
                                                    : tr("Error saving the project file!\n\n%1").arg(errorMessage);
     QMessageBox::warning(this, tr("Error"), message);
     return false;
   }
+  m_projectModified = false;
+  setWindowModified(false);
   return true;
 }
 
@@ -2425,7 +2877,7 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
 
       const PageSequence sequence(pages.toPageSequence(IMAGE_VIEW));
       for (const PageInfo& page : sequence) {
-        const QString path(QFileInfo(page.imageId().filePath()).absoluteFilePath());
+        const QString path(QFileInfo(core::toQString(page.imageId().filePath())).absoluteFilePath());
         if (!path.isEmpty()) {
           m_inProjectPaths.insert(QDir::cleanPath(path));
         }
@@ -2451,11 +2903,13 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
 
   QString dialogDir;
   if (existing.isNull()) {
-    dialogDir = m_projectFile.isEmpty() ? m_initialDirectory : QFileInfo(m_projectFile).absolutePath();
+    dialogDir = m_projectFile.empty() ? core::toQString(m_initialDirectory)
+                                      : QFileInfo(core::toQString(m_projectFile)).absolutePath();
   } else {
     dialogDir = QFileInfo(existing.filePath()).absolutePath();
     if (dialogDir.isEmpty()) {
-      dialogDir = m_projectFile.isEmpty() ? m_initialDirectory : QFileInfo(m_projectFile).absolutePath();
+      dialogDir = m_projectFile.empty() ? core::toQString(m_initialDirectory)
+                                        : QFileInfo(core::toQString(m_projectFile)).absolutePath();
     }
   }
   if (dialogDir.isEmpty() || !QDir(dialogDir).exists()) {
@@ -2495,7 +2949,8 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
     ImageFileInfo imageFileInfo(fileInfo, std::vector<ImageMetadata>());
 
     const ImageMetadataLoader::Status status = ImageMetadataLoader::load(
-        files.at(i), [&](const ImageMetadata& metadata) { imageFileInfo.imageInfo().push_back(metadata); });
+        core::toFileSystemPath(files.at(i)),
+        [&](const ImageMetadata& metadata) { imageFileInfo.imageInfo().push_back(metadata); });
 
     if (status == ImageMetadataLoader::LOADED) {
       newFiles.push_back(imageFileInfo);
@@ -2534,7 +2989,8 @@ void MainWindow::showInsertFileDialog(BeforeOrAfter beforeOrAfter, const ImageId
       ++imageNum;
 
       const int numSubPages = ProjectPages::adviseNumberOfLogicalPages(metadata, OrthogonalRotation());
-      const ImageInfo imageInfo(ImageId(file.fileInfo(), imageNum), metadata, numSubPages, false, false);
+      const ImageInfo imageInfo(ImageId(core::toFileSystemPath(file.fileInfo().absoluteFilePath()), imageNum), metadata,
+                                numSubPages, false, false);
       insertImage(imageInfo, beforeOrAfter, existing);
     }
   }
@@ -2651,7 +3107,7 @@ void MainWindow::eraseOutputFiles(const std::set<PageId>& pages) {
     }
 
     for (PageId::SubPage subpage : eraseVariations) {
-      QFile::remove(m_outFileNameGen.filePathFor(PageId(pageId.imageId(), subpage)));
+      QFile::remove(core::toQString(m_outFileNameGen.filePathFor(PageId(pageId.imageId(), subpage))));
     }
   }
 }
@@ -2762,19 +3218,30 @@ void MainWindow::setDockWidgetsVisible(bool state) {
   thumbnailsDockWidget->setVisible(state);
 }
 
-void MainWindow::scaleThumbnails(int scaleFactor) {
+void MainWindow::scaleThumbnails(const double scaleFactor, const bool anchorUnderMouse) {
+  const QSizeF oldSize(m_maxLogicalThumbSize);
   const double dx = 25.0 * scaleFactor;
   const double dy = 16.0 * scaleFactor;
   const double width = qBound(100.0, m_maxLogicalThumbSize.width() + dx, 1000.0);
   const double height = qBound(64.0, m_maxLogicalThumbSize.height() + dy, 640.0);
-  m_maxLogicalThumbSize = QSizeF(width, height);
-  if (!m_maxLogicalThumbSizeUpdater.isActive()) {
-    m_maxLogicalThumbSizeUpdater.start(350);
+  if ((width == oldSize.width()) && (height == oldSize.height())) {
+    return;
   }
+
+  const double scale = std::sqrt((width / oldSize.width()) * (height / oldSize.height()));
+  const QGraphicsView::ViewportAnchor oldAnchor = thumbView->transformationAnchor();
+  thumbView->setTransformationAnchor(anchorUnderMouse ? QGraphicsView::AnchorUnderMouse
+                                                      : QGraphicsView::AnchorViewCenter);
+  thumbView->scale(scale, scale);
+  thumbView->setTransformationAnchor(oldAnchor);
+
+  m_maxLogicalThumbSize = QSizeF(width, height);
+  m_maxLogicalThumbSizeUpdater.start(350);
   ApplicationSettings::getInstance().setMaxLogicalThumbnailSize(m_maxLogicalThumbSize);
 }
 
 void MainWindow::updateMaxLogicalThumbSize() {
+  thumbView->resetTransform();
   m_thumbSequence->setMaxLogicalThumbSize(m_maxLogicalThumbSize);
   updateThumbViewMinWidth();
   resetThumbSequence(currentPageOrderProvider(), ThumbnailSequence::KEEP_SELECTION);

@@ -5,6 +5,8 @@
 #define SCANTAILOR_CORE_IMAGEFILEINFO_H_
 
 #include <QFileInfo>
+#include <cassert>
+#include <utility>
 #include <vector>
 
 #include "ImageMetadata.h"
@@ -12,8 +14,18 @@
 class ImageFileInfo {
   // Member-wise copying is OK.
  public:
-  ImageFileInfo(const QFileInfo& fileInfo, const std::vector<ImageMetadata>& imageInfo)
-      : m_fileInfo(fileInfo), m_imageInfo(imageInfo) {}
+  ImageFileInfo(const QFileInfo& fileInfo,
+                const std::vector<ImageMetadata>& imageInfo,
+                std::vector<int> imageIndexes = {})
+      : m_fileInfo(fileInfo), m_imageInfo(imageInfo), m_imageIndexes(std::move(imageIndexes)) {
+    if (m_imageIndexes.empty()) {
+      for (std::size_t index = 0; index < m_imageInfo.size(); ++index) {
+        m_imageIndexes.push_back(static_cast<int>(index));
+      }
+    } else {
+      assert(m_imageIndexes.size() == m_imageInfo.size());
+    }
+  }
 
   const QFileInfo& fileInfo() const { return m_fileInfo; }
 
@@ -21,11 +33,14 @@ class ImageFileInfo {
 
   const std::vector<ImageMetadata>& imageInfo() const { return m_imageInfo; }
 
+  const std::vector<int>& imageIndexes() const { return m_imageIndexes; }
+
   bool isDpiOK() const;
 
  private:
   QFileInfo m_fileInfo;
   std::vector<ImageMetadata> m_imageInfo;
+  std::vector<int> m_imageIndexes;
 };
 
 

@@ -554,8 +554,10 @@ void ImageViewBase::resizeEvent(QResizeEvent* event) {
   const ScopedIncDec<int> guard(m_ignoreScrollEvents);
 
   if (maximumViewportSize() != m_lastMaximumViewportSize) {
-    m_lastMaximumViewportSize = maximumViewportSize();
-    m_widgetFocalPoint = centeredWidgetFocalPoint();
+    const QSize newMaximumViewportSize = maximumViewportSize();
+    const QSize sizeDelta = newMaximumViewportSize - m_lastMaximumViewportSize;
+    m_lastMaximumViewportSize = newMaximumViewportSize;
+    m_widgetFocalPoint += QPointF(sizeDelta.width() / 2.0, sizeDelta.height() / 2.0);
     updateWidgetTransform();
   } else {
     const TransformChangeWatcher watcher(*this);

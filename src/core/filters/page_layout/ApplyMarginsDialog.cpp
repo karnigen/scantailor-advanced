@@ -10,7 +10,9 @@
 namespace page_layout {
 ApplyMarginsDialog::ApplyMarginsDialog(QWidget* parent,
                                        const PageId& curPage,
-                                       const PageSelectionAccessor& pageSelectionAccessor)
+                                       const PageSelectionAccessor& pageSelectionAccessor,
+                                       const bool canCopyDpiX,
+                                       const bool canCopyDpiY)
     : QDialog(parent),
       m_pages(pageSelectionAccessor.allPages()),
       m_selectedPages(pageSelectionAccessor.selectedPages()),
@@ -18,6 +20,8 @@ ApplyMarginsDialog::ApplyMarginsDialog(QWidget* parent,
       m_curPage(curPage),
       m_scopeGroup(new QButtonGroup(this)) {
   setupUi(this);
+  applyDpiXCB->setEnabled(canCopyDpiX);
+  applyDpiYCB->setEnabled(canCopyDpiY);
   m_scopeGroup->addButton(thisPageRB);
   m_scopeGroup->addButton(allPagesRB);
   m_scopeGroup->addButton(thisPageAndFollowersRB);
@@ -45,6 +49,8 @@ void ApplyMarginsDialog::onSubmit() {
   const bool applyRight = applyRightCB->isChecked();
   const bool applyTop = applyTopCB->isChecked();
   const bool applyBottom = applyBottomCB->isChecked();
+  const bool applyDpiX = applyDpiXCB->isChecked();
+  const bool applyDpiY = applyDpiYCB->isChecked();
 
   // thisPageRB is intentionally not handled.
   if (allPagesRB->isChecked()) {
@@ -52,7 +58,7 @@ void ApplyMarginsDialog::onSubmit() {
   } else if (thisPageAndFollowersRB->isChecked()) {
     m_pages.selectPagePlusFollowers(m_curPage).swap(pages);
   } else if (selectedPagesRB->isChecked()) {
-    emit accepted(m_selectedPages, applyLeft, applyRight, applyTop, applyBottom);
+    emit accepted(m_selectedPages, applyLeft, applyRight, applyTop, applyBottom, applyDpiX, applyDpiY);
     accept();
     return;
   } else if (everyOtherRB->isChecked()) {
@@ -65,7 +71,7 @@ void ApplyMarginsDialog::onSubmit() {
     range.selectEveryOther(m_curPage).swap(pages);
   }
 
-  emit accepted(pages, applyLeft, applyRight, applyTop, applyBottom);
+  emit accepted(pages, applyLeft, applyRight, applyTop, applyBottom, applyDpiX, applyDpiY);
   accept();
 }
 }  // namespace page_layout

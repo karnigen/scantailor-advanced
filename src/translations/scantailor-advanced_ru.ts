@@ -3064,6 +3064,26 @@ You should remove them from the project.</source>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Настройки для копирования</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Использовать для общего размера</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Копировать на целевые страницы настройку этой страницы для участия в подборе общего размера.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Выравнивание (по горизонтали и вертикали)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Копировать настройки горизонтального и вертикального выравнивания этой страницы.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation>Область применения</translation>
@@ -3163,13 +3183,8 @@ You should remove them from the project.</source>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Добавить горизонтальн. направл.</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Добавить вертикальн. направл.</translation>
+        <source>Add guide</source>
+        <translation>Добавить направляющую</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>
@@ -3195,9 +3210,25 @@ You should remove them from the project.</source>
 <context>
     <name>page_layout::OptionsWidget</name>
     <message>
+        <source>Use for common size</source>
+        <translation>Использовать для общего размера</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Включить страницу в расчёт общего размера и привести её к этому размеру.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Зафиксировать общий размер</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Сохранять текущий общий размер неизменным, пока параметр не будет отключён.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Применить поля</translation>
+        <source>Apply Settings</source>
+        <translation>Применить настройки</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3738,6 +3769,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation>Применить...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>Исходный DPI</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Копировать горизонтальный исходный DPI этой страницы на целевые страницы.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Копировать вертикальный исходный DPI этой страницы на целевые страницы.</translation>
     </message>
 </context>
 </TS>

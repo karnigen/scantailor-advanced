@@ -26,7 +26,7 @@ class ApplyDialog : public QDialog, private Ui::ApplyDialog {
 
  signals:
 
-  void accepted(const std::set<PageId>& pages);
+  void accepted(const std::set<PageId>& pages, bool copyCommonSize, bool copyAlignment);
 
  private slots:
 

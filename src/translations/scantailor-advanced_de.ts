@@ -3065,6 +3065,26 @@ Sie sollten sie aus dem Projekt entfernen.</translation>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Zu kopierende Einstellungen</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Für gemeinsame Größe verwenden</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Einstellung dieser Seite zum Ein- oder Ausschluss in die gemeinsame Größenanpassung auf Zielseiten kopieren.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Ausrichtung (horizontal und vertikal)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Horizontale und vertikale Ausrichtung dieser Seite kopieren.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation>Anwenden auf</translation>
@@ -3164,13 +3184,8 @@ Sie sollten sie aus dem Projekt entfernen.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Horizontale Hilfslinie hinzufügen</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Vertikale Hilfslinie hinzufügen</translation>
+        <source>Add guide</source>
+        <translation>Hilfslinie hinzufügen</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>
@@ -3196,9 +3211,25 @@ Sie sollten sie aus dem Projekt entfernen.</translation>
 <context>
     <name>page_layout::OptionsWidget</name>
     <message>
+        <source>Use for common size</source>
+        <translation>Für gemeinsame Größe verwenden</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Diese Seite in die Berechnung der gemeinsamen Größe einbeziehen und an diese Größe anpassen.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Gemeinsame Größe fixieren</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Aktuelle gemeinsame Größe bis zum Deaktivieren beibehalten.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Ränder anwenden</translation>
+        <source>Apply Settings</source>
+        <translation>Einstellungen anwenden</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3717,6 +3748,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation>Anwenden auf...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>Quell-DPI</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Horizontale Quell-DPI dieser Seite auf die Zielseiten kopieren.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Vertikale Quell-DPI dieser Seite auf die Zielseiten kopieren.</translation>
     </message>
 </context>
 </TS>

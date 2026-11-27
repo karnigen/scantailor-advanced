@@ -115,9 +115,6 @@
           <property name="singleStep">
            <double>0.010000000000000</double>
           </property>
-          <property name="toolTip">
-           <string>Adjust angle.</string>
-          </property>
          </widget>
         </item>
         <item>
@@ -172,9 +169,6 @@
           </property>
           <property name="singleStep">
            <double>0.100000000000000</double>
-          </property>
-          <property name="toolTip">
-           <string>Adjust oblique.</string>
           </property>
          </widget>
         </item>

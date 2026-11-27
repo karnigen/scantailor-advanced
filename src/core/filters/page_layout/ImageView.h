@@ -28,9 +28,13 @@
 #include "ZoomHandler.h"
 
 class Margins;
+class QKeyEvent;
+class QPainter;
+class QPolygonF;
 
 namespace page_layout {
 class OptionsWidget;
+class Params;
 class Settings;
 
 class ImageView : public ImageViewBase, private InteractionHandler {
@@ -46,6 +50,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
             const OptionsWidget& optWidget);
 
   ~ImageView() override;
+
+  const QString& guideMeasurementText() const { return m_guideMeasurementText; }
 
  signals:
 
@@ -107,6 +113,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void onPaint(QPainter& painter, const InteractionState& interaction) override;
 
+  void keyPressEvent(QKeyEvent* event) override;
+
   void onContextMenuEvent(QContextMenuEvent* event, InteractionState& interaction) override;
 
   void onMouseDoubleClickEvent(QMouseEvent* event, InteractionState& interaction) override;
@@ -125,6 +133,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void recalcBoxesAndFit(const Margins& marginsMm);
 
+  Margins constrainHardMarginsMM(const Margins& marginsMm, const Params& params, const QPolygonF& contentRectMm) const;
+
   void updatePresentationTransform(FitMode fitMode);
 
   void forceNonNegativeHardMargins(QRectF& middleRect) const;
@@ -133,8 +143,6 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void recalcOuterRect();
 
-  QSizeF origRectToSizeMM(const QRectF& rect) const;
-
   AggregateSizeChanged commitHardMargins(const Margins& marginsMm);
 
   void invalidateThumbnails(AggregateSizeChanged aggSizeChanged);
@@ -142,6 +150,10 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   void setupContextMenuInteraction();
 
   void setupGuides();
+
+  void addDefaultGuidesIfNeeded();
+
+  void setGuidePosition(int index);
 
   void addHorizontalGuide(double y);
 
@@ -164,6 +176,12 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   void guideMoveRequest(int index, QLineF line);
 
   void guideDragFinished();
+
+  void updateGuideMeasurement(int index);
+
+  void drawGuideMeasurement(QPainter& painter) const;
+
+  void drawCommonSizeLabel(QPainter& painter) const;
 
   QLineF widgetGuideLine(int index) const;
 
@@ -277,10 +295,13 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   QAction* m_addVerticalGuideAction;
   QAction* m_removeAllGuidesAction;
   QAction* m_removeGuideUnderMouseAction;
+  QAction* m_setGuidePositionAction;
   QAction* m_guideActionsSeparator;
   QAction* m_showMiddleRectAction;
   QPointF m_lastContextMenuPos;
   int m_guideUnderMouse;
+  QString m_guideMeasurementText;
+  QPoint m_guideDragCursorPos;
 
   DraggableObject m_innerRectArea;
   ObjectDragHandler m_innerRectAreaHandler;

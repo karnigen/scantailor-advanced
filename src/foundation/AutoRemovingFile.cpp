@@ -3,19 +3,21 @@
 
 #include "AutoRemovingFile.h"
 
-#include <QFile>
+#include <system_error>
+#include <utility>
 
 AutoRemovingFile::AutoRemovingFile() = default;
 
-AutoRemovingFile::AutoRemovingFile(const QString& filePath) : m_file(filePath) {}
+AutoRemovingFile::AutoRemovingFile(std::filesystem::path filePath) : m_file(std::move(filePath)) {}
 
 AutoRemovingFile::AutoRemovingFile(AutoRemovingFile& other) : m_file(other.release()) {}
 
 AutoRemovingFile::AutoRemovingFile(CopyHelper other) : m_file(other.obj->release()) {}
 
 AutoRemovingFile::~AutoRemovingFile() {
-  if (!m_file.isEmpty()) {
-    QFile::remove(m_file);
+  if (!m_file.empty()) {
+    std::error_code error;
+    std::filesystem::remove(m_file, error);
   }
 }
 
@@ -29,18 +31,19 @@ AutoRemovingFile& AutoRemovingFile::operator=(CopyHelper other) {
   return *this;
 }
 
-void AutoRemovingFile::reset(const QString& file) {
-  const QString& oldFile(file);
+void AutoRemovingFile::reset(const std::filesystem::path& file) {
+  const std::filesystem::path& oldFile(file);
 
   m_file = file;
 
-  if (!oldFile.isEmpty()) {
-    QFile::remove(oldFile);
+  if (!oldFile.empty()) {
+    std::error_code error;
+    std::filesystem::remove(oldFile, error);
   }
 }
 
-QString AutoRemovingFile::release() {
-  QString saved(m_file);
-  m_file = QString();
+std::filesystem::path AutoRemovingFile::release() {
+  std::filesystem::path saved(m_file);
+  m_file.clear();
   return saved;
 }

@@ -6,7 +6,6 @@
 #include <core/DefaultParams.h>
 #include <core/DefaultParamsProvider.h>
 
-#include <QDir>
 #include <QString>
 #include <QTransform>
 
@@ -14,16 +13,16 @@
 #include "Params.h"
 
 namespace output {
-QString Utils::automaskDir(const QString& outDir) {
-  return QDir(outDir).absoluteFilePath("cache/automask");
+std::filesystem::path Utils::automaskDir(const std::filesystem::path& outDir) {
+  return std::filesystem::absolute(outDir / "cache" / "automask");
 }
 
-QString Utils::predespeckleDir(const QString& outDir) {
-  return QDir(outDir).absoluteFilePath("cache/predespeckle");
+std::filesystem::path Utils::predespeckleDir(const std::filesystem::path& outDir) {
+  return std::filesystem::absolute(outDir / "cache" / "predespeckle");
 }
 
-QString Utils::specklesDir(const QString& outDir) {
-  return QDir(outDir).absoluteFilePath("cache/speckles");
+std::filesystem::path Utils::specklesDir(const std::filesystem::path& outDir) {
+  return std::filesystem::absolute(outDir / "cache" / "speckles");
 }
 
 QTransform Utils::scaleFromToDpi(const Dpi& from, const Dpi& to) {
@@ -32,16 +31,16 @@ QTransform Utils::scaleFromToDpi(const Dpi& from, const Dpi& to) {
   return xform;
 }
 
-QString Utils::foregroundDir(const QString& outDir) {
-  return QDir(outDir).absoluteFilePath("foreground");
+std::filesystem::path Utils::foregroundDir(const std::filesystem::path& outDir) {
+  return std::filesystem::absolute(outDir / "foreground");
 }
 
-QString Utils::backgroundDir(const QString& outDir) {
-  return QDir(outDir).absoluteFilePath("background");
+std::filesystem::path Utils::backgroundDir(const std::filesystem::path& outDir) {
+  return std::filesystem::absolute(outDir / "background");
 }
 
-QString Utils::originalBackgroundDir(const QString& outDir) {
-  return QDir(outDir).absoluteFilePath("original_background");
+std::filesystem::path Utils::originalBackgroundDir(const std::filesystem::path& outDir) {
+  return std::filesystem::absolute(outDir / "original_background");
 }
 
 QTransform Utils::rotate(double degrees, const QRect& imageRect) {

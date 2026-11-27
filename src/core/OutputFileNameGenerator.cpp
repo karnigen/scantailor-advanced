@@ -3,21 +3,21 @@
 
 #include "OutputFileNameGenerator.h"
 
-#include <QDir>
 #include <QFileInfo>
 #include <utility>
 
 #include "AbstractRelinker.h"
 #include "PageId.h"
+#include "PathUtils.h"
 #include "RelinkablePath.h"
 
 OutputFileNameGenerator::OutputFileNameGenerator()
     : m_disambiguator(std::make_shared<FileNameDisambiguator>()), m_outDir(), m_layoutDirection(Qt::LeftToRight) {}
 
 OutputFileNameGenerator::OutputFileNameGenerator(std::shared_ptr<FileNameDisambiguator> disambiguator,
-                                                 const QString& outDir,
+                                                 std::filesystem::path outDir,
                                                  Qt::LayoutDirection layoutDirection)
-    : m_disambiguator(std::move(disambiguator)), m_outDir(outDir), m_layoutDirection(layoutDirection) {
+    : m_disambiguator(std::move(disambiguator)), m_outDir(std::move(outDir)), m_layoutDirection(layoutDirection) {
   assert(m_disambiguator);
 }
 
@@ -29,9 +29,10 @@ void OutputFileNameGenerator::performRelinking(const AbstractRelinker& relinker)
 QString OutputFileNameGenerator::fileNameFor(const PageId& page) const {
   const bool ltr = (m_layoutDirection == Qt::LeftToRight);
   const PageId::SubPage subPage = page.subPage();
-  const int label = m_disambiguator->getLabel(page.imageId().filePath());
+  const std::filesystem::path& imagePath = page.imageId().filePath();
+  const int label = m_disambiguator->getLabel(imagePath);
 
-  QString name(QFileInfo(page.imageId().filePath()).completeBaseName());
+  QString name(QFileInfo(core::toQString(imagePath)).completeBaseName());
   if (label != 0) {
     name += QString::fromLatin1("(%1)").arg(label);
   }
@@ -47,7 +48,6 @@ QString OutputFileNameGenerator::fileNameFor(const PageId& page) const {
   return name;
 }
 
-QString OutputFileNameGenerator::filePathFor(const PageId& page) const {
-  const QString fileName(fileNameFor(page));
-  return QDir(m_outDir).absoluteFilePath(fileName);
+std::filesystem::path OutputFileNameGenerator::filePathFor(const PageId& page) const {
+  return std::filesystem::absolute(m_outDir / core::toFileSystemPath(fileNameFor(page)));
 }

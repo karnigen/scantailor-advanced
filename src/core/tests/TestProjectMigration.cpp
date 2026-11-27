@@ -7,8 +7,11 @@
 #include <QtXml>
 #include <catch2/catch_test_macros.hpp>
 
+#include "ImageFileInfo.h"
 #include "ImageInfo.h"
 #include "OutputFileNameGenerator.h"
+#include "PathUtils.h"
+#include "ProjectBackup.h"
 #include "ProjectMigration.h"
 #include "ProjectPages.h"
 #include "ProjectReader.h"
@@ -147,11 +150,11 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_reader_accepts_format_3_and_curr
   REQUIRE(tempDir.isValid());
   const QString projectPath(tempDir.filePath("project.ScanTailor"));
 
-  const ProjectReader legacyReader(makeReaderProject(3), projectPath);
+  const ProjectReader legacyReader(makeReaderProject(3), core::toFileSystemPath(projectPath));
   CHECK(legacyReader.success());
   CHECK((legacyReader.migrationReport().sourceVersion) == (3));
 
-  const ProjectReader currentReader(makeReaderProject(PROJECT_VERSION), projectPath);
+  const ProjectReader currentReader(makeReaderProject(PROJECT_VERSION), core::toFileSystemPath(projectPath));
   CHECK(currentReader.success());
   CHECK((currentReader.migrationReport().sourceVersion) == (PROJECT_VERSION));
 }
@@ -162,7 +165,7 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_reader_does_not_modify_legacy_xm
 
   const QDomDocument doc(makeReaderProject(3));
   const QString originalXml(doc.toString());
-  const ProjectReader reader(doc, tempDir.filePath("project.ScanTailor"));
+  const ProjectReader reader(doc, core::toFileSystemPath(tempDir.filePath("project.ScanTailor")));
 
   REQUIRE(reader.success());
   CHECK(doc.toString() == originalXml);
@@ -173,8 +176,8 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_reader_rejects_unsupported_versi
   REQUIRE(tempDir.isValid());
   const QString projectPath(tempDir.filePath("project.ScanTailor"));
 
-  const ProjectReader olderReader(makeReaderProject(2), projectPath);
-  const ProjectReader newerReader(makeReaderProject(PROJECT_VERSION + 1), projectPath);
+  const ProjectReader olderReader(makeReaderProject(2), core::toFileSystemPath(projectPath));
+  const ProjectReader newerReader(makeReaderProject(PROJECT_VERSION + 1), core::toFileSystemPath(projectPath));
   CHECK(!olderReader.success());
   CHECK(!newerReader.success());
 }
@@ -186,12 +189,12 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_reader_rejects_missing_or_nonnum
 
   QDomDocument missingVersionDoc(makeReaderProject(3));
   missingVersionDoc.documentElement().removeAttribute("version");
-  const ProjectReader missingVersionReader(missingVersionDoc, projectPath);
+  const ProjectReader missingVersionReader(missingVersionDoc, core::toFileSystemPath(projectPath));
   CHECK(!missingVersionReader.success());
 
   QDomDocument nonnumericVersionDoc(makeReaderProject(3));
   nonnumericVersionDoc.documentElement().setAttribute("version", "three");
-  const ProjectReader nonnumericVersionReader(nonnumericVersionDoc, projectPath);
+  const ProjectReader nonnumericVersionReader(nonnumericVersionDoc, core::toFileSystemPath(projectPath));
   CHECK(!nonnumericVersionReader.success());
 }
 
@@ -199,8 +202,8 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_migration_report_covers_legacy_d
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
 
-  const ProjectMigrationReport report(
-      ProjectMigration::analyze(makeMigrationProject(tempDir.path()), tempDir.filePath("project.ScanTailor")));
+  const ProjectMigrationReport report(ProjectMigration::analyze(
+      makeMigrationProject(tempDir.path()), core::toFileSystemPath(tempDir.filePath("project.ScanTailor"))));
 
   CHECK((report.sourceVersion) == (3));
   CHECK((report.imagesWithDefaultTrim) == (1));
@@ -223,19 +226,19 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_backup_preserves_original_and_av
   const QByteArray projectContents("<project version=\"3\"/>");
   REQUIRE(writeFile(projectPath, projectContents));
 
-  QString firstBackup;
+  std::filesystem::path firstBackup;
   QString errorMessage;
-  REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &firstBackup, &errorMessage));
-  CHECK(readFile(firstBackup) == projectContents);
+  REQUIRE(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(projectPath), &firstBackup, &errorMessage));
+  CHECK(readFile(core::toQString(firstBackup)) == projectContents);
 
   const QByteArray sentinel("keep this backup");
-  REQUIRE(writeFile(firstBackup, sentinel));
-  QString secondBackup;
-  REQUIRE(ProjectMigration::createBackupForFormat3(projectPath, &secondBackup, &errorMessage));
+  REQUIRE(writeFile(core::toQString(firstBackup), sentinel));
+  std::filesystem::path secondBackup;
+  REQUIRE(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(projectPath), &secondBackup, &errorMessage));
 
   CHECK(firstBackup != secondBackup);
-  CHECK(readFile(firstBackup) == sentinel);
-  CHECK(readFile(secondBackup) == projectContents);
+  CHECK(readFile(core::toQString(firstBackup)) == sentinel);
+  CHECK(readFile(core::toQString(secondBackup)) == projectContents);
 }
 
 TEST_CASE("CoreProjectMigrationTestSuite / test_backup_skips_non_v3_and_nonexistent_targets") {
@@ -244,14 +247,36 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_backup_skips_non_v3_and_nonexist
 
   const QString currentPath(tempDir.filePath("current.ScanTailor"));
   REQUIRE(writeFile(currentPath, QByteArray("<project version=\"4\"/>")));
-  QString backupPath("unexpected");
+  std::filesystem::path backupPath("unexpected");
   QString errorMessage;
-  CHECK(ProjectMigration::createBackupForFormat3(currentPath, &backupPath, &errorMessage));
-  CHECK(backupPath.isEmpty());
+  CHECK(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(currentPath), &backupPath, &errorMessage));
+  CHECK(backupPath.empty());
 
   const QString nonexistentPath(tempDir.filePath("new.ScanTailor"));
-  CHECK(ProjectMigration::createBackupForFormat3(nonexistentPath, &backupPath, &errorMessage));
-  CHECK(backupPath.isEmpty());
+  CHECK(ProjectMigration::createBackupForFormat3(core::toFileSystemPath(nonexistentPath), &backupPath, &errorMessage));
+  CHECK(backupPath.empty());
+}
+
+TEST_CASE("CoreProjectMigrationTestSuite / test_project_backup_retention_keeps_latest_versions") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+
+  const QString projectPath(tempDir.filePath("project.ScanTailor"));
+  QString errorMessage;
+  for (int version = 0; version < 3; ++version) {
+    REQUIRE(writeFile(projectPath, QByteArray("version-") + QByteArray::number(version)));
+    REQUIRE(createProjectBackup(core::toFileSystemPath(projectPath), 2, &errorMessage));
+  }
+
+  const QDir backupsDirectory(projectPath + QStringLiteral(".backups"));
+  const QStringList backups = backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  REQUIRE(backups.size() == 2);
+  CHECK(readFile(backupsDirectory.filePath(backups.at(0))) == QByteArray("version-1"));
+  CHECK(readFile(backupsDirectory.filePath(backups.at(1))) == QByteArray("version-2"));
+
+  REQUIRE(writeFile(projectPath, QByteArray("version-3")));
+  REQUIRE(createProjectBackup(core::toFileSystemPath(projectPath), 0, &errorMessage));
+  CHECK(backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name).size() == 2);
 }
 
 TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_paths_and_preserves_backup") {
@@ -271,20 +296,29 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_
   const QByteArray originalV3("<project version=\"3\"/>");
   REQUIRE(writeFile(projectPath, originalV3));
 
-  const ImageInfo imageInfo(ImageId(sourcePath, 0), ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
+  const ImageInfo imageInfo(ImageId(core::toFileSystemPath(sourcePath), 0),
+                            ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
   const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
-  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(),
-                                                        rootDir.filePath("output"), Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(
+      std::make_shared<FileNameDisambiguator>(), core::toFileSystemPath(rootDir.filePath("output")), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), outputFileNameGenerator);
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
-  const bool writeSucceeded = writer.write(projectPath, filters, &errorMessage);
+  const bool writeSucceeded = writer.write(core::toFileSystemPath(projectPath), filters, &errorMessage, 2);
   {
     INFO(errorMessage.toStdString());
     REQUIRE(writeSucceeded);
   }
   CHECK(readFile(projectPath + ".v3.bak") == originalV3);
+  const QDir historyDirectory(projectPath + QStringLiteral(".backups"));
+  QStringList historyBackups = historyDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  REQUIRE(historyBackups.size() == 1);
+  CHECK(readFile(historyDirectory.filePath(historyBackups.front())) == originalV3);
+
+  REQUIRE(writer.write(core::toFileSystemPath(projectPath), filters, &errorMessage, 2));
+  historyBackups = historyDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  CHECK(historyBackups.size() == 1);
 
   QFile savedProject(projectPath);
   REQUIRE(savedProject.open(QIODevice::ReadOnly));
@@ -295,6 +329,60 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_
   CHECK(rootEl.attribute("outputDirectory") == "../output");
   const QDomElement directoryEl(rootEl.namedItem("directories").firstChildElement("directory"));
   CHECK(directoryEl.attribute("path") == "../source");
+}
+
+TEST_CASE("CoreProjectMigrationTestSuite / test_project_dpi_override_survives_save_and_reload") {
+  QTemporaryDir tempDir;
+  REQUIRE(tempDir.isValid());
+  const QDir rootDir(tempDir.path());
+  const QString projectDirPath(rootDir.filePath("project"));
+  REQUIRE(QDir().mkpath(projectDirPath));
+  const QString sourcePath(QDir(projectDirPath).filePath("page.tif"));
+  const QString projectPath(QDir(projectDirPath).filePath("project.ScanTailor"));
+  REQUIRE(writeFile(sourcePath, QByteArray()));
+
+  const ImageId imageId(core::toFileSystemPath(sourcePath), 0);
+  const ImageMetadata originalMetadata(QSize(100, 120), Dpi(300, 300));
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, originalMetadata, 1, false, false)}, Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(
+      std::make_shared<FileNameDisambiguator>(), core::toFileSystemPath(rootDir.filePath("output")), Qt::LeftToRight);
+  const ProjectWriter initialWriter(pages, SelectedPage(), outputFileNameGenerator);
+  QString errorMessage;
+  REQUIRE(initialWriter.write(core::toFileSystemPath(projectPath), {}, &errorMessage));
+
+  QDomDocument initialDoc;
+  {
+    QFile initialProject(projectPath);
+    REQUIRE(initialProject.open(QIODevice::ReadOnly));
+    REQUIRE(initialDoc.setContent(&initialProject));
+  }
+  CHECK(initialDoc.documentElement().namedItem("directories").firstChildElement("directory").attribute("path") == ".");
+  const ProjectReader loadedProject(initialDoc, core::toFileSystemPath(projectPath));
+  REQUIRE(loadedProject.success());
+  const std::shared_ptr<ProjectPages>& loadedPages = loadedProject.pages();
+  std::vector<ImageFileInfo> files = loadedPages->toImageFileInfo();
+  REQUIRE(files.size() == 1);
+  files.front().imageInfo().front().setDpi(Dpi(400, 400));
+  loadedPages->updateMetadataFrom(files);
+  REQUIRE(loadedPages->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi() == Dpi(400, 400));
+
+  const ProjectWriter updatedWriter(loadedPages, loadedProject.selectedPage(), outputFileNameGenerator);
+  REQUIRE(updatedWriter.write(core::toFileSystemPath(projectPath), {}, &errorMessage));
+
+  QFile savedProject(projectPath);
+  REQUIRE(savedProject.open(QIODevice::ReadOnly));
+  QDomDocument savedDoc;
+  REQUIRE(savedDoc.setContent(&savedProject));
+  const QDomElement dpiElement
+      = savedDoc.documentElement().namedItem("images").firstChildElement("image").firstChildElement("dpi");
+  REQUIRE_FALSE(dpiElement.isNull());
+  CHECK(dpiElement.attribute("horizontal") == "400");
+  CHECK(dpiElement.attribute("vertical") == "400");
+
+  const ProjectReader reader(savedDoc, core::toFileSystemPath(projectPath));
+  REQUIRE(reader.success());
+  CHECK(reader.pages()->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi() == Dpi(400, 400));
 }
 
 #if defined(Q_OS_UNIX)
@@ -318,15 +406,16 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_keeps_absolute_paths_whe
   const QByteArray originalV3("<project version=\"3\"/>");
   REQUIRE(writeFile(projectPath, originalV3));
 
-  const ImageInfo imageInfo(ImageId(sourcePath, 0), ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
+  const ImageInfo imageInfo(ImageId(core::toFileSystemPath(sourcePath), 0),
+                            ImageMetadata(QSize(100, 100), Dpi(300, 300)), 1, false, false);
   const auto pages = std::make_shared<ProjectPages>(std::vector<ImageInfo>{imageInfo}, Qt::LeftToRight);
-  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(), outputDir,
-                                                        Qt::LeftToRight);
+  const OutputFileNameGenerator outputFileNameGenerator(std::make_shared<FileNameDisambiguator>(),
+                                                        core::toFileSystemPath(outputDir), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), outputFileNameGenerator);
   const std::vector<ProjectWriter::FilterPtr> filters;
 
   QString errorMessage;
-  const bool writeSucceeded = writer.write(projectPath, filters, &errorMessage);
+  const bool writeSucceeded = writer.write(core::toFileSystemPath(projectPath), filters, &errorMessage);
   {
     INFO(errorMessage.toStdString());
     REQUIRE(writeSucceeded);

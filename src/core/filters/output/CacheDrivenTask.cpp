@@ -19,6 +19,7 @@
 #include "Thumbnail.h"
 #include "Utils.h"
 #include "core/AbstractFilterDataCollector.h"
+#include "core/PathUtils.h"
 #include "core/ThumbnailCollector.h"
 
 namespace output {
@@ -32,18 +33,20 @@ void CacheDrivenTask::process(const PageInfo& pageInfo,
                               const ImageTransformation& xform,
                               const QPolygonF& contentRectPhys) {
   if (auto* thumbCol = dynamic_cast<ThumbnailCollector*>(collector)) {
-    const QFileInfo sourceFileInfo(pageInfo.id().imageId().filePath());
-    const QString outFilePath(m_outFileNameGen.filePathFor(pageInfo.id()));
-    const QFileInfo outFileInfo(outFilePath);
-    const QString foregroundDir(Utils::foregroundDir(m_outFileNameGen.outDir()));
-    const QString backgroundDir(Utils::backgroundDir(m_outFileNameGen.outDir()));
-    const QString originalBackgroundDir(Utils::originalBackgroundDir(m_outFileNameGen.outDir()));
-    const QString foregroundFilePath(QDir(foregroundDir).absoluteFilePath(outFileInfo.fileName()));
-    const QFileInfo foregroundFileInfo(foregroundFilePath);
-    const QString backgroundFilePath(QDir(backgroundDir).absoluteFilePath(outFileInfo.fileName()));
-    const QFileInfo backgroundFileInfo(backgroundFilePath);
-    const QString originalBackgroundFilePath(QDir(originalBackgroundDir).absoluteFilePath(outFileInfo.fileName()));
-    const QFileInfo originalBackgroundFileInfo(originalBackgroundFilePath);
+    const QFileInfo sourceFileInfo(core::toQString(pageInfo.id().imageId().filePath()));
+    const std::filesystem::path outFilePath(m_outFileNameGen.filePathFor(pageInfo.id()));
+    const QFileInfo outFileInfo(core::toQString(outFilePath));
+    const std::filesystem::path outputDir(m_outFileNameGen.outDir());
+    const std::filesystem::path foregroundDir(Utils::foregroundDir(outputDir));
+    const std::filesystem::path backgroundDir(Utils::backgroundDir(outputDir));
+    const std::filesystem::path originalBackgroundDir(Utils::originalBackgroundDir(outputDir));
+    const std::filesystem::path outputFileName(core::toFileSystemPath(outFileInfo.fileName()));
+    const std::filesystem::path foregroundFilePath(foregroundDir / outputFileName);
+    const QFileInfo foregroundFileInfo(core::toQString(foregroundFilePath));
+    const std::filesystem::path backgroundFilePath(backgroundDir / outputFileName);
+    const QFileInfo backgroundFileInfo(core::toQString(backgroundFilePath));
+    const std::filesystem::path originalBackgroundFilePath(originalBackgroundDir / outputFileName);
+    const QFileInfo originalBackgroundFileInfo(core::toQString(originalBackgroundFilePath));
 
     const Params params(m_settings->getParams(pageInfo.id()));
     RenderParams renderParams(params.colorParams(), params.splittingOptions());

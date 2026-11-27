@@ -3022,6 +3022,26 @@ Vous devriez les retirer du projet.</translation>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Paramètres à copier</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Utiliser pour la taille commune</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Copier sur les pages cibles le choix de cette page d’inclure ou non l’ajustement à la taille commune.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Alignement (horizontal et vertical)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Copier les paramètres d’alignement horizontal et vertical de cette page.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation>Appliquer à</translation>
@@ -3121,13 +3141,8 @@ Vous devriez les retirer du projet.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation>Ajouter un guide horizontal</translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation>Ajouter un guide vertical</translation>
+        <source>Add guide</source>
+        <translation>Ajouter un guide</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>
@@ -3153,9 +3168,25 @@ Vous devriez les retirer du projet.</translation>
 <context>
     <name>page_layout::OptionsWidget</name>
     <message>
+        <source>Use for common size</source>
+        <translation>Utiliser pour la taille commune</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Inclure cette page dans le calcul de la taille commune et l’ajuster à cette taille.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Verrouiller la taille commune</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Conserver la taille commune actuelle jusqu’à désactivation.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Appliquer les marges</translation>
+        <source>Apply Settings</source>
+        <translation>Appliquer les paramètres</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3667,6 +3698,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation>Appliquer à ...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>DPI source</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Copier le DPI source horizontal de cette page vers les pages cibles.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Copier le DPI source vertical de cette page vers les pages cibles.</translation>
     </message>
 </context>
 </TS>

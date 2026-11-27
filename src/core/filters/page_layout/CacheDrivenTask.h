@@ -33,7 +33,8 @@ class CacheDrivenTask {
                AbstractFilterDataCollector* collector,
                const ImageTransformation& xform,
                const QRectF& pageRect,
-               const QRectF& contentRect);
+               const QRectF& contentRect,
+               bool pageBoundaryEnabled = false);
 
  private:
   std::shared_ptr<output::CacheDrivenTask> m_nextTask;

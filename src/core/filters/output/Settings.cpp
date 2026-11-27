@@ -8,6 +8,7 @@
 #include "FillColorProperty.h"
 #include "PictureLayerProperty.h"
 #include "RelinkablePath.h"
+#include "core/PathUtils.h"
 
 using namespace core;
 

@@ -11,7 +11,10 @@ class QRectF;
 
 class ContentBoxCollector : public AbstractFilterDataCollector {
  public:
-  virtual void process(const ImageTransformation& xform, const QRectF& pageRect, const QRectF& contentRect) = 0;
+  virtual void process(const ImageTransformation& xform,
+                       const QRectF& pageRect,
+                       const QRectF& contentRect,
+                       bool pageBoundaryEnabled) = 0;
 };
 
 

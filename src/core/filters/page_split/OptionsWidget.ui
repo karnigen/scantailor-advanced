@@ -165,7 +165,7 @@
         <item>
          <widget class="QPushButton" name="changeBtn">
           <property name="text">
-           <string>Change ...</string>
+           <string>Apply to ...</string>
           </property>
           <property name="toolTip">
            <string>Change the page-splitting mode and options.</string>

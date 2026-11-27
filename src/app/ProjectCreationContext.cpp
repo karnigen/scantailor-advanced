@@ -4,12 +4,13 @@
 #include "ProjectCreationContext.h"
 
 #include <cassert>
+#include <utility>
 
 #include "FixDpiDialog.h"
 #include "ProjectFilesDialog.h"
 
-ProjectCreationContext::ProjectCreationContext(QWidget* parent, const QString& initialDirectory)
-    : m_layoutDirection(Qt::LeftToRight), m_initialDirectory(initialDirectory), m_parent(parent) {
+ProjectCreationContext::ProjectCreationContext(QWidget* parent, std::filesystem::path initialDirectory)
+    : m_layoutDirection(Qt::LeftToRight), m_initialDirectory(std::move(initialDirectory)), m_parent(parent) {
   showProjectFilesDialog();
 }
 

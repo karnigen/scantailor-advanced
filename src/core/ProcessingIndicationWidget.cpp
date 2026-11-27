@@ -17,11 +17,24 @@ static const double distinctionIncrease = 1.0 / 5.0;
 static const double distinctionDecrease = -1.0 / 3.0;
 
 ProcessingIndicationWidget::ProcessingIndicationWidget(QWidget* parent)
-    : QWidget(parent), m_animation(10), m_distinction(1.0), m_distinctionDelta(distinctionIncrease), m_timerId(0) {
+    : QWidget(parent),
+      m_animation(10),
+      m_backgroundFadeEnabled(true),
+      m_distinction(1.0),
+      m_distinctionDelta(distinctionIncrease),
+      m_timerId(0) {
+  setAttribute(Qt::WA_TranslucentBackground);
   m_headColor = ColorSchemeManager::instance().getColorParam("ProcessingIndicationHead",
                                                              palette().color(QPalette::Window).darker(200));
   m_tailColor = ColorSchemeManager::instance().getColorParam("ProcessingIndicationTail",
                                                              palette().color(QPalette::Window).darker(130));
+}
+
+void ProcessingIndicationWidget::setBackgroundFadeEnabled(const bool enabled) {
+  if (m_backgroundFadeEnabled != enabled) {
+    m_backgroundFadeEnabled = enabled;
+    update();
+  }
 }
 
 void ProcessingIndicationWidget::resetAnimation() {
@@ -53,10 +66,12 @@ void ProcessingIndicationWidget::paintEvent(QPaintEvent* event) {
 
   QPainter painter(this);
 
-  QColor fadeColor
-      = ColorSchemeManager::instance().getColorParam("ProcessingIndicationFade", palette().window().color());
-  fadeColor.setAlpha(127);
-  painter.fillRect(rect(), fadeColor);
+  if (m_backgroundFadeEnabled) {
+    QColor fadeColor
+        = ColorSchemeManager::instance().getColorParam("ProcessingIndicationFade", palette().window().color());
+    fadeColor.setAlpha(127);
+    painter.fillRect(rect(), fadeColor);
+  }
 
   m_animation.nextFrame(headColor, m_tailColor, &painter, animationRect);
 

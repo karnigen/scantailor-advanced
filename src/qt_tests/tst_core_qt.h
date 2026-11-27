@@ -13,6 +13,9 @@ class TestCoreQt : public QObject {
   void testUnitsToString();
   void testUnitsFromString();
   void testUnitsToLocalizedString();
+  void testPageSizePresetsApplyPhysicalDimensions();
+  void testPageSizePresetNameMatchesEitherOrientation();
+  void testPageDimensionsCommitAfterEditing();
   void testUtilsDoubleToString();
   void testSmartFilenameOrdering();
   void testSignalSpy();
@@ -25,6 +28,7 @@ class TestCoreQt : public QObject {
   void testCancelledTasksFinishAsynchronously();
   void testContentBoxPropagationPersistsGeometry();
   void testCancelledContentUpdateIsPropagatedBeforeSave();
+  void testImageViewResizePreservesZoomFocalPoint();
 };
 
 class Emitter : public QObject {

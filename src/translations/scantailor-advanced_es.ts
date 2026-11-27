@@ -3054,6 +3054,26 @@ Debería elimnarlos del proyecto.</translation>
 <context>
     <name>page_layout::ApplyDialog</name>
     <message>
+        <source>Settings to copy</source>
+        <translation>Configuración que se copiará</translation>
+    </message>
+    <message>
+        <source>Use for common size</source>
+        <translation>Usar para tamaño común</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s on/off setting for common-size matching to the target pages.</source>
+        <translation>Copiar a las páginas de destino la opción de esta página para incluirla o no en la coincidencia del tamaño común.</translation>
+    </message>
+    <message>
+        <source>Alignment (horizontal and vertical)</source>
+        <translation>Alineación (horizontal y vertical)</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal and vertical alignment settings.</source>
+        <translation>Copiar la alineación horizontal y vertical de esta página.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/ApplyDialog.ui" line="20"/>
         <source>Apply to</source>
         <translation type="unfinished">Aplicar a</translation>
@@ -3153,13 +3173,8 @@ Debería elimnarlos del proyecto.</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="650"/>
-        <source>Add a horizontal guide</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../core/filters/page_layout/ImageView.cpp" line="651"/>
-        <source>Add a vertical guide</source>
-        <translation type="unfinished"></translation>
+        <source>Add guide</source>
+        <translation>Añadir guía</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/ImageView.cpp" line="652"/>
@@ -3185,9 +3200,25 @@ Debería elimnarlos del proyecto.</translation>
 <context>
     <name>page_layout::OptionsWidget</name>
     <message>
+        <source>Use for common size</source>
+        <translation>Usar para tamaño común</translation>
+    </message>
+    <message>
+        <source>Include this page in the common-size calculation and match it to that size.</source>
+        <translation>Incluir esta página en el cálculo del tamaño común y ajustarla a ese tamaño.</translation>
+    </message>
+    <message>
+        <source>Lock common size</source>
+        <translation>Bloquear tamaño común</translation>
+    </message>
+    <message>
+        <source>Keep the current common size fixed until unchecked.</source>
+        <translation>Mantener fijo el tamaño común actual hasta desactivarlo.</translation>
+    </message>
+    <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="296"/>
-        <source>Apply Margins</source>
-        <translation>Aplicar márgenes</translation>
+        <source>Apply Settings</source>
+        <translation>Aplicar configuración</translation>
     </message>
     <message>
         <location filename="../core/filters/page_layout/OptionsWidget.cpp" line="304"/>
@@ -3702,6 +3733,21 @@ p, li { white-space: pre-wrap; }
         <location filename="../core/filters/select_content/OptionsWidget.ui" line="274"/>
         <source>Apply to ...</source>
         <translation type="unfinished">Aplicar a...</translation>
+    </message>
+</context>
+<context>
+    <name>page_layout::ApplyMarginsDialog</name>
+    <message>
+        <source>Source DPI</source>
+        <translation>DPI de origen</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s horizontal source DPI to the target pages.</source>
+        <translation>Copiar el DPI horizontal de origen de esta página a las páginas de destino.</translation>
+    </message>
+    <message>
+        <source>Copy this page&apos;s vertical source DPI to the target pages.</source>
+        <translation>Copiar el DPI vertical de origen de esta página a las páginas de destino.</translation>
     </message>
 </context>
 </TS>

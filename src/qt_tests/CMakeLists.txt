@@ -13,6 +13,7 @@ target_link_libraries(
 target_include_directories(
     qt_tests
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/src/app"
+    "${CMAKE_BINARY_DIR}/src/core/filters/select_content/select_content_autogen/include"
     "$<TARGET_PROPERTY:TIFF::TIFF,INTERFACE_INCLUDE_DIRECTORIES>")
 
 add_test(NAME qt_tests COMMAND qt_tests)

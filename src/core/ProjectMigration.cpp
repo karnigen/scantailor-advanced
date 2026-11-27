@@ -8,6 +8,10 @@
 #include <QFileInfo>
 #include <QSet>
 
+#include <string>
+
+#include "PathUtils.h"
+
 namespace {
 
 bool willBeWrittenRelative(const QString& path, const QDir& projectDir) {
@@ -20,15 +24,17 @@ bool willBeWrittenRelative(const QString& path, const QDir& projectDir) {
   return !QDir::isAbsolutePath(relativePath) && relativePath != path;
 }
 
-QString nextBackupPath(const QString& projectFilePath) {
-  const QString firstCandidate(projectFilePath + ".v3.bak");
-  if (!QFile::exists(firstCandidate)) {
+std::filesystem::path nextBackupPath(const std::filesystem::path& projectFilePath) {
+  std::filesystem::path firstCandidate(projectFilePath);
+  firstCandidate += ".v3.bak";
+  if (!QFile::exists(core::toQString(firstCandidate))) {
     return firstCandidate;
   }
 
   for (int suffix = 1;; ++suffix) {
-    const QString candidate(projectFilePath + QString(".v3.%1.bak").arg(suffix));
-    if (!QFile::exists(candidate)) {
+    std::filesystem::path candidate(projectFilePath);
+    candidate += ".v3." + std::to_string(suffix) + ".bak";
+    if (!QFile::exists(core::toQString(candidate))) {
       return candidate;
     }
   }
@@ -36,7 +42,8 @@ QString nextBackupPath(const QString& projectFilePath) {
 
 }  // namespace
 
-ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const QString& projectFilePath) {
+ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc,
+                                                 const std::filesystem::path& projectFilePath) {
   ProjectMigrationReport report;
   const QDomElement projectEl(doc.documentElement());
   bool versionOk = false;
@@ -108,7 +115,7 @@ ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const 
     }
   }
 
-  const QDir projectDir(QFileInfo(projectFilePath).absolutePath());
+  const QDir projectDir(QFileInfo(core::toQString(projectFilePath)).absolutePath());
   if (willBeWrittenRelative(projectEl.attribute("outputDirectory"), projectDir)) {
     ++report.pathsWrittenRelative;
   }
@@ -123,17 +130,18 @@ ProjectMigrationReport ProjectMigration::analyze(const QDomDocument& doc, const 
   return report;
 }
 
-bool ProjectMigration::createBackupForFormat3(const QString& projectFilePath,
-                                              QString* backupFilePath,
+bool ProjectMigration::createBackupForFormat3(const std::filesystem::path& projectFilePath,
+                                              std::filesystem::path* backupFilePath,
                                               QString* errorMessage) {
   if (backupFilePath) {
-    backupFilePath->clear();
+    *backupFilePath = std::filesystem::path{};
   }
   if (errorMessage) {
     errorMessage->clear();
   }
 
-  QFile projectFile(projectFilePath);
+  const QString qtProjectFilePath(core::toQString(projectFilePath));
+  QFile projectFile(qtProjectFilePath);
   if (!projectFile.exists()) {
     return true;
   }
@@ -155,10 +163,11 @@ bool ProjectMigration::createBackupForFormat3(const QString& projectFilePath,
     return true;
   }
 
-  const QString backupPath(nextBackupPath(projectFilePath));
-  if (!projectFile.copy(backupPath)) {
+  const std::filesystem::path backupPath(nextBackupPath(projectFilePath));
+  const QString qtBackupPath(core::toQString(backupPath));
+  if (!projectFile.copy(qtBackupPath)) {
     if (errorMessage) {
-      *errorMessage = QString("Could not create backup %1: %2").arg(backupPath, projectFile.errorString());
+      *errorMessage = QString("Could not create backup %1: %2").arg(qtBackupPath, projectFile.errorString());
     }
     return false;
   }

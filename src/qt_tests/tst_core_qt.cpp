@@ -3,16 +3,23 @@
 
 #include "tst_core_qt.h"
 
+#include <Dpi.h>
+#include <PageSizePresets.h>
+#include <PathUtils.h>
 #include <SmartFilenameOrdering.h>
 #include <Units.h>
+#include <UnitsConverter.h>
 #include <filters/page_layout/Filter.h>
 #include <filters/page_layout/Params.h>
 #include <filters/select_content/CacheDrivenTask.h>
 #include <filters/select_content/Dependencies.h>
+#include <filters/select_content/OptionsWidget.h>
 #include <filters/select_content/Settings.h>
 #include <foundation/Utils.h>
 
+#include <QComboBox>
 #include <QDomDocument>
+#include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileInfo>
 #include <QSemaphore>
@@ -26,6 +33,7 @@
 #include "AbstractCommand.h"
 #include "BackgroundExecutor.h"
 #include "BackgroundTask.h"
+#include "BasicImageView.h"
 #include "CompositeCacheDrivenTask.h"
 #include "ContentBoxPropagator.h"
 #include "FileNameDisambiguator.h"
@@ -262,11 +270,12 @@ void TestCoreQt::testCancelledContentUpdateIsPropagatedBeforeSave() {
 
   const QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(), directory.path(), Qt::LeftToRight);
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(),
+                                       core::toFileSystemPath(directory.path()), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), output);
   const QString projectPath = directory.filePath("project.scan");
   QString error;
-  QVERIFY2(writer.write(projectPath, {filter}, &error), qPrintable(error));
+  QVERIFY2(writer.write(core::toFileSystemPath(projectPath), {filter}, &error), qPrintable(error));
   QFile file(projectPath);
   QVERIFY(file.open(QIODevice::ReadOnly));
   QDomDocument document;
@@ -303,11 +312,12 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
 
   const QTemporaryDir directory;
   QVERIFY(directory.isValid());
-  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(), directory.path(), Qt::LeftToRight);
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(),
+                                       core::toFileSystemPath(directory.path()), Qt::LeftToRight);
   const ProjectWriter writer(pages, SelectedPage(), output);
   const QString projectPath = directory.filePath("project.scan");
   QString error;
-  QVERIFY2(writer.write(projectPath, {filter}, &error), qPrintable(error));
+  QVERIFY2(writer.write(core::toFileSystemPath(projectPath), {filter}, &error), qPrintable(error));
   QFile file(projectPath);
   QVERIFY(file.open(QIODevice::ReadOnly));
   QDomDocument document;
@@ -348,6 +358,29 @@ void TestCoreQt::testContentBoxPropagationPersistsGeometry() {
   QVERIFY(unavailable.contentSizeMM().isEmpty());
 }
 
+void TestCoreQt::testImageViewResizePreservesZoomFocalPoint() {
+  QImage image(1600, 1200, QImage::Format_RGB32);
+  image.fill(Qt::white);
+
+  BasicImageView view(image);
+  view.resize(900, 700);
+  view.show();
+  QTRY_VERIFY(view.maximumViewportSize().width() > 0);
+
+  const QSize oldViewportSize = view.maximumViewportSize();
+  const QPointF oldCenter(oldViewportSize.width() / 2.0, oldViewportSize.height() / 2.0);
+  const QPointF focalOffset(120.0, -80.0);
+  view.setWidgetFocalPointWithoutMoving(oldCenter + focalOffset);
+  view.setZoomLevel(2.0);
+
+  view.resize(700, 700);
+  QTRY_VERIFY(view.maximumViewportSize().width() != oldViewportSize.width());
+
+  const QSize newViewportSize = view.maximumViewportSize();
+  const QPointF newCenter(newViewportSize.width() / 2.0, newViewportSize.height() / 2.0);
+  QCOMPARE(view.getWidgetFocalPoint() - newCenter, focalOffset);
+}
+
 void TestCoreQt::testUnitsToString() {
   QCOMPARE(unitsToString(PIXELS), QString("px"));
   QCOMPARE(unitsToString(MILLIMETRES), QString("mm"));
@@ -368,6 +401,94 @@ void TestCoreQt::testUnitsToLocalizedString() {
   QString mm = unitsToLocalizedString(MILLIMETRES);
   QVERIFY(!px.isEmpty());
   QVERIFY(!mm.isEmpty());
+}
+
+void TestCoreQt::testPageSizePresetsApplyPhysicalDimensions() {
+  const Dpi dpi(300, 300);
+  const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/page.tif"))), PageId::SINGLE_PAGE);
+  const PageInfo page(pageId, ImageMetadata(QSize(1000, 1200), dpi), 1, false, false);
+  select_content::OptionsWidget widget(std::make_shared<select_content::Settings>(), PageSelectionAccessor(nullptr));
+  widget.preUpdateUI(page);
+
+  select_content::OptionsWidget::UiData uiData;
+  uiData.setPageRect(QRectF(10, 20, 800, 1000));
+  uiData.setPageDetectionMode(MODE_MANUAL);
+  widget.postUpdateUI(uiData);
+
+  auto* pageSizeCombo = widget.findChild<QComboBox*>(QStringLiteral("pageSizeCombo"));
+  auto* widthSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("widthSpinBox"));
+  QVERIFY(pageSizeCombo);
+  QVERIFY(widthSpinBox);
+
+  const int a4PortraitIndex = pageSizeCombo->findText(QStringLiteral("A4 (portrait)"));
+  QVERIFY(a4PortraitIndex > 0);
+
+  QSignalSpy pageRectSpy(&widget, &select_content::OptionsWidget::pageRectChangedLocally);
+  pageSizeCombo->setCurrentIndex(a4PortraitIndex);
+  QCOMPARE(pageRectSpy.count(), 1);
+
+  const QRectF selectedPageRect = pageRectSpy.takeFirst().at(0).toRectF();
+  double expectedWidth = 210.0;
+  double expectedHeight = 297.0;
+  UnitsConverter(dpi).convert(expectedWidth, expectedHeight, MILLIMETRES, PIXELS);
+  QVERIFY(std::abs(selectedPageRect.width() - expectedWidth) < 0.2);
+  QVERIFY(std::abs(selectedPageRect.height() - expectedHeight) < 0.2);
+
+  const int a4LandscapeIndex = pageSizeCombo->findText(QStringLiteral("A4 (landscape)"));
+  QVERIFY(a4LandscapeIndex > 0);
+  pageSizeCombo->setCurrentIndex(a4LandscapeIndex);
+  QCOMPARE(pageRectSpy.count(), 1);
+  const QRectF landscapePageRect = pageRectSpy.takeFirst().at(0).toRectF();
+  expectedWidth = 297.0;
+  expectedHeight = 210.0;
+  UnitsConverter(dpi).convert(expectedWidth, expectedHeight, MILLIMETRES, PIXELS);
+  QVERIFY(std::abs(landscapePageRect.width() - expectedWidth) < 0.2);
+  QVERIFY(std::abs(landscapePageRect.height() - expectedHeight) < 0.2);
+
+  widthSpinBox->setValue(widthSpinBox->value() + 1.0);
+  QCOMPARE(pageSizeCombo->currentIndex(), 0);
+}
+
+void TestCoreQt::testPageSizePresetNameMatchesEitherOrientation() {
+  QCOMPARE(page_sizes::matchingName(QSizeF(210.0, 297.0)), QStringLiteral("A4"));
+  QCOMPARE(page_sizes::matchingName(QSizeF(297.0, 210.0)), QStringLiteral("A4"));
+  QVERIFY(page_sizes::matchingName(QSizeF(210.0, 300.0)).isEmpty());
+}
+
+void TestCoreQt::testPageDimensionsCommitAfterEditing() {
+  const Dpi dpi(300, 300);
+  const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/page.tif"))), PageId::SINGLE_PAGE);
+  const PageInfo page(pageId, ImageMetadata(QSize(1000, 1200), dpi), 1, false, false);
+  select_content::OptionsWidget widget(std::make_shared<select_content::Settings>(), PageSelectionAccessor(nullptr));
+  widget.preUpdateUI(page);
+
+  select_content::OptionsWidget::UiData uiData;
+  uiData.setPageRect(QRectF(10, 20, 800, 1000));
+  uiData.setPageDetectionMode(MODE_MANUAL);
+  widget.postUpdateUI(uiData);
+
+  auto* widthSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("widthSpinBox"));
+  auto* heightSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("heightSpinBox"));
+  QVERIFY(widthSpinBox);
+  QVERIFY(heightSpinBox);
+  QVERIFY(!widthSpinBox->keyboardTracking());
+  QVERIFY(!heightSpinBox->keyboardTracking());
+
+  QSignalSpy pageRectSpy(&widget, &select_content::OptionsWidget::pageRectChangedLocally);
+  const auto replaceValue = [&pageRectSpy](QDoubleSpinBox* spinBox) {
+    spinBox->setFocus();
+    spinBox->selectAll();
+    QTest::keyClick(spinBox, Qt::Key_Backspace);
+    QTest::keyClicks(spinBox, QStringLiteral("123"));
+    QCOMPARE(pageRectSpy.count(), 0);
+    QVERIFY(spinBox->text().contains(QStringLiteral("123")));
+
+    QTest::keyClick(spinBox, Qt::Key_Return);
+    QCOMPARE(pageRectSpy.count(), 1);
+    pageRectSpy.clear();
+  };
+  replaceValue(widthSpinBox);
+  replaceValue(heightSpinBox);
 }
 
 void TestCoreQt::testUtilsDoubleToString() {
@@ -430,8 +551,8 @@ void TestCoreQt::testBackgroundExecutorContainsWorkerAndResultExceptions() {
 void TestCoreQt::testProcessingTaskQueueReturnsPageInfoForTask() {
   AsyncTaskState state;
   const BackgroundTaskPtr task = std::make_shared<FailingBackgroundTask>(state);
-  const PageInfo page(PageId(ImageId(QStringLiteral("/tmp/page.tif")), PageId::RIGHT_PAGE), ImageMetadata(), 1, false,
-                      false);
+  const PageInfo page(PageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/page.tif"))), PageId::RIGHT_PAGE),
+                      ImageMetadata(), 1, false, false);
   ProcessingTaskQueue queue;
   queue.addProcessingTask(page, task);
   QCOMPARE(queue.takeForProcessing(), task);

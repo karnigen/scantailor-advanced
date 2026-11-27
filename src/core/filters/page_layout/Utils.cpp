@@ -64,6 +64,83 @@ void Utils::extendPolyRectWithMargins(QPolygonF& polyRect, const Margins& margin
   }
 }
 
+void Utils::extendPolyRectToInclude(QPolygonF& polyRect, const QPolygonF& otherRect) {
+  const QPointF origin(polyRect[0]);
+  const QLineF rightLine(polyRect[0], polyRect[1]);
+  const QLineF downLine(polyRect[0], polyRect[3]);
+  const QPointF right(rightLine.unitVector().p2() - origin);
+  const QPointF down(downLine.unitVector().p2() - origin);
+  const QTransform localToMm(right.x(), right.y(), down.x(), down.y(), origin.x(), origin.y());
+  bool invertible = false;
+  const QTransform mmToLocal(localToMm.inverted(&invertible));
+  assert(invertible);
+
+  QPolygonF localBounds(mmToLocal.map(polyRect));
+  localBounds += mmToLocal.map(otherRect);
+  const QRectF bounds(localBounds.boundingRect());
+  const QPolygonF localRect{bounds.topLeft(), bounds.topRight(), bounds.bottomRight(), bounds.bottomLeft()};
+  polyRect = localToMm.map(localRect);
+}
+
+Margins Utils::constrainHardMarginsMM(const QPolygonF& contentRectMm,
+                                      const Margins& marginsMm,
+                                      const QSizeF& aggregateHardSizeMm) {
+  if (marginsMm.left() < 0.0 || marginsMm.top() < 0.0 || marginsMm.right() < 0.0 || marginsMm.bottom() < 0.0) {
+    return marginsMm;
+  }
+
+  const auto hardSizeFor = [&](const Margins& margins) {
+    QPolygonF polyMm(contentRectMm);
+    extendPolyRectWithMargins(polyMm, margins);
+    return QSizeF(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
+  };
+  const auto widthFits = [&](const Margins& margins) {
+    const QSizeF size(hardSizeFor(margins));
+    constexpr double toleranceMm = 1e-6;
+    return size.width() <= aggregateHardSizeMm.width() - toleranceMm;
+  };
+  const auto heightFits = [&](const Margins& margins) {
+    const QSizeF size(hardSizeFor(margins));
+    constexpr double toleranceMm = 1e-6;
+    return size.height() <= aggregateHardSizeMm.height() - toleranceMm;
+  };
+
+  Margins constrainedMargins(marginsMm);
+  const auto constrainAxis = [&](const bool horizontal, const auto& fits) {
+    double lowerScale = 0.0;
+    double upperScale = 1.0;
+    const auto scaledMargins = [&](const double scale) {
+      return horizontal ? Margins(marginsMm.left() * scale, constrainedMargins.top(), marginsMm.right() * scale,
+                                  constrainedMargins.bottom())
+                        : Margins(constrainedMargins.left(), marginsMm.top() * scale, constrainedMargins.right(),
+                                  marginsMm.bottom() * scale);
+    };
+
+    if (!fits(scaledMargins(0.0))) {
+      constrainedMargins = scaledMargins(0.0);
+      return;
+    }
+
+    for (int i = 0; i < 48; ++i) {
+      const double scale = (lowerScale + upperScale) / 2.0;
+      if (fits(scaledMargins(scale))) {
+        lowerScale = scale;
+      } else {
+        upperScale = scale;
+      }
+    }
+    constrainedMargins = scaledMargins(lowerScale);
+  };
+
+  if (!widthFits(constrainedMargins)) {
+    constrainAxis(true, widthFits);
+  }
+  if (!heightFits(constrainedMargins)) {
+    constrainAxis(false, heightFits);
+  }
+  return constrainedMargins;
+}
+
 Margins Utils::calcMarginsMM(const ImageTransformation& xform, const QRectF& pageRect, const QRectF& contentRect) {
   const QSizeF contentSizeMm(Utils::calcRectSizeMM(xform, contentRect));
 
@@ -202,8 +279,11 @@ QPolygonF Utils::calcPageRectPhys(const ImageTransformation& xform,
   const QTransform pixelsToMmTransform(UnitsConverter(xform.origDpi()).transform(PIXELS, MILLIMETRES));
 
   QPolygonF polyMm(pixelsToMmTransform.map(contentRectPhys));
-  extendPolyRectWithMargins(polyMm, params.hardMarginsMM());
-
+  Margins hardMarginsMm(params.hardMarginsMM());
+  if (!params.alignment().isNull() && (params.isPageBoundaryEnabled() || !params.contentSizeMM().isEmpty())) {
+    hardMarginsMm = constrainHardMarginsMM(polyMm, hardMarginsMm, aggregateHardSizeMm);
+  }
+  extendPolyRectWithMargins(polyMm, hardMarginsMm);
   const QSizeF hardSizeMm(QLineF(polyMm[0], polyMm[1]).length(), QLineF(polyMm[0], polyMm[3]).length());
   Margins softMarginsMm(calcSoftMarginsMM(hardSizeMm, aggregateHardSizeMm, params.alignment(), params.contentRect(),
                                           params.contentSizeMM(), params.pageRect()));

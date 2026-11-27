@@ -5,6 +5,10 @@
 #define SCANTAILOR_APP_RELINKINGDIALOG_H_
 
 #include <QDialog>
+#include <QStandardItemModel>
+#include <QTimer>
+#include <QVector>
+#include <filesystem>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -15,18 +19,23 @@
 class RelinkingSortingModel;
 class QAbstractButton;
 class QItemSelection;
+class QStandardItem;
 class QString;
 
 class RelinkingDialog : public QDialog {
   Q_OBJECT
  public:
-  explicit RelinkingDialog(const QString& projectFilePath,
+  explicit RelinkingDialog(const std::filesystem::path& projectFilePath,
                            QWidget* parent = nullptr,
-                           const QString& initialDirectory = QString());
+                           const std::filesystem::path& initialDirectory = {});
 
   ProxyFunction<RelinkingModel&, void, const RelinkablePath&> pathCollector() {
     return ProxyFunction<RelinkingModel&, void, const RelinkablePath&>(m_model);
   }
+
+  void addCommonImageRoot() { m_model.addCommonImageRoot(); }
+
+  void addOutputPath(const RelinkablePath& path) { m_model.addOutputPath(path); }
 
   /**
    * This method guarantees that
@@ -39,6 +48,8 @@ class RelinkingDialog : public QDialog {
    */
   std::shared_ptr<AbstractRelinker> relinker() const { return m_model.relinker(); }
 
+  void selectFirstPath();
+
  private slots:
 
   void selectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
@@ -46,15 +57,48 @@ class RelinkingDialog : public QDialog {
   /** \p type is either RelinkablePath::File or RelinkablePath::Dir */
   void pathButtonClicked(const QString& prefixPath, const QString& suffixPath, int type);
 
+  void useConfigPath();
+
   void undoButtonClicked();
 
   void commitChanges();
 
  private:
+  void updateSummary();
+
+  void updateConfigPathButtonAppearance();
+
+  bool imageRootIsOutsideProjectDirectory() const;
+
+  void scheduleSummaryUpdate();
+
+  void rebuildTreeModel(int selectedSourceRow = -1);
+
+  void updateTreeItems(const QModelIndex& first, const QModelIndex& last);
+
+  void updateTreeItem(int sourceRow);
+
+  void copyPathData(QStandardItem* target, int sourceRow);
+
+  QModelIndex firstSelectableIndex(const QModelIndex& parent = QModelIndex()) const;
+
+  int selectedSourceRow() const;
+
+  void applyReplacement(const QString& prefixPath,
+                        const QString& suffixPath,
+                        const QString& replacementPath,
+                        RelinkablePath::Type replacementType,
+                        RelinkablePath::Type resultingPathType,
+                        RelinkingModel::EntryKind entryKind);
+
   Ui::RelinkingDialog ui;
   RelinkingModel m_model;
+  QStandardItemModel* m_treeModel;
   RelinkingSortingModel* m_sortingModel;
-  QString m_projectFileDir;
+  QVector<QStandardItem*> m_treeItemsByRow;
+  QTimer m_summaryUpdateTimer;
+  std::filesystem::path m_projectFileDir;
+  bool m_treeBuilt = false;
 };
 
 

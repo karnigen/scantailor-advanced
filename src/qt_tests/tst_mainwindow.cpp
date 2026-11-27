@@ -2,31 +2,83 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include "tst_mainwindow.h"
+#include "FixDpiDialog.h"
 #include "MainWindow.h"
+#include "core/PathUtils.h"
 
 #include <ApplicationSettings.h>
+#include <FilterOptionsWidget.h>
 #include <ImageInfo.h>
 #include <ImageTransformation.h>
+#include <Margins.h>
 #include <PageSequence.h>
+#include <ProcessingIndicationWidget.h>
 #include <ProcessingTaskQueue.h>
 #include <ProjectPages.h>
 #include <StageSequence.h>
+#include <Units.h>
+#include <UnitsProvider.h>
 #include <WorkerThreadPool.h>
+#include <core/SettingsStore.h>
+#include <filters/page_layout/Alignment.h>
+#include <filters/page_layout/ImageView.h>
 #include <filters/page_layout/Params.h>
 #include <filters/select_content/CacheDrivenTask.h>
 #include <filters/select_content/Dependencies.h>
 #include <filters/select_content/Settings.h>
 
+#include "RelinkablePathVisualization.h"
+#include "RelinkingDialog.h"
+
+#include <QAbstractButton>
 #include <QApplication>
+#include <QCheckBox>
+#include <QColor>
+#include <QComboBox>
+#include <QContextMenuEvent>
+#include <QCursor>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDir>
 #include <QDomDocument>
+#include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
+#include <QHBoxLayout>
+#include <QHeaderView>
 #include <QImage>
+#include <QImageWriter>
+#include <QItemSelectionModel>
+#include <QKeyEvent>
+#include <QKeySequence>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMessageBox>
+#include <QMouseEvent>
+#include <QPalette>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QScrollBar>
 #include <QSemaphore>
+#include <QSignalSpy>
+#include <QStackedLayout>
+#include <QTableView>
 #include <QTemporaryDir>
+#include <QTextBrowser>
+#include <QTextCursor>
+#include <QTextDocument>
+#include <QTextFormat>
 #include <QTimer>
+#include <QToolButton>
+#include <QTreeView>
+#include <QWheelEvent>
+#include <QWidget>
 #include <QtTest/QtTest>
+#include <atomic>
 #include <functional>
 #include <stdexcept>
 
@@ -71,6 +123,28 @@ class BlockingTask : public BackgroundTask {
   std::function<void()> m_update;
 };
 
+class SuccessfulBatchResult : public FilterResult {
+ public:
+  void updateUI(FilterUiInterface*) override {}
+
+  std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
+};
+
+class SuccessfulBatchTask : public BackgroundTask {
+ public:
+  explicit SuccessfulBatchTask(std::atomic_int& completed) : BackgroundTask(BATCH), m_completed(completed) {}
+
+  FilterResultPtr operator()() override {
+    ++m_completed;
+    return std::make_shared<SuccessfulBatchResult>();
+  }
+
+  FilterResultPtr exceptionResult(const QString&) override { return std::make_shared<SuccessfulBatchResult>(); }
+
+ private:
+  std::atomic_int& m_completed;
+};
+
 class AutoSaveSetting {
  public:
   AutoSaveSetting() : m_original(ApplicationSettings::getInstance().isAutoSaveProjectEnabled()) {
@@ -82,6 +156,29 @@ class AutoSaveSetting {
  private:
   bool m_original;
 };
+
+class ByteArraySettingRestore {
+ public:
+  ByteArraySettingRestore(SettingsStore& settings, QString key)
+      : m_settings(settings),
+        m_key(std::move(key)),
+        m_hadValue(settings.contains(m_key)),
+        m_originalValue(settings.byteArrayValue(m_key)) {}
+
+  ~ByteArraySettingRestore() {
+    if (m_hadValue) {
+      m_settings.setValue(m_key, m_originalValue);
+    } else {
+      m_settings.remove(m_key);
+    }
+  }
+
+ private:
+  SettingsStore& m_settings;
+  QString m_key;
+  bool m_hadValue;
+  QByteArray m_originalValue;
+};
 }  // namespace
 
 void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
@@ -91,7 +188,7 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QImage image(100, 120, QImage::Format_RGB32);
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -99,7 +196,7 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QSemaphore started;
   QSemaphore release;
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), projectPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
   QTRY_VERIFY(window.m_workerThreadPool->isIdle());
 
   const int margins = window.m_stages->selectContentFilterIdx() + 1;
@@ -155,6 +252,82 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QCOMPARE(saved.contentRect(), newContent);
 }
 
+void TestMainWindowAsync::cancelledBatchReplenishesWorkersAfterPageRemoval() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  std::vector<ImageInfo> imageInfos;
+  for (int i = 0; i < 2; ++i) {
+    const QString imagePath = directory.filePath(QStringLiteral("page-%1.png").arg(i));
+    QImage image(100, 120, QImage::Format_RGB32);
+    image.fill(Qt::white);
+    QVERIFY(image.save(imagePath));
+    imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)),
+                            1, false, false);
+  }
+
+  const auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
+  QSemaphore started;
+  QSemaphore release;
+  std::atomic_int completed = 0;
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()),
+                            core::toFileSystemPath(directory.filePath("project.ScanTailor")));
+  QTRY_VERIFY(window.m_workerThreadPool->isIdle());
+
+  const PageSequence sequence(pages->toPageSequence(PAGE_VIEW));
+  const PageInfo firstPage = sequence.pageAt(0);
+  const PageInfo secondPage = sequence.pageAt(1);
+  const auto cancelledTask = std::make_shared<BlockingTask>(started, release, []() {});
+  const auto queuedTask = std::make_shared<SuccessfulBatchTask>(completed);
+  window.m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  window.m_batchQueue->addProcessingTask(firstPage, cancelledTask);
+  window.m_batchQueue->addProcessingTask(secondPage, queuedTask);
+  QCOMPARE(window.m_batchQueue->takeForProcessing(), cancelledTask);
+  window.m_workerThreadPool->submitTask(cancelledTask);
+  QTRY_VERIFY(started.available() == 1);
+
+  window.removeFromProject({firstPage.id()});
+  release.release();
+
+  QTRY_COMPARE(completed.load(), 1);
+  QTRY_VERIFY(!window.isBatchProcessingInProgress());
+  QVERIFY(window.m_workerThreadPool->isIdle());
+}
+
+void TestMainWindowAsync::cancelledBatchStopsWhenAllPagesAreRemoved() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  QSemaphore started;
+  QSemaphore release;
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()),
+                            core::toFileSystemPath(directory.filePath("project.ScanTailor")));
+  QTRY_VERIFY(window.m_workerThreadPool->isIdle());
+
+  const PageInfo page = pages->toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto task = std::make_shared<BlockingTask>(started, release, []() {});
+  window.m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  window.m_batchQueue->addProcessingTask(page, task);
+  QCOMPARE(window.m_batchQueue->takeForProcessing(), task);
+  window.m_workerThreadPool->submitTask(task);
+  QTRY_VERIFY(started.available() == 1);
+
+  window.removeFromProject({page.id()});
+  QVERIFY(window.isBatchProcessingInProgress());
+  release.release();
+
+  QTRY_VERIFY(!window.isBatchProcessingInProgress());
+  QVERIFY(window.m_workerThreadPool->isIdle());
+}
+
 void TestMainWindowAsync::deferredSavesPreserveOrder_data() {
   QTest::addColumn<bool>("saveFirst");
   QTest::addColumn<bool>("cancelSaveAs");
@@ -176,7 +349,7 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QImage image(100, 120, QImage::Format_RGB32);
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
-  const ImageId imageId(imagePath, 0);
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
   const auto pages = std::make_shared<ProjectPages>(
       std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
       Qt::LeftToRight);
@@ -186,7 +359,7 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QSemaphore release;
   AutoSaveSetting autoSaveSetting;
   MainWindow window;
-  window.switchToNewProject(pages, directory.path(), originalPath);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(originalPath));
   QTRY_VERIFY(window.m_workerThreadPool->isIdle());
   QVERIFY(window.saveProjectInteractive());
 
@@ -248,4 +421,1583 @@ void TestMainWindowAsync::deferredSavesPreserveOrder() {
   QCOMPARE(QFileInfo::exists(copyPath), !cancelSaveAs);
   QVERIFY(original.open(QIODevice::ReadOnly));
   QCOMPARE(original.readAll() == originalContents, !saveFirst && !cancelSaveAs);
+}
+
+void TestMainWindowAsync::sourceImageLocationDetection() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString projectDirectory = directory.filePath("project");
+  const QString nestedDirectory = QDir(projectDirectory).filePath("images/nested");
+  const QString siblingDirectory = directory.filePath("project-copy");
+  QVERIFY(QDir().mkpath(nestedDirectory));
+  QVERIFY(QDir().mkpath(siblingDirectory));
+
+  const QString nestedImage = QDir(nestedDirectory).filePath("page.png");
+  const QString siblingImage = QDir(siblingDirectory).filePath("page.png");
+  for (const QString& path : {nestedImage, siblingImage}) {
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+  }
+
+  QVERIFY(MainWindow::isPathWithinDirectory(nestedImage, projectDirectory));
+  QVERIFY(MainWindow::isPathWithinDirectory(QDir(projectDirectory).filePath("missing.png"), projectDirectory));
+  QVERIFY(!MainWindow::isPathWithinDirectory(siblingImage, projectDirectory));
+
+  const QString commonRoot = RelinkingModel::findCommonImageRoot({nestedImage, siblingImage});
+  QCOMPARE(commonRoot, QDir::cleanPath(directory.path()));
+  QVERIFY(MainWindow::isPathWithinDirectory(QDir(commonRoot).filePath("out"), commonRoot));
+  QVERIFY(!MainWindow::isPathWithinDirectory(QDir(directory.path()).absoluteFilePath("../outside/out"), commonRoot));
+}
+
+void TestMainWindowAsync::relinkingDialogShowsInitialPath() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  RelinkingDialog dialog(core::toFileSystemPath(directory.filePath("project.ScanTailor")));
+  const QString imagePath = directory.filePath("input/page.png");
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File));
+  dialog.selectFirstPath();
+  dialog.show();
+
+  auto* pathVisualization = dialog.findChild<RelinkablePathVisualization*>("pathVisualization");
+  QVERIFY(pathVisualization);
+  QTRY_VERIFY(pathVisualization->isVisible());
+  const QList<QPushButton*> pathButtons = pathVisualization->findChildren<QPushButton*>();
+  QVERIFY(!pathButtons.isEmpty());
+  QCOMPARE(pathButtons.last()->text(), QStringLiteral("page.png"));
+}
+
+void TestMainWindowAsync::relinkingBreadcrumbClearsHoverAfterClick() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  RelinkablePathVisualization breadcrumb;
+  breadcrumb.resize(800, 50);
+  breadcrumb.setPath(RelinkablePath(core::toFileSystemPath(directory.path()), RelinkablePath::Dir), true);
+  breadcrumb.show();
+  const QList<QPushButton*> buttons = breadcrumb.findChildren<QPushButton*>();
+  QVERIFY(!buttons.isEmpty());
+  QPushButton* lastButton = buttons.last();
+  QTRY_VERIFY(lastButton->isVisible());
+
+  const QPoint buttonCenter(lastButton->rect().center());
+  QTest::mouseMove(lastButton, buttonCenter);
+  QTRY_VERIFY(lastButton->property("forceHighlight").toBool());
+  QTest::mouseClick(lastButton, Qt::LeftButton, Qt::NoModifier, buttonCenter);
+  QTRY_VERIFY(!lastButton->property("forceHighlight").toBool());
+  QVERIFY(!lastButton->property("stickHighlight").toBool());
+
+  QTest::mouseMove(lastButton, buttonCenter + QPoint(1, 0));
+  QTRY_VERIFY(lastButton->property("forceHighlight").toBool());
+}
+
+void TestMainWindowAsync::relinkingDialogUsesConfigDirectoryAsBase() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString configDirectory = directory.filePath("project");
+  const QString sourceDirectory = directory.filePath("source");
+  QVERIFY(QDir().mkpath(configDirectory));
+  QVERIFY(QDir().mkpath(sourceDirectory));
+  const QString imagePath = QDir(sourceDirectory).filePath("page.png");
+  QFile imageFile(imagePath);
+  QVERIFY(imageFile.open(QIODevice::WriteOnly));
+  imageFile.close();
+
+  RelinkingDialog dialog(core::toFileSystemPath(QDir(configDirectory).filePath("project.ScanTailor")));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File));
+  dialog.addCommonImageRoot();
+  dialog.selectFirstPath();
+  auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
+  QVERIFY(useConfigPathButton);
+  QVERIFY(useConfigPathButton->isEnabled());
+  QVERIFY(useConfigPathButton->property("imageRootOutsideProject").toBool());
+  useConfigPathButton->click();
+  QVERIFY(!useConfigPathButton->property("imageRootOutsideProject").toBool());
+
+  auto* buttonBox = dialog.findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(buttonBox);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  const std::shared_ptr<AbstractRelinker> relinker = dialog.relinker();
+  QCOMPARE(core::toQString(
+               relinker->substitutionPathFor(RelinkablePath(core::toFileSystemPath(imagePath), RelinkablePath::File))),
+           QDir(configDirectory).filePath("page.png"));
+}
+
+void TestMainWindowAsync::relinkingDialogDisablesConfigPathForOutput() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  RelinkingDialog dialog(core::toFileSystemPath(directory.filePath("project.ScanTailor")));
+  dialog.addOutputPath(RelinkablePath(core::toFileSystemPath(directory.filePath("out")), RelinkablePath::Dir));
+  dialog.selectFirstPath();
+
+  auto* useConfigPathButton = dialog.findChild<QPushButton*>("useConfigPathButton");
+  QVERIFY(useConfigPathButton);
+  QVERIFY(!useConfigPathButton->isEnabled());
+}
+
+void TestMainWindowAsync::relinkingStatusColorsFollowPalette() {
+  const QPalette originalPalette = QApplication::palette();
+  QPalette palette = originalPalette;
+
+  palette.setColor(QPalette::Window, Qt::white);
+  QApplication::setPalette(palette);
+  const QColor lightExistsColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Exists);
+  const QColor lightMissingColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Missing);
+
+  palette.setColor(QPalette::Window, QColor(40, 40, 40));
+  QApplication::setPalette(palette);
+  const QColor darkExistsColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Exists);
+  const QColor darkMissingColor = RelinkingModel::foregroundColorForStatus(RelinkingModel::Missing);
+
+  QApplication::setPalette(originalPalette);
+  QVERIFY(lightExistsColor.lightness() < QColor(Qt::white).lightness());
+  QVERIFY(darkExistsColor.lightness() > QColor(40, 40, 40).lightness());
+  QVERIFY(lightMissingColor.lightness() < QColor(Qt::white).lightness());
+  QVERIFY(darkMissingColor.lightness() > QColor(40, 40, 40).lightness());
+  QVERIFY(lightExistsColor != darkExistsColor);
+  QVERIFY(lightMissingColor != darkMissingColor);
+}
+
+void TestMainWindowAsync::relinkingRetainsMultipleMappings() {
+  RelinkingModel model;
+  const RelinkablePath firstPath(core::toFileSystemPath(QStringLiteral("/original-a/page.png")), RelinkablePath::File);
+  const RelinkablePath secondPath(core::toFileSystemPath(QStringLiteral("/original-b/page.png")), RelinkablePath::File);
+  model.addPath(firstPath);
+  model.addPath(secondPath);
+  model.replacePrefix(core::toQString(firstPath.normalizedPath()), QStringLiteral("/replacement-a/page.png"),
+                      RelinkablePath::File, RelinkingModel::ImageFile);
+  model.commitChanges();
+  model.replacePrefix(core::toQString(secondPath.normalizedPath()), QStringLiteral("/replacement-b/page.png"),
+                      RelinkablePath::File, RelinkingModel::ImageFile);
+  model.commitChanges();
+
+  const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(firstPath)), QStringLiteral("/replacement-a/page.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(secondPath)), QStringLiteral("/replacement-b/page.png"));
+}
+
+void TestMainWindowAsync::relinkingCommonImageRootDoesNotChangeOutputDirectory() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imageRoot = directory.filePath("dataset");
+  const QString configDirectory = directory.filePath("project");
+  const QString outputDirectory = QDir(imageRoot).filePath("out");
+  const RelinkablePath firstImage(core::toFileSystemPath(QDir(imageRoot).filePath("img1/page1.png")),
+                                  RelinkablePath::File);
+  const RelinkablePath secondImage(core::toFileSystemPath(QDir(imageRoot).filePath("img2/page2.png")),
+                                   RelinkablePath::File);
+  QVERIFY(QDir().mkpath(QFileInfo(core::toQString(firstImage.normalizedPath())).absolutePath()));
+  QVERIFY(QDir().mkpath(QFileInfo(core::toQString(secondImage.normalizedPath())).absolutePath()));
+  QVERIFY(QDir().mkpath(outputDirectory));
+  QVERIFY(QDir().mkpath(configDirectory));
+
+  RelinkingModel model;
+  model.addPath(firstImage);
+  model.addPath(secondImage);
+  model.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));
+  model.addCommonImageRoot();
+
+  QString commonRootPath;
+  for (int row = 0; row < model.rowCount(); ++row) {
+    const QModelIndex index(model.index(row, 0));
+    if (index.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::CommonImageRoot) {
+      commonRootPath = index.data(RelinkingModel::UncommittedPathRole).toString();
+    }
+  }
+  QCOMPARE(commonRootPath, QDir::cleanPath(imageRoot));
+  const RelinkingModel::Summary beforeRelink = model.summary();
+  QCOMPARE(beforeRelink.imagesInsideRoot, 2);
+  QCOMPARE(beforeRelink.imagesOutsideRoot, 0);
+  QVERIFY(beforeRelink.outputInsideRoot);
+  for (int row = 0; row < model.rowCount(); ++row) {
+    const QModelIndex index(model.index(row, 0));
+    if (index.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::ImageFile) {
+      QCOMPARE(index.data(Qt::DisplayRole).toString(), QStringLiteral("img1/page1.png"));
+      break;
+    }
+  }
+
+  model.replacePrefix(commonRootPath, configDirectory, RelinkablePath::Dir, RelinkingModel::CommonImageRoot);
+  model.commitChanges();
+
+  const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(firstImage)),
+           QDir(configDirectory).filePath("img1/page1.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(secondImage)),
+           QDir(configDirectory).filePath("img2/page2.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(
+               RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir))),
+           QDir(configDirectory).filePath("out"));
+}
+
+void TestMainWindowAsync::relinkingCommonImageRootLeavesExternalOutputAlone() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imageRoot = directory.filePath("dataset");
+  const QString replacementRoot = directory.filePath("relocated");
+  const QString outputDirectory = directory.filePath("separate-output");
+  const RelinkablePath image(core::toFileSystemPath(QDir(imageRoot).filePath("batch/page.png")), RelinkablePath::File);
+  QVERIFY(QDir().mkpath(QFileInfo(core::toQString(image.normalizedPath())).absolutePath()));
+  QVERIFY(QDir().mkpath(outputDirectory));
+  QVERIFY(QDir().mkpath(replacementRoot));
+
+  RelinkingModel model;
+  model.addPath(image);
+  model.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));
+  model.addCommonImageRoot();
+
+  const QString commonRoot = RelinkingModel::findCommonImageRoot({core::toQString(image.normalizedPath())});
+  model.replacePrefix(commonRoot, replacementRoot, RelinkablePath::Dir, RelinkingModel::CommonImageRoot);
+  model.commitChanges();
+
+  const std::shared_ptr<AbstractRelinker> relinker = model.relinker();
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(image)), QDir(replacementRoot).filePath("page.png"));
+  QCOMPARE(core::toQString(relinker->substitutionPathFor(
+               RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir))),
+           outputDirectory);
+}
+
+void TestMainWindowAsync::relinkingDialogGroupsPathsInDirectoryTree() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imageRoot = directory.filePath("dataset");
+  const QString projectFile = directory.filePath("project.ScanTailor");
+  const QString firstImage = QDir(imageRoot).filePath("dir1/page1.png");
+  const QString secondImage = QDir(imageRoot).filePath("dir2/page2.png");
+  const QString outputDirectory = QDir(imageRoot).filePath("out");
+  QVERIFY(QDir().mkpath(QFileInfo(firstImage).absolutePath()));
+  QVERIFY(QDir().mkpath(QFileInfo(secondImage).absolutePath()));
+  QVERIFY(QDir().mkpath(outputDirectory));
+
+  RelinkingDialog dialog(core::toFileSystemPath(projectFile));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(firstImage), RelinkablePath::File));
+  dialog.pathCollector()(RelinkablePath(core::toFileSystemPath(secondImage), RelinkablePath::File));
+  dialog.addOutputPath(RelinkablePath(core::toFileSystemPath(outputDirectory), RelinkablePath::Dir));
+  dialog.addCommonImageRoot();
+  dialog.selectFirstPath();
+
+  auto* treeView = dialog.findChild<QTreeView*>("listView");
+  QVERIFY(treeView);
+  const QModelIndex rootIndex = treeView->model()->index(0, 0);
+  QVERIFY(rootIndex.isValid());
+  QCOMPARE(rootIndex.data(RelinkingModel::EntryKindRole).toInt(), RelinkingModel::CommonImageRoot);
+  QCOMPARE(rootIndex.data(RelinkingModel::UncommittedPathRole).toString(), QDir::cleanPath(imageRoot));
+  QCOMPARE(treeView->model()->rowCount(rootIndex), 3);
+
+  const QModelIndex firstChild = treeView->model()->index(0, 0, rootIndex);
+  QVERIFY(firstChild.isValid());
+  QCOMPARE(firstChild.data(RelinkingModel::EntryKindRole).toInt(), RelinkingModel::OutputDirectory);
+
+  int directoryGroups = 0;
+  int outputEntries = 0;
+  for (int row = 0; row < treeView->model()->rowCount(rootIndex); ++row) {
+    const QModelIndex child = treeView->model()->index(row, 0, rootIndex);
+    if (child.data(RelinkingModel::TreeGroupRole).toBool()) {
+      ++directoryGroups;
+      QCOMPARE(treeView->model()->rowCount(child), 1);
+      const QModelIndex imageLeaf = treeView->model()->index(0, 0, child);
+      QVERIFY(imageLeaf.data(RelinkingModel::EntryKindRole).isValid());
+      QCOMPARE(imageLeaf.data(Qt::DisplayRole).toString(),
+               child.data(Qt::DisplayRole).toString() == QStringLiteral("dir1") ? QStringLiteral("page1.png")
+                                                                                : QStringLiteral("page2.png"));
+    } else if (child.data(RelinkingModel::EntryKindRole).toInt() == RelinkingModel::OutputDirectory) {
+      ++outputEntries;
+      QCOMPARE(child.data(Qt::DisplayRole).toString(), QStringLiteral("out (output directory)"));
+    }
+  }
+  QCOMPARE(directoryGroups, 2);
+  QCOMPARE(outputEntries, 1);
+}
+
+void TestMainWindowAsync::missingOutputDirectoryPrompt_data() {
+  QTest::addColumn<bool>("createOutputDirectory");
+  QTest::newRow("create-directory") << true;
+  QTest::newRow("decline-directory") << false;
+}
+
+void TestMainWindowAsync::missingOutputDirectoryPrompt() {
+  QFETCH(bool, createOutputDirectory);
+
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString outputDirectory = directory.filePath("output");
+  QVERIFY(QDir().mkpath(outputDirectory));
+  const QString projectPath = directory.filePath("project.ScanTailor");
+
+  {
+    MainWindow creator;
+    creator.switchToNewProject(pages, core::toFileSystemPath(outputDirectory), core::toFileSystemPath(projectPath));
+    QTRY_VERIFY(creator.m_workerThreadPool->isIdle());
+    QVERIFY(creator.saveProjectInteractive());
+  }
+  QVERIFY(QDir(outputDirectory).removeRecursively());
+
+  MainWindow window;
+  bool promptSeen = false;
+  QString unexpectedDialog;
+  QTimer dialogWatcher;
+  connect(&dialogWatcher, &QTimer::timeout, &window, [&promptSeen, &unexpectedDialog, createOutputDirectory]() {
+    QWidget* activeDialog = QApplication::activeModalWidget();
+    if (!activeDialog) {
+      return;
+    }
+    if (auto* messageBox = qobject_cast<QMessageBox*>(activeDialog)) {
+      if (messageBox->windowTitle() == QObject::tr("Create Directory?")) {
+        promptSeen = true;
+        messageBox->button(createOutputDirectory ? QMessageBox::Yes : QMessageBox::No)->click();
+        return;
+      }
+      unexpectedDialog = messageBox->windowTitle() + ": " + messageBox->text();
+      messageBox->done(QMessageBox::Ok);
+    } else if (auto* dialog = qobject_cast<QDialog*>(activeDialog)) {
+      unexpectedDialog = dialog->windowTitle();
+      dialog->reject();
+    }
+  });
+  dialogWatcher.start(10);
+
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(promptSeen, 5000);
+  QCOMPARE(QDir(outputDirectory).exists(), createOutputDirectory);
+  QVERIFY2(unexpectedDialog.isEmpty(), qPrintable(unexpectedDialog));
+  if (createOutputDirectory) {
+    QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  } else {
+    QVERIFY(!window.isProjectLoaded());
+  }
+  dialogWatcher.stop();
+}
+
+void TestMainWindowAsync::thumbnailWheelNavigationUsesShiftPageStride() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  std::vector<ImageInfo> imageInfos;
+  for (int index = 0; index < 25; ++index) {
+    const QString imagePath = directory.filePath(QStringLiteral("page%1.png").arg(index));
+    QVERIFY(image.save(imagePath));
+    imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)),
+                            1, false, false);
+  }
+  const auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
+
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
+  const auto sendWheelEvent = [&window](const Qt::KeyboardModifier modifier, const int delta) {
+    const QPoint localPosition(10, 10);
+    const QPoint globalPosition = window.thumbView->viewport()->mapToGlobal(localPosition);
+    QWheelEvent event(localPosition, globalPosition, QPoint(), QPoint(0, delta), Qt::NoButton, modifier,
+                      Qt::NoScrollPhase, false);
+    QVERIFY(window.eventFilter(window.thumbView->viewport(), &event));
+  };
+
+  window.goToPage(pageSequence.pageAt(5).id());
+  sendWheelEvent(Qt::ControlModifier, -120);
+  QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(6).id());
+
+  window.goToPage(pageSequence.pageAt(5).id());
+  sendWheelEvent(Qt::ShiftModifier, -120);
+  QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(15).id());
+
+  sendWheelEvent(Qt::ShiftModifier, 120);
+  QCOMPARE(window.m_thumbSequence->selectionLeader().id(), pageSequence.pageAt(5).id());
+
+  auto* focusButton = window.findChild<QAbstractButton*>(QStringLiteral("focusButton"));
+  QVERIFY(focusButton);
+  focusButton->setChecked(true);
+  QScrollBar* verticalScrollBar = window.thumbView->verticalScrollBar();
+  QVERIFY(verticalScrollBar->maximum() > verticalScrollBar->minimum());
+  const int initialScrollPosition = verticalScrollBar->value();
+  for (int step = 0; step < 30; ++step) {
+    const QPoint localPosition(10, 10);
+    const QPoint globalPosition = window.thumbView->viewport()->mapToGlobal(localPosition);
+    QWheelEvent event(localPosition, globalPosition, QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier,
+                      Qt::NoScrollPhase, false);
+    QApplication::sendEvent(window.thumbView->viewport(), &event);
+  }
+  QCoreApplication::processEvents();
+  QVERIFY(verticalScrollBar->value() > initialScrollPosition);
+  QVERIFY(focusButton->isChecked());
+}
+
+void TestMainWindowAsync::fixDpiDialogListsAndUpdatesPageDpi() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString firstImagePath = directory.filePath(QStringLiteral("page-a.png"));
+  const QString secondImagePath = directory.filePath(QStringLiteral("page-b.png"));
+  QImage firstImage(QSize(100, 200), QImage::Format_RGB32);
+  firstImage.fill(Qt::white);
+  firstImage.setDotsPerMeterX(11811);
+  firstImage.setDotsPerMeterY(11811);
+  QImageWriter firstImageWriter(firstImagePath, "png");
+  QVERIFY(firstImageWriter.write(firstImage));
+  QImage secondImage(QSize(200, 100), QImage::Format_RGB32);
+  secondImage.fill(Qt::white);
+  secondImage.setDotsPerMeterX(11811);
+  secondImage.setDotsPerMeterY(11811);
+  QImageWriter secondImageWriter(secondImagePath, "png");
+  QVERIFY(secondImageWriter.write(secondImage));
+
+  const std::vector<ImageFileInfo> files{
+      ImageFileInfo(QFileInfo(firstImagePath), {ImageMetadata(QSize(100, 200), Dpi(300, 600))}),
+      ImageFileInfo(QFileInfo(secondImagePath), {ImageMetadata(QSize(200, 100), Dpi(300, 300))}),
+  };
+  FixDpiDialog dialog(files);
+
+  auto* allPagesTable = dialog.findChild<QTableView*>(QStringLiteral("allPagesTable"));
+  auto* xDpi = dialog.findChild<QLineEdit*>(QStringLiteral("xDpi"));
+  auto* yDpi = dialog.findChild<QLineEdit*>(QStringLiteral("yDpi"));
+  auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyBtn"));
+  auto* applyAllButton = dialog.findChild<QPushButton*>(QStringLiteral("applyAllBtn"));
+  auto* dpiStatsLabel = dialog.findChild<QLabel*>(QStringLiteral("dpiStatsLabel"));
+  QVERIFY(allPagesTable);
+  QVERIFY(xDpi);
+  QVERIFY(yDpi);
+  QVERIFY(applyButton);
+  QVERIFY(applyAllButton);
+  QVERIFY(dpiStatsLabel);
+
+  QCOMPARE(allPagesTable->model()->rowCount(), 2);
+  QCOMPARE(allPagesTable->model()->columnCount(), 3);
+  QVERIFY(allPagesTable->columnWidth(1) >= 100);
+  QVERIFY(allPagesTable->columnWidth(2) >= 100);
+  QVERIFY(allPagesTable->horizontalHeader()->sectionsClickable());
+  QVERIFY(!allPagesTable->horizontalHeader()->isSortIndicatorShown());
+  QVERIFY(allPagesTable->model()->headerData(0, Qt::Horizontal, Qt::FontRole).value<QFont>().bold());
+  QCOMPARE(allPagesTable->model()->index(0, 1).data(Qt::TextAlignmentRole).toInt(), static_cast<int>(Qt::AlignCenter));
+  QCOMPARE(allPagesTable->model()->index(0, 0).data().toString(), QStringLiteral("page-a.png"));
+  QCOMPARE(allPagesTable->model()->index(0, 1).data().toString(), QStringLiteral("300 x 300"));
+  QCOMPARE(allPagesTable->model()->index(0, 2).data().toString(), QStringLiteral("300 x 600"));
+  QVERIFY(dpiStatsLabel->text().contains(QStringLiteral("Distinct DPI values: 2")));
+
+  allPagesTable->selectionModel()->select(allPagesTable->model()->index(0, 0),
+                                          QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+  allPagesTable->selectionModel()->select(allPagesTable->model()->index(1, 0),
+                                          QItemSelectionModel::Select | QItemSelectionModel::Rows);
+  xDpi->setText(QStringLiteral("400"));
+  yDpi->setText(QStringLiteral("500"));
+  QVERIFY(QMetaObject::invokeMethod(&dialog, "dpiValueChanged", Qt::DirectConnection));
+  QVERIFY(applyButton->isEnabled());
+  applyButton->click();
+
+  QCOMPARE(dialog.files()[0].imageInfo()[0].dpi().horizontal(), 400);
+  QCOMPARE(dialog.files()[0].imageInfo()[0].dpi().vertical(), 500);
+  QCOMPARE(dialog.files()[1].imageInfo()[0].dpi().horizontal(), 400);
+  QCOMPARE(dialog.files()[1].imageInfo()[0].dpi().vertical(), 500);
+  QCOMPARE(allPagesTable->model()->index(0, 1).data().toString(), QStringLiteral("300 x 300"));
+  QCOMPARE(allPagesTable->model()->index(0, 2).data().toString(), QStringLiteral("400 x 500"));
+  QVERIFY(dpiStatsLabel->text().contains(QStringLiteral("Distinct DPI values: 1")));
+
+  xDpi->setText(QStringLiteral("600"));
+  yDpi->setText(QStringLiteral("600"));
+  QVERIFY(QMetaObject::invokeMethod(&dialog, "dpiValueChanged", Qt::DirectConnection));
+  QVERIFY(applyAllButton->isEnabled());
+  applyAllButton->click();
+  for (const ImageFileInfo& file : dialog.files()) {
+    QCOMPARE(file.imageInfo()[0].dpi().horizontal(), 600);
+    QCOMPARE(file.imageInfo()[0].dpi().vertical(), 600);
+  }
+}
+
+void TestMainWindowAsync::fixDpiDialogSortsProjectDpiNumerically() {
+  const QSize imageSize(3000, 3000);
+  const std::vector<ImageFileInfo> files{
+      ImageFileInfo(QFileInfo(QStringLiteral("page-1200.png")), {ImageMetadata(imageSize, Dpi(1200, 1200))}),
+      ImageFileInfo(QFileInfo(QStringLiteral("page-300.png")), {ImageMetadata(imageSize, Dpi(300, 300))}),
+      ImageFileInfo(QFileInfo(QStringLiteral("page-600.png")), {ImageMetadata(imageSize, Dpi(600, 600))}),
+  };
+  FixDpiDialog dialog(files);
+  auto* allPagesTable = dialog.findChild<QTableView*>(QStringLiteral("allPagesTable"));
+  QVERIFY(allPagesTable);
+
+  QVERIFY(QMetaObject::invokeMethod(allPagesTable->horizontalHeader(), "sectionClicked", Qt::DirectConnection,
+                                    Q_ARG(int, 2)));
+  QVERIFY(allPagesTable->horizontalHeader()->isSortIndicatorShown());
+  QCOMPARE(allPagesTable->horizontalHeader()->sortIndicatorSection(), 2);
+
+  QCOMPARE(allPagesTable->model()->index(0, 0).data().toString(), QStringLiteral("page-300.png"));
+  QCOMPARE(allPagesTable->model()->index(1, 0).data().toString(), QStringLiteral("page-600.png"));
+  QCOMPARE(allPagesTable->model()->index(2, 0).data().toString(), QStringLiteral("page-1200.png"));
+  QVERIFY(allPagesTable->model()->headerData(2, Qt::Horizontal, Qt::FontRole).value<QFont>().bold());
+}
+
+void TestMainWindowAsync::fixDpiDialogRequiresDpiForEveryPage() {
+  const std::vector<ImageFileInfo> files{
+      ImageFileInfo(QFileInfo(QStringLiteral("page.png")), {ImageMetadata(QSize(100, 120), Dpi(0, 300))}),
+  };
+  FixDpiDialog dialog(files);
+  auto* buttonBox = dialog.findChild<QDialogButtonBox*>(QStringLiteral("buttonBox"));
+  QVERIFY(buttonBox);
+  QVERIFY(!buttonBox->button(QDialogButtonBox::Ok)->isEnabled());
+}
+
+void TestMainWindowAsync::updateProjectDpiMetadataMarksProjectModified() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+  const ImageId imageId(core::toFileSystemPath(imagePath), 2);
+  const ImageMetadata originalMetadata(QSize(100, 120), Dpi(300, 300));
+  auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, originalMetadata, 1, false, false)}, Qt::LeftToRight);
+  QSignalSpy modifiedSpy(pages.get(), SIGNAL(modified()));
+
+  const std::vector<ImageFileInfo> updatedFiles{
+      ImageFileInfo(QFileInfo(imagePath), {ImageMetadata(QSize(100, 120), Dpi(400, 400))}, {2}),
+  };
+  pages->updateMetadataFrom(updatedFiles);
+  QCOMPARE(modifiedSpy.count(), 1);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi(), Dpi(400, 400));
+
+  pages->updateMetadataFrom(updatedFiles);
+  QCOMPARE(modifiedSpy.count(), 1);
+}
+
+void TestMainWindowAsync::fixDpiDialogPersistsProjectDpiOnAccept() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath(QStringLiteral("project.ScanTailor"));
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  QVERIFY(QMetaObject::invokeMethod(&window, "fixDpiDialogRequested", Qt::DirectConnection));
+  auto* dialog = window.findChild<FixDpiDialog*>();
+  QVERIFY(dialog);
+  auto* table = dialog->findChild<QTableView*>(QStringLiteral("allPagesTable"));
+  auto* xDpi = dialog->findChild<QLineEdit*>(QStringLiteral("xDpi"));
+  auto* yDpi = dialog->findChild<QLineEdit*>(QStringLiteral("yDpi"));
+  auto* applyAllButton = dialog->findChild<QPushButton*>(QStringLiteral("applyAllBtn"));
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>(QStringLiteral("buttonBox"));
+  QVERIFY(table);
+  QVERIFY(xDpi);
+  QVERIFY(yDpi);
+  QVERIFY(applyAllButton);
+  QVERIFY(buttonBox);
+
+  table->selectRow(0);
+  xDpi->setText(QStringLiteral("400"));
+  yDpi->setText(QStringLiteral("400"));
+  QVERIFY(QMetaObject::invokeMethod(dialog, "dpiValueChanged", Qt::DirectConnection));
+  QVERIFY(applyAllButton->isEnabled());
+  applyAllButton->click();
+  QCOMPARE(table->model()->index(0, 2).data().toString(), QStringLiteral("400 x 400"));
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(0).metadata().dpi(), Dpi(400, 400));
+
+  QFile savedProject(projectPath);
+  QVERIFY(savedProject.open(QIODevice::ReadOnly));
+  QDomDocument savedDoc;
+  QVERIFY(savedDoc.setContent(&savedProject));
+  const QDomElement dpiElement
+      = savedDoc.documentElement().namedItem("images").firstChildElement("image").firstChildElement("dpi");
+  QVERIFY(!dpiElement.isNull());
+  QCOMPARE(dpiElement.attribute("horizontal"), QStringLiteral("400"));
+  QCOMPARE(dpiElement.attribute("vertical"), QStringLiteral("400"));
+}
+
+void TestMainWindowAsync::processingIndicatorPreservesUnderlyingContent() {
+  QWidget container;
+  container.resize(160, 160);
+
+  QStackedLayout layout(&container);
+  layout.setStackingMode(QStackedLayout::StackAll);
+
+  const QColor backgroundColor(24, 88, 176);
+  auto* background = new QWidget;
+  QPalette backgroundPalette(background->palette());
+  backgroundPalette.setColor(QPalette::Window, backgroundColor);
+  background->setPalette(backgroundPalette);
+  background->setAutoFillBackground(true);
+  layout.addWidget(background);
+
+  auto* indicator = new ProcessingIndicationWidget;
+  indicator->setBackgroundFadeEnabled(false);
+  layout.addWidget(indicator);
+  layout.setCurrentWidget(indicator);
+
+  container.show();
+  QCoreApplication::processEvents();
+  QCOMPARE(container.grab().toImage().pixelColor(5, 5), backgroundColor);
+}
+
+void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
+  MainWindow window;
+  QString shortcutHelp;
+  QTimer::singleShot(0, &window, [&shortcutHelp]() {
+    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+    if (auto* browser = dialog->findChild<QTextBrowser*>()) {
+      shortcutHelp = browser->toPlainText();
+    }
+    dialog->reject();
+  });
+
+  QVERIFY(QMetaObject::invokeMethod(&window, "showKeyboardShortcuts", Qt::DirectConnection));
+  QVERIFY(shortcutHelp.contains("Fix Orientation"));
+  QVERIFY(!shortcutHelp.contains("Open the manual Fix Orientation stage."));
+  QVERIFY(shortcutHelp.contains("Save project when prompted"));
+  QVERIFY(shortcutHelp.contains("Discard changes when prompted"));
+  QVERIFY(shortcutHelp.contains("Alt+S"));
+  QVERIFY(shortcutHelp.contains("Alt+D"));
+}
+
+void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
+  MainWindow window;
+  bool promptShown = false;
+  bool actionButtonsPresent = false;
+  QTimer::singleShot(0, &window, [&]() {
+    auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!messageBox) {
+      return;
+    }
+
+    promptShown = true;
+    auto* saveButton = messageBox->button(QMessageBox::Save);
+    auto* discardButton = messageBox->button(QMessageBox::Discard);
+    auto* cancelButton = messageBox->button(QMessageBox::Cancel);
+    const auto textAndIconWidth = [](const QAbstractButton* button) {
+      return button->fontMetrics().horizontalAdvance(button->text())
+             + (button->icon().isNull() ? 0 : button->iconSize().width());
+    };
+    actionButtonsPresent = saveButton && discardButton && cancelButton
+                           && messageBox->standardButton(saveButton) == QMessageBox::Save
+                           && messageBox->standardButton(discardButton) == QMessageBox::Discard
+                           && saveButton->minimumWidth() >= textAndIconWidth(saveButton)
+                           && discardButton->minimumWidth() >= textAndIconWidth(discardButton)
+                           && cancelButton->minimumWidth() >= textAndIconWidth(cancelButton)
+                           && !messageBox->text().contains(QStringLiteral("Alt+S"))
+                           && !messageBox->text().contains(QStringLiteral("Alt+D"))
+                           && saveButton->toolTip().contains(QStringLiteral("Alt+S"))
+                           && discardButton->toolTip().contains(QStringLiteral("Alt+D"))
+                           && saveButton->shortcut() == QKeySequence(Qt::AltModifier | Qt::Key_S)
+                           && discardButton->shortcut() == QKeySequence(Qt::AltModifier | Qt::Key_D);
+    if (discardButton) {
+      discardButton->click();
+    }
+  });
+
+  QCOMPARE(window.promptProjectSave(), MainWindow::DONT_SAVE);
+  QVERIFY(promptShown);
+  QVERIFY(actionButtonsPresent);
+
+  QTimer::singleShot(0, &window, []() {
+    if (auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+      if (auto* saveButton = messageBox->button(QMessageBox::Save)) {
+        saveButton->click();
+      }
+    }
+  });
+  QCOMPARE(window.promptProjectSave(), MainWindow::SAVE);
+}
+
+void TestMainWindowAsync::reloadProjectConfirmsDiscardWithoutOfferingSave() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
+
+  pages->setLayoutDirection(Qt::RightToLeft);
+  bool promptShown = false;
+  bool discardOnlyButtons = false;
+  QTimer::singleShot(0, &window, [&]() {
+    auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!messageBox || messageBox->windowTitle() != QStringLiteral("Reload Project")) {
+      return;
+    }
+
+    promptShown = true;
+    discardOnlyButtons = messageBox->standardButtons() == (QMessageBox::Discard | QMessageBox::Cancel);
+    if (auto* discardButton = messageBox->button(QMessageBox::Discard)) {
+      discardButton->click();
+    }
+  });
+
+  window.reloadProject();
+  QVERIFY(promptShown);
+  QVERIFY(discardOnlyButtons);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_pages->layoutDirection(), Qt::LeftToRight, 10000);
+  QVERIFY(!window.isWindowModified());
+}
+
+void TestMainWindowAsync::closeProjectSaveCreatesHistoryBackup() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
+
+  QFile originalProject(projectPath);
+  QVERIFY(originalProject.open(QIODevice::ReadOnly));
+  const QByteArray originalContents = originalProject.readAll();
+  originalProject.close();
+  pages->setLayoutDirection(Qt::RightToLeft);
+
+  bool promptShown = false;
+  QTimer::singleShot(0, &window, [&]() {
+    auto* messageBox = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!messageBox || messageBox->windowTitle() != QStringLiteral("Save Project")) {
+      return;
+    }
+    promptShown = true;
+    if (auto* saveButton = messageBox->button(QMessageBox::Save)) {
+      saveButton->click();
+    }
+  });
+
+  QVERIFY(window.closeProjectInteractive());
+  QVERIFY(promptShown);
+  const QDir backupsDirectory(projectPath + QStringLiteral(".backups"));
+  const QStringList backups = backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name);
+  QCOMPARE(backups.size(), 1);
+  QFile historyBackup(backupsDirectory.filePath(backups.front()));
+  QVERIFY(historyBackup.open(QIODevice::ReadOnly));
+  QCOMPARE(historyBackup.readAll(), originalContents);
+}
+
+void TestMainWindowAsync::compareFilesDetectsSameSizeChanges() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString firstPath = directory.filePath("first.ScanTailor");
+  const QString secondPath = directory.filePath("second.ScanTailor");
+  const QByteArray original("state=before");
+  const QByteArray changed("state=after!");
+  QCOMPARE(original.size(), changed.size());
+
+  QFile firstFile(firstPath);
+  QVERIFY(firstFile.open(QIODevice::WriteOnly));
+  QCOMPARE(firstFile.write(original), qint64(original.size()));
+  firstFile.close();
+
+  QFile secondFile(secondPath);
+  QVERIFY(secondFile.open(QIODevice::WriteOnly));
+  QCOMPARE(secondFile.write(changed), qint64(changed.size()));
+  secondFile.close();
+
+  QVERIFY(!MainWindow::compareFiles(firstPath, secondPath));
+  QVERIFY(MainWindow::compareFiles(firstPath, firstPath));
+}
+
+void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QVERIFY(window.windowTitle().startsWith(QStringLiteral("[*] project")));
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
+  QVERIFY(!window.isWindowModified());
+  QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
+
+  pages->setLayoutDirection(Qt::RightToLeft);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
+  QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
+
+  QVERIFY(window.saveProjectWithFeedback(core::toFileSystemPath(projectPath)));
+  QVERIFY(!window.isWindowModified());
+  QVERIFY(window.windowTitle().contains(QStringLiteral("[*]")));
+
+  const PageInfo page = pages->toPageSequence(PAGE_VIEW).pageAt(0);
+  const ImageTransformation xform(QRectF(0, 0, 100, 120), Dpi(300, 300));
+  window.m_stages->pageLayoutFilter()->setContentBox(page.id(), xform, QRectF(0, 0, 100, 120), QRectF(10, 10, 80, 100));
+  QMouseEvent mouseRelease(QEvent::MouseButtonRelease, QPointF(), QPointF(), Qt::LeftButton, Qt::NoButton,
+                           Qt::NoModifier);
+  QApplication::sendEvent(&window, &mouseRelease);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
+}
+
+void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {
+  MainWindow window;
+  QVERIFY(QMetaObject::invokeMethod(&window, "showSupportedImageFormats", Qt::DirectConnection));
+
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("supportedImageFormatsDialog"));
+  QVERIFY(dialog);
+  auto* browser = dialog->findChild<QTextBrowser*>();
+  QVERIFY(browser);
+
+  const QString help = browser->toPlainText();
+  QVERIFY(help.contains("TIFF (.tif, .tiff)"));
+  QVERIFY(help.contains("kept as TIFF"));
+  QVERIFY(help.contains("WebP"));
+  QVERIFY(help.contains("multi-page PDF"));
+  QVERIFY(help.contains("B&W Compression"));
+  QVERIFY(help.contains("Color Compression"));
+  QVERIFY(help.contains("CCITT G4"));
+  QVERIFY(help.contains("JPEG"));
+  dialog->close();
+}
+
+void TestMainWindowAsync::applyAlignmentCopiesSelectedSettingsIndependently() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  const QString firstImagePath = directory.filePath("first.png");
+  const QString secondImagePath = directory.filePath("second.png");
+  QVERIFY(image.save(firstImagePath));
+  QVERIFY(image.save(secondImagePath));
+
+  const ImageId firstImageId(core::toFileSystemPath(firstImagePath), 0);
+  const ImageId secondImageId(core::toFileSystemPath(secondImagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(firstImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false),
+                             ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
+  const PageId firstPage = pageSequence.pageAt(0).id();
+  const PageId secondPage = pageSequence.pageAt(1).id();
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  auto* options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  QVERIFY(!options->findChild<QPushButton*>("matchSizeToAllBtn"));
+
+  auto* guideHelp = options->findChild<QTextBrowser*>("textBrowser");
+  QVERIFY(guideHelp);
+  QTextDocument* helpDocument = guideHelp->document();
+  QCOMPARE(helpDocument->defaultFont().pointSizeF(), 7.0);
+  const QTextCursor staticHelp = helpDocument->find(QStringLiteral("Right-click"));
+  const QTextCursor dynamicHelp = helpDocument->find(QStringLiteral("Arrow keys move page content"));
+  QVERIFY(!staticHelp.isNull());
+  QVERIFY(!dynamicHelp.isNull());
+  QVERIFY(guideHelp->toPlainText().contains(QStringLiteral("‣ Arrow keys move page content")));
+  QVERIFY(!staticHelp.charFormat().hasProperty(QTextFormat::FontPointSize));
+  QVERIFY(!dynamicHelp.charFormat().hasProperty(QTextFormat::FontPointSize));
+
+  const QPoint helpPosition(5, 5);
+  const QPoint globalHelpPosition = guideHelp->viewport()->mapToGlobal(helpPosition);
+  QWheelEvent zoomEvent(helpPosition, globalHelpPosition, QPoint(), QPoint(0, 120), Qt::NoButton, Qt::ControlModifier,
+                        Qt::NoScrollPhase, false);
+  QApplication::sendEvent(guideHelp->viewport(), &zoomEvent);
+  QVERIFY(helpDocument->defaultFont().pointSizeF() > 7.0);
+
+  auto* useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  auto* horizontalMode = options->findChild<QComboBox*>("hAlignmentModeCB");
+  auto* verticalMode = options->findChild<QComboBox*>("vAlignmentModeCB");
+  auto* topRight = options->findChild<QToolButton*>("alignTopRightBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(horizontalMode);
+  QVERIFY(verticalMode);
+  QVERIFY(topRight);
+  useForCommonSize->setChecked(true);
+  horizontalMode->setCurrentIndex(1);
+  verticalMode->setCurrentIndex(1);
+  topRight->click();
+  QVERIFY(topRight->isChecked());
+
+  window.goToPage(secondPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  horizontalMode = options->findChild<QComboBox*>("hAlignmentModeCB");
+  verticalMode = options->findChild<QComboBox*>("vAlignmentModeCB");
+  auto* bottomLeft = options->findChild<QToolButton*>("alignBottomLeftBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(horizontalMode);
+  QVERIFY(verticalMode);
+  QVERIFY(bottomLeft);
+  useForCommonSize->setChecked(true);
+  horizontalMode->setCurrentIndex(1);
+  verticalMode->setCurrentIndex(1);
+  bottomLeft->click();
+  useForCommonSize->setChecked(false);
+  QVERIFY(bottomLeft->isChecked());
+  QVERIFY(!useForCommonSize->isChecked());
+
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  auto* applyButton = options->findChild<QPushButton*>("applyAlignmentBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+  auto* dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  auto* allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  auto* copyCommonSize = dialog->findChild<QCheckBox*>("copyCommonSizeCB");
+  auto* copyAlignment = dialog->findChild<QCheckBox*>("copyAlignmentCB");
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(copyCommonSize);
+  QVERIFY(copyAlignment);
+  QVERIFY(buttonBox);
+  allPages->setChecked(true);
+  copyCommonSize->setChecked(true);
+  copyAlignment->setChecked(false);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  window.goToPage(secondPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  bottomLeft = options->findChild<QToolButton*>("alignBottomLeftBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(bottomLeft);
+  QVERIFY(useForCommonSize->isChecked());
+  QVERIFY(bottomLeft->isChecked());
+
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  QVERIFY(useForCommonSize);
+  useForCommonSize->setChecked(false);
+  QVERIFY(!useForCommonSize->isChecked());
+
+  applyButton = options->findChild<QPushButton*>("applyAlignmentBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+  dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  copyCommonSize = dialog->findChild<QCheckBox*>("copyCommonSizeCB");
+  copyAlignment = dialog->findChild<QCheckBox*>("copyAlignmentCB");
+  buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(copyCommonSize);
+  QVERIFY(copyAlignment);
+  QVERIFY(buttonBox);
+  allPages->setChecked(true);
+  copyCommonSize->setChecked(false);
+  copyAlignment->setChecked(true);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  window.goToPage(secondPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  useForCommonSize = options->findChild<QCheckBox*>("alignWithOthersCB");
+  auto* topRightTarget = options->findChild<QToolButton*>("alignTopRightBtn");
+  QVERIFY(useForCommonSize);
+  QVERIFY(topRightTarget);
+  QVERIFY(useForCommonSize->isChecked());
+  QVERIFY(topRightTarget->isChecked());
+}
+
+void TestMainWindowAsync::applySourceDpiCopiesSelectedAxesIndependently() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  const QString firstImagePath = directory.filePath("first.png");
+  const QString secondImagePath = directory.filePath("second.png");
+  QVERIFY(image.save(firstImagePath));
+  QVERIFY(image.save(secondImagePath));
+
+  const ImageId firstImageId(core::toFileSystemPath(firstImagePath), 0);
+  const ImageId secondImageId(core::toFileSystemPath(secondImagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(firstImageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false),
+                             ImageInfo(secondImageId, ImageMetadata(image.size(), Dpi(600, 700)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const PageSequence pageSequence = window.m_thumbSequence->toPageSequence();
+  const PageId firstPage = pageSequence.pageAt(0).id();
+  const PageId secondPage = pageSequence.pageAt(1).id();
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  window.goToPage(firstPage);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi(), Dpi(300, 300));
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi(), Dpi(600, 700));
+
+  auto* options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  QVERIFY(!options->findChild<QPushButton*>("fixDpiBtn"));
+  auto* applyButton = options->findChild<QPushButton*>("applySettingsBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+
+  auto* dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  auto* allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  auto* applyLeft = dialog->findChild<QCheckBox*>("applyLeftCB");
+  auto* applyRight = dialog->findChild<QCheckBox*>("applyRightCB");
+  auto* applyTop = dialog->findChild<QCheckBox*>("applyTopCB");
+  auto* applyBottom = dialog->findChild<QCheckBox*>("applyBottomCB");
+  auto* applyDpiX = dialog->findChild<QCheckBox*>("applyDpiXCB");
+  auto* applyDpiY = dialog->findChild<QCheckBox*>("applyDpiYCB");
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(applyLeft);
+  QVERIFY(applyRight);
+  QVERIFY(applyTop);
+  QVERIFY(applyBottom);
+  QVERIFY(applyDpiX);
+  QVERIFY(applyDpiY);
+  QVERIFY(buttonBox);
+  QVERIFY(applyDpiX->isEnabled());
+  QVERIFY(applyDpiY->isEnabled());
+  QVERIFY(!applyDpiX->isChecked());
+  QVERIFY(!applyDpiY->isChecked());
+
+  allPages->setChecked(true);
+  applyLeft->setChecked(false);
+  applyRight->setChecked(false);
+  applyTop->setChecked(false);
+  applyBottom->setChecked(false);
+  applyDpiX->setChecked(true);
+  applyDpiY->setChecked(false);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QTRY_VERIFY_WITH_TIMEOUT(!options->findChild<QDialog*>(), 10000);
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().horizontal(), 300,
+                            10000);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().vertical(), 700);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi(), Dpi(300, 300));
+
+  auto* sourceXDpi = options->findChild<QLineEdit*>("sourceXDpi");
+  auto* sourceYDpi = options->findChild<QLineEdit*>("sourceYDpi");
+  QVERIFY(sourceXDpi);
+  QVERIFY(sourceYDpi);
+  sourceXDpi->setText(QStringLiteral("400"));
+  sourceYDpi->setText(QStringLiteral("400"));
+  QVERIFY(QMetaObject::invokeMethod(options, "sourceDpiEditingFinished", Qt::DirectConnection));
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi().horizontal(), 400,
+                            10000);
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(firstPage).metadata().dpi().vertical(), 400, 10000);
+
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  applyButton = options->findChild<QPushButton*>("applySettingsBtn");
+  QVERIFY(applyButton);
+  applyButton->click();
+  dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  allPages = dialog->findChild<QRadioButton*>("allPagesRB");
+  applyLeft = dialog->findChild<QCheckBox*>("applyLeftCB");
+  applyRight = dialog->findChild<QCheckBox*>("applyRightCB");
+  applyTop = dialog->findChild<QCheckBox*>("applyTopCB");
+  applyBottom = dialog->findChild<QCheckBox*>("applyBottomCB");
+  applyDpiX = dialog->findChild<QCheckBox*>("applyDpiXCB");
+  applyDpiY = dialog->findChild<QCheckBox*>("applyDpiYCB");
+  buttonBox = dialog->findChild<QDialogButtonBox*>("buttonBox");
+  QVERIFY(allPages);
+  QVERIFY(applyLeft);
+  QVERIFY(applyRight);
+  QVERIFY(applyTop);
+  QVERIFY(applyBottom);
+  QVERIFY(applyDpiX);
+  QVERIFY(applyDpiY);
+  QVERIFY(buttonBox);
+
+  allPages->setChecked(true);
+  applyLeft->setChecked(false);
+  applyRight->setChecked(false);
+  applyTop->setChecked(false);
+  applyBottom->setChecked(false);
+  applyDpiX->setChecked(false);
+  applyDpiY->setChecked(true);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QTRY_COMPARE_WITH_TIMEOUT(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().horizontal(), 300,
+                            10000);
+  QCOMPARE(pages->toPageSequence(PAGE_VIEW).pageAt(secondPage).metadata().dpi().vertical(), 400);
+}
+
+void TestMainWindowAsync::filterDockWidthRestoresFromConfiguration() {
+  SettingsStore settings;
+  const QString key = QStringLiteral("mainWindow/dockState");
+  ByteArraySettingRestore settingRestore(settings, key);
+  settings.remove(key);
+
+  int expectedWidth = 0;
+  {
+    MainWindow window;
+    window.resize(1100, 700);
+    window.setDockWidgetsVisible(true);
+    window.show();
+    QTRY_VERIFY(window.filterDockWidget->isVisible());
+
+    window.resizeDocks({window.filterDockWidget}, {350}, Qt::Horizontal);
+    QTRY_VERIFY_WITH_TIMEOUT(window.filterDockWidget->width() >= 340, 5000);
+    expectedWidth = window.filterDockWidget->width();
+
+    window.setDockWidgetsVisible(false);
+    settings.setValue(key, window.saveState(1));
+  }
+
+  {
+    MainWindow window;
+    window.resize(1100, 700);
+    window.setDockWidgetsVisible(true);
+    window.show();
+    QTRY_COMPARE_WITH_TIMEOUT(window.filterDockWidget->width(), expectedWidth, 5000);
+  }
+}
+
+void TestMainWindowAsync::sourceDpiChangesPersistInMargins() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  auto* dpiCombo = window.m_optionsWidget->findChild<QComboBox*>("sourceDpiCombo");
+  auto* xDpi = window.m_optionsWidget->findChild<QLineEdit*>("sourceXDpi");
+  auto* yDpi = window.m_optionsWidget->findChild<QLineEdit*>("sourceYDpi");
+  auto* dpiLabel = window.m_optionsWidget->findChild<QLabel*>("sourceDpiLabel");
+  auto* dpiValuesLayout = window.m_optionsWidget->findChild<QHBoxLayout*>("sourceDpiValuesLayout");
+  QVERIFY(dpiCombo);
+  QVERIFY(xDpi);
+  QVERIFY(yDpi);
+  QVERIFY(dpiLabel);
+  QVERIFY(dpiValuesLayout);
+  QCOMPARE(dpiLabel->text(), QStringLiteral("sDPI"));
+  QCOMPARE(dpiValuesLayout->spacing(), 0);
+
+  dpiCombo->setCurrentIndex(2);
+  QVERIFY(QMetaObject::invokeMethod(window.m_optionsWidget.data(), "sourceDpiComboActivated", Qt::DirectConnection,
+                                    Q_ARG(int, 2)));
+  QCoreApplication::processEvents();
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_thumbSequence->toPageSequence().pageAt(size_t(0)).metadata().dpi(), Dpi(400, 400),
+                            10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QCOMPARE(xDpi->text(), QStringLiteral("400"));
+  QCOMPARE(yDpi->text(), QStringLiteral("400"));
+  QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(size_t(0)).metadata().dpi(), Dpi(400, 400));
+
+  xDpi->setText(QStringLiteral("600"));
+  yDpi->setText(QStringLiteral("400"));
+  QVERIFY(QMetaObject::invokeMethod(window.m_optionsWidget.data(), "sourceDpiEditingFinished", Qt::DirectConnection));
+  QCoreApplication::processEvents();
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_thumbSequence->toPageSequence().pageAt(size_t(0)).metadata().dpi(), Dpi(600, 400),
+                            10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  QCOMPARE(xDpi->text(), QStringLiteral("600"));
+  QCOMPARE(yDpi->text(), QStringLiteral("400"));
+  QCOMPARE(window.m_pages->toPageSequence(PAGE_VIEW).pageAt(size_t(0)).metadata().dpi(), Dpi(600, 400));
+}
+
+void TestMainWindowAsync::marginsGuideContextMenuIsAvailableAcrossView() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()), core::toFileSystemPath(projectPath));
+  window.resize(1100, 700);
+  window.show();
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const int pageLayoutFilterIdx = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  auto* view = window.findChild<page_layout::ImageView*>();
+  QVERIFY(view);
+  QMenu* menu = view->findChild<QMenu*>();
+  QVERIFY(menu);
+  QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Set position"));
+  QCOMPARE(menu->actions().at(1)->text(), QStringLiteral("Add guide"));
+  QCOMPARE(menu->actions().at(2)->text(), QStringLiteral("Add guide"));
+  QVERIFY(!menu->actions().at(1)->icon().isNull());
+  QVERIFY(!menu->actions().at(2)->icon().isNull());
+
+  const QPoint center = view->imageToWidget().map(QPointF(image.width() / 2.0, image.height() / 2.0)).toPoint();
+  const auto showContextMenuAt = [view, menu](const QPoint& pos) {
+    QContextMenuEvent event(QContextMenuEvent::Mouse, pos, view->viewport()->mapToGlobal(pos));
+    QApplication::sendEvent(view->viewport(), &event);
+    QTRY_VERIFY(menu->isVisible());
+  };
+  const Qt::KeyboardModifiers guideDragModifiers = Qt::ControlModifier | Qt::AltModifier;
+  const auto sendGuideDragMove = [view, guideDragModifiers](const QPoint& pos) {
+    QMouseEvent event(QEvent::MouseMove, QPointF(pos), QPointF(view->viewport()->mapToGlobal(pos)), Qt::NoButton,
+                      Qt::LeftButton, guideDragModifiers);
+    QApplication::sendEvent(view->viewport(), &event);
+  };
+  const QPoint horizontalGuideStart = center + QPoint(30, 50);
+  showContextMenuAt(horizontalGuideStart);
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  menu->actions().at(1)->trigger();
+  menu->close();
+  showContextMenuAt(horizontalGuideStart);
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->close();
+  QCoreApplication::processEvents();
+  QTest::keyPress(view, Qt::Key_Control, Qt::NoModifier);
+  QTest::keyPress(view, Qt::Key_Alt, guideDragModifiers);
+  QKeyEvent horizontalModifiersEvent(QEvent::KeyPress, Qt::Key_unknown, guideDragModifiers);
+  QApplication::sendEvent(view, &horizontalModifiersEvent);
+  QTest::mousePress(view->viewport(), Qt::LeftButton, guideDragModifiers, horizontalGuideStart);
+  QVERIFY(view->interactionState().captured());
+  QCOMPARE(view->viewport()->cursor().shape(), Qt::SplitVCursor);
+  const QPoint horizontalGuideMoved = horizontalGuideStart + QPoint(0, 10);
+  QCursor::setPos(view->viewport()->mapToGlobal(horizontalGuideMoved));
+  sendGuideDragMove(horizontalGuideMoved);
+  QTRY_VERIFY(!view->guideMeasurementText().isEmpty());
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Top:")));
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Bottom:")));
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("%")));
+  QVERIFY(view->guideMeasurementText().contains(unitsToLocalizedString(UnitsProvider::getInstance().getUnits())));
+  QCoreApplication::processEvents();
+  const QImage horizontalGuideImage = view->viewport()->grab().toImage();
+  const QPoint horizontalGuideAlongMove = horizontalGuideStart + QPoint(10, 10);
+  QCursor::setPos(view->viewport()->mapToGlobal(horizontalGuideAlongMove));
+  sendGuideDragMove(horizontalGuideAlongMove);
+  QCursor::setPos(view->viewport()->mapToGlobal(horizontalGuideStart + QPoint(0, 10)));
+  sendGuideDragMove(horizontalGuideStart + QPoint(0, 10));
+  QCoreApplication::processEvents();
+  QCOMPARE(view->viewport()->grab().toImage(), horizontalGuideImage);
+  sendGuideDragMove(horizontalGuideStart);
+  QTest::mouseRelease(view->viewport(), Qt::LeftButton, guideDragModifiers, horizontalGuideStart);
+  QTest::keyRelease(view, Qt::Key_Alt);
+  QTest::keyRelease(view, Qt::Key_Control);
+  QVERIFY(view->guideMeasurementText().isEmpty());
+
+  const QPoint verticalGuideStart = center + QPoint(50, 30);
+  showContextMenuAt(verticalGuideStart);
+  QVERIFY(menu->actions().at(2)->isEnabled());
+  menu->actions().at(2)->trigger();
+  menu->close();
+  showContextMenuAt(verticalGuideStart);
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->close();
+  QCoreApplication::processEvents();
+  QTest::keyPress(view, Qt::Key_Control, Qt::NoModifier);
+  QTest::keyPress(view, Qt::Key_Alt, guideDragModifiers);
+  QKeyEvent verticalModifiersEvent(QEvent::KeyPress, Qt::Key_unknown, guideDragModifiers);
+  QApplication::sendEvent(view, &verticalModifiersEvent);
+  QTest::mousePress(view->viewport(), Qt::LeftButton, guideDragModifiers, verticalGuideStart);
+  QCOMPARE(view->viewport()->cursor().shape(), Qt::SplitHCursor);
+  const QPoint verticalGuideMoved = verticalGuideStart + QPoint(10, 0);
+  QCursor::setPos(view->viewport()->mapToGlobal(verticalGuideMoved));
+  sendGuideDragMove(verticalGuideMoved);
+  QTRY_VERIFY(!view->guideMeasurementText().isEmpty());
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Left:")));
+  QVERIFY(view->guideMeasurementText().contains(QStringLiteral("Right:")));
+  QCoreApplication::processEvents();
+  const QImage verticalGuideImage = view->viewport()->grab().toImage();
+  const QPoint verticalGuideAlongMove = verticalGuideStart + QPoint(10, 10);
+  QCursor::setPos(view->viewport()->mapToGlobal(verticalGuideAlongMove));
+  sendGuideDragMove(verticalGuideAlongMove);
+  QCursor::setPos(view->viewport()->mapToGlobal(verticalGuideStart + QPoint(10, 0)));
+  sendGuideDragMove(verticalGuideStart + QPoint(10, 0));
+  QCoreApplication::processEvents();
+  QCOMPARE(view->viewport()->grab().toImage(), verticalGuideImage);
+  sendGuideDragMove(verticalGuideStart);
+  QTest::mouseRelease(view->viewport(), Qt::LeftButton, guideDragModifiers, verticalGuideStart);
+  QTest::keyRelease(view, Qt::Key_Alt);
+  QTest::keyRelease(view, Qt::Key_Control);
+  QVERIFY(view->guideMeasurementText().isEmpty());
+
+  showContextMenuAt(horizontalGuideStart + QPoint(0, 10));
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
+  menu->close();
+  showContextMenuAt(verticalGuideStart + QPoint(10, 0));
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
+  menu->close();
+
+  showContextMenuAt(center);
+  QVERIFY(menu->actions().at(4)->isVisible());
+  QVERIFY(menu->actions().at(0)->isVisible());
+  bool positionDialogShown = false;
+  bool positionDialogControlsPresent = false;
+  QTimer::singleShot(0, view, [&]() {
+    auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+
+    positionDialogShown = true;
+    auto* sideCombo = dialog->findChild<QComboBox*>(QStringLiteral("guidePositionSideCombo"));
+    auto* unitsCombo = dialog->findChild<QComboBox*>(QStringLiteral("guidePositionUnitsCombo"));
+    auto* valueSpinBox = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("guidePositionSpinBox"));
+    auto* currentPositionLabel = dialog->findChild<QLabel*>(QStringLiteral("guidePositionCurrentValues"));
+    const bool showsBothHorizontalSides = currentPositionLabel && currentPositionLabel->text().contains("Top:")
+                                          && currentPositionLabel->text().contains("Bottom:");
+    const bool showsBothVerticalSides = currentPositionLabel && currentPositionLabel->text().contains("Left:")
+                                        && currentPositionLabel->text().contains("Right:");
+    positionDialogControlsPresent = sideCombo && sideCombo->count() == 2 && unitsCombo && unitsCombo->count() == 2
+                                    && unitsCombo->itemText(1) == QStringLiteral("Percent (%)") && valueSpinBox
+                                    && valueSpinBox->maximum() > 0.0 && currentPositionLabel
+                                    && currentPositionLabel->text().contains(QStringLiteral("%"))
+                                    && currentPositionLabel->text().contains(QLatin1Char('\n'))
+                                    && (showsBothHorizontalSides || showsBothVerticalSides);
+    dialog->accept();
+  });
+  menu->actions().at(0)->trigger();
+  QVERIFY(positionDialogShown);
+  QVERIFY(positionDialogControlsPresent);
+
+  showContextMenuAt(center);
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
+  menu->close();
+  showContextMenuAt(center);
+  QVERIFY(menu->actions().at(4)->isVisible());
+  menu->actions().at(4)->trigger();
+  menu->close();
+
+  showContextMenuAt(center);
+  QVERIFY(!menu->actions().at(0)->isVisible());
+  QVERIFY(!menu->actions().at(3)->isVisible());
+  QVERIFY(!menu->actions().at(4)->isVisible());
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  QVERIFY(menu->actions().at(2)->isEnabled());
+  menu->actions().at(1)->trigger();
+  menu->close();
+
+  const QPoint outsideX(view->viewport()->rect().left(), center.y());
+  showContextMenuAt(outsideX);
+  QVERIFY(menu->actions().at(1)->isVisible());
+  QVERIFY(menu->actions().at(2)->isVisible());
+  QVERIFY(menu->actions().at(1)->isEnabled());
+  QVERIFY(!menu->actions().at(2)->isEnabled());
+  menu->close();
+
+  const QPoint outsideY(center.x(), view->viewport()->rect().top());
+  showContextMenuAt(outsideY);
+  QVERIFY(!menu->actions().at(1)->isEnabled());
+  QVERIFY(menu->actions().at(2)->isEnabled());
+  QVERIFY(menu->actions().at(3)->isVisible());
+  menu->actions().at(3)->trigger();
+  menu->close();
+
+  window.saveProjectTriggered();
+  QVERIFY(QFileInfo::exists(projectPath));
+  QFile projectFile(projectPath);
+  QVERIFY(projectFile.open(QIODevice::ReadOnly));
+  QDomDocument projectDocument;
+  QVERIFY(projectDocument.setContent(&projectFile));
+  const QDomElement pageLayout = projectDocument.elementsByTagName("page-layout").at(0).toElement();
+  QCOMPARE(pageLayout.attribute("guidesInitialized"), QStringLiteral("1"));
+  QVERIFY(pageLayout.firstChildElement("guides").isNull());
+
+  QPointer<page_layout::ImageView> oldView(view);
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(oldView.isNull(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  window.filterList->selectRow(pageLayoutFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayoutFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+  view = window.findChild<page_layout::ImageView*>();
+  QVERIFY(view);
+  menu = view->findChild<QMenu*>();
+  QVERIFY(menu);
+  const QPoint reopenedCenter = view->imageToWidget().map(QPointF(image.width() / 2.0, image.height() / 2.0)).toPoint();
+  QContextMenuEvent reopenedEvent(QContextMenuEvent::Mouse, reopenedCenter,
+                                  view->viewport()->mapToGlobal(reopenedCenter));
+  QApplication::sendEvent(view->viewport(), &reopenedEvent);
+  QTRY_VERIFY(menu->isVisible());
+  QVERIFY(!menu->actions().at(0)->isVisible());
+  QVERIFY(!menu->actions().at(3)->isVisible());
+  QVERIFY(!menu->actions().at(4)->isVisible());
+}
+
+void TestMainWindowAsync::batchProcessingBenchmark() {
+  const QString projectPath = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_PROJECT");
+  if (projectPath.isEmpty()) {
+    QSKIP("Set SCANTAILOR_BATCH_BENCH_PROJECT to run the opt-in batch benchmark.");
+  }
+  QVERIFY2(QFileInfo(projectPath).isFile(), qPrintable(QString("Project file does not exist: %1").arg(projectPath)));
+
+  const QString stage = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_STAGE", "page-layout");
+  QString batchWarning;
+  MainWindow window(core::toFileSystemPath(QFileInfo(projectPath).absolutePath()));
+  int filterIndex = -1;
+  if (stage == "fix-orientation") {
+    filterIndex = window.m_stages->fixOrientationFilterIdx();
+  } else if (stage == "select-content") {
+    filterIndex = window.m_stages->selectContentFilterIdx();
+  } else if (stage == "page-layout") {
+    filterIndex = window.m_stages->pageLayoutFilterIdx();
+  } else if (stage == "output") {
+    filterIndex = window.m_stages->outputFilterIdx();
+  } else {
+    QFAIL("SCANTAILOR_BATCH_BENCH_STAGE must be fix-orientation, select-content, page-layout, or output.");
+  }
+
+  QTimer dialogWatcher;
+  connect(&dialogWatcher, &QTimer::timeout, &window, [&batchWarning]() {
+    auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+    if (!dialog) {
+      return;
+    }
+    if (dialog->windowTitle() == QObject::tr("Batch processing")) {
+      batchWarning = dialog->text();
+    }
+    dialog->accept();
+  });
+  dialogWatcher.start(25);
+
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+
+  window.filterList->selectRow(filterIndex);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, filterIndex, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_waitingForCancelledTasks, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+
+  QElapsedTimer timer;
+  timer.start();
+  window.startBatchProcessing();
+  QVERIFY(window.isBatchProcessingInProgress());
+  QTRY_VERIFY_WITH_TIMEOUT(!window.isBatchProcessingInProgress(), 1800000);
+  const qint64 elapsedMs = timer.elapsed();
+
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  QTest::qWait(50);
+  dialogWatcher.stop();
+  QVERIFY2(batchWarning.isEmpty(), qPrintable(batchWarning));
+
+  qInfo().noquote() << QStringLiteral("PR196_BATCH_BENCH stage=%1 pages=%2 elapsed_ms=%3")
+                           .arg(stage)
+                           .arg(static_cast<qulonglong>(window.allPages().numPages()))
+                           .arg(elapsedMs);
+}
+
+void TestMainWindowAsync::stageSwitchBenchmark() {
+  const QString projectPath = qEnvironmentVariable("SCANTAILOR_BATCH_BENCH_PROJECT");
+  if (projectPath.isEmpty()) {
+    QSKIP("Set SCANTAILOR_BATCH_BENCH_PROJECT to run the opt-in stage-switch benchmark.");
+  }
+  QVERIFY2(QFileInfo(projectPath).isFile(), qPrintable(QString("Project file does not exist: %1").arg(projectPath)));
+
+  MainWindow window(core::toFileSystemPath(QFileInfo(projectPath).absolutePath()));
+  window.openProject(projectPath);
+  QTRY_VERIFY_WITH_TIMEOUT(window.isProjectLoaded(), 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  window.show();
+  QTest::qWait(100);
+
+  const int fixOrientation = window.m_stages->fixOrientationFilterIdx();
+  const int pageLayout = window.m_stages->pageLayoutFilterIdx();
+  window.filterList->selectRow(pageLayout);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageLayout, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  window.filterList->selectRow(fixOrientation);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, fixOrientation, 120000);
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+  QTest::qWait(100);
+
+  for (int iteration = 0; iteration < 6; ++iteration) {
+    const int target = (iteration % 2 == 0) ? pageLayout : fixOrientation;
+    QElapsedTimer timer;
+    timer.start();
+    window.filterList->selectRow(target);
+    QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, target, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(!window.m_waitingForCancelledTasks, 120000);
+    QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 120000);
+    window.repaint();
+    QApplication::processEvents();
+    const qint64 elapsedUs = timer.nsecsElapsed() / 1000;
+    qInfo().noquote() << QStringLiteral("PR196_STAGE_SWITCH_BENCH target=%1 pages=%2 elapsed_us=%3")
+                             .arg(target == pageLayout ? "page-layout" : "fix-orientation")
+                             .arg(static_cast<qulonglong>(window.allPages().numPages()))
+                             .arg(elapsedUs);
+  }
 }

@@ -3,6 +3,7 @@
 
 #include "ConfigurationDialog.h"
 
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QApplication>
@@ -73,9 +74,9 @@ ConfigurationDialog::ConfigurationDialog(QWidget* parent)
   layout->addLayout(buttonsLayout);
 
   connect(copyButton, &QPushButton::clicked, this,
-          [this]() { QApplication::clipboard()->setText(SettingsStore::configFilePath()); });
+          [this]() { QApplication::clipboard()->setText(core::toQString(SettingsStore::configFilePath())); });
   connect(openButton, &QPushButton::clicked, this, [this]() {
-    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(SettingsStore::configDirectory()))) {
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(core::toQString(SettingsStore::configDirectory())))) {
       QMessageBox::warning(this, tr("Configuration"), tr("Unable to open the configuration folder."));
     }
   });
@@ -85,12 +86,12 @@ ConfigurationDialog::ConfigurationDialog(QWidget* parent)
 }
 
 void ConfigurationDialog::reload() {
-  m_pathLabel->setText(tr("Settings file: %1").arg(SettingsStore::configFilePath()));
-  m_profilesPathLabel->setText(tr("Profiles folder: %1").arg(SettingsStore::profilesDirectory()));
+  m_pathLabel->setText(tr("Settings file: %1").arg(core::toQString(SettingsStore::configFilePath())));
+  m_profilesPathLabel->setText(tr("Profiles folder: %1").arg(core::toQString(SettingsStore::profilesDirectory())));
   m_statusLabel->setText(SettingsStore::configDirectoryWritable() ? tr("Configuration directory is writable.")
                                                                   : tr("Configuration directory is read-only."));
 
-  QFile file(SettingsStore::configFilePath());
+  QFile file(core::toQString(SettingsStore::configFilePath()));
   if (!file.exists()) {
     m_contents->setPlainText(tr("The settings file has not been created yet."));
     return;

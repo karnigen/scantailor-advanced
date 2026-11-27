@@ -80,6 +80,7 @@ QDomElement Filter::saveSettings(const ProjectWriter& writer, QDomDocument& doc)
   QDomElement filterEl(doc.createElement("page-layout"));
 
   filterEl.setAttribute("showMiddleRect", m_settings->isShowingMiddleRectEnabled() ? "1" : "0");
+  filterEl.setAttribute("guidesInitialized", m_settings->guidesInitialized() ? "1" : "0");
 
   if (!m_settings->guides().empty()) {
     QDomElement guidesEl(doc.createElement("guides"));
@@ -115,6 +116,7 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
   m_settings->enableShowingMiddleRect(filterEl.attribute("showMiddleRect") == "1");
 
   const QDomElement guidesEl = filterEl.namedItem("guides").toElement();
+  m_settings->setGuidesInitialized(filterEl.attribute("guidesInitialized") == "1" || !guidesEl.isNull());
   if (!guidesEl.isNull()) {
     QDomNode node(guidesEl.firstChild());
     for (; !node.isNull(); node = node.nextSibling()) {
@@ -160,9 +162,12 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
 void Filter::setContentBox(const PageId& pageId,
                            const ImageTransformation& xform,
                            const QRectF& pageRect,
-                           const QRectF& contentRect) {
+                           const QRectF& contentRect,
+                           const bool pageBoundaryEnabled) {
   const QSizeF contentSizeMm(Utils::calcRectSizeMM(xform, contentRect));
-  m_settings->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm);
+  const QSizeF pageBoundarySizeMM = pageBoundaryEnabled ? Utils::calcRectSizeMM(xform, pageRect) : QSizeF();
+  m_settings->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, pageBoundaryEnabled,
+                                            pageBoundarySizeMM);
 }
 
 void Filter::invalidateContentBox(const PageId& pageId) {

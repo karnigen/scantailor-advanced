@@ -56,8 +56,10 @@ const QString ApplicationSettings::SHOW_CANCELING_SELECTION_QUESTION_KEY = "sele
 const QString ApplicationSettings::DEFAULT_ZONE_CREATION_MODE_KEY = "default_zone_creation_mode";
 const QString ApplicationSettings::OUTPUT_SHOW_GUIDES_KEY = "output_show_guides";
 const QString ApplicationSettings::IMAGE_ALLOCATION_LIMIT_MB_KEY = "image_allocation_limit_mb";
+const QString ApplicationSettings::PROJECT_BACKUP_COUNT_KEY = "project_backup_count";
 const int ApplicationSettings::DEFAULT_ZONE_CREATION_MODE = 0;  // POLYGONAL
 const bool ApplicationSettings::DEFAULT_OUTPUT_SHOW_GUIDES = false;
+const int ApplicationSettings::DEFAULT_PROJECT_BACKUP_COUNT = 10;
 
 QString ApplicationSettings::getKey(const QString& keyName) {
   return ApplicationSettings::ROOT_KEY + '/' + keyName;
@@ -288,4 +290,17 @@ bool ApplicationSettings::setImageAllocationLimitMb(int limitMb) {
     return false;
   }
   return true;
+}
+
+int ApplicationSettings::getProjectBackupCount() const {
+  const int count = m_settings.intValue(getKey(PROJECT_BACKUP_COUNT_KEY), DEFAULT_PROJECT_BACKUP_COUNT);
+  return qBound(0, count, 100);
+}
+
+void ApplicationSettings::setProjectBackupCount(int count) {
+  if (count < 0 || count > 100) {
+    qWarning() << "Ignoring invalid project backup count:" << count;
+    return;
+  }
+  m_settings.setValue(getKey(PROJECT_BACKUP_COUNT_KEY), count);
 }

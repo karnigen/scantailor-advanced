@@ -163,9 +163,6 @@
           <property name="text">
            <string>Reset</string>
           </property>
-          <property name="toolTip">
-           <string>Click to reset.</string>
-          </property>
          </widget>
         </item>
         <item>
@@ -200,9 +197,6 @@
         <property name="text">
          <string>Enable manual trim</string>
         </property>
-        <property name="toolTip">
-         <string>Toggle this option: Enable manual trim.</string>
-        </property>
        </widget>
       </item>
       <item>
@@ -233,7 +227,7 @@
            <number>0</number>
           </property>
           <property name="toolTip">
-           <string>Adjust trim top spin.</string>
+           <string>Set how much to trim from the top edge.</string>
           </property>
          </widget>
         </item>
@@ -253,7 +247,7 @@
            <number>0</number>
           </property>
           <property name="toolTip">
-           <string>Adjust trim left spin.</string>
+           <string>Set how much to trim from the left edge.</string>
           </property>
          </widget>
         </item>
@@ -273,7 +267,7 @@
            <number>0</number>
           </property>
           <property name="toolTip">
-           <string>Adjust trim right spin.</string>
+           <string>Set how much to trim from the right edge.</string>
           </property>
          </widget>
         </item>
@@ -293,7 +287,7 @@
            <number>0</number>
           </property>
           <property name="toolTip">
-           <string>Adjust trim bottom spin.</string>
+           <string>Set how much to trim from the bottom edge.</string>
           </property>
          </widget>
         </item>
@@ -313,9 +307,6 @@
        <widget class="QPushButton" name="resetTrimBtn">
         <property name="text">
          <string>Reset trim</string>
-        </property>
-        <property name="toolTip">
-         <string>Click to reset trim.</string>
         </property>
        </widget>
       </item>

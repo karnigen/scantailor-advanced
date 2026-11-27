@@ -25,9 +25,6 @@
         <property name="enabled">
          <bool>true</bool>
         </property>
-        <property name="toolTip">
-         <string>Enter inp dir line.</string>
-        </property>
        </widget>
       </item>
       <item>
@@ -51,9 +48,6 @@
      <layout class="QHBoxLayout">
       <item>
        <widget class="QLineEdit" name="outDirLine">
-        <property name="toolTip">
-         <string>Enter out dir line.</string>
-        </property>
        </widget>
       </item>
       <item>

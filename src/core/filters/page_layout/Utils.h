@@ -45,6 +45,12 @@ class Utils {
    */
   static void extendPolyRectWithMargins(QPolygonF& polyRect, const Margins& margins);
 
+  static void extendPolyRectToInclude(QPolygonF& polyRect, const QPolygonF& otherRect);
+
+  static Margins constrainHardMarginsMM(const QPolygonF& contentRectMm,
+                                        const Margins& marginsMm,
+                                        const QSizeF& aggregateHardSizeMm);
+
   /**
    * \brief Calculates margins to extend hardSizeMm to aggregateHardSizeMm.
    *

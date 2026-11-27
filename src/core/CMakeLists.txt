@@ -19,6 +19,7 @@ set(common_sources
     OutOfMemoryHandler.cpp OutOfMemoryHandler.h
     PageSelectionAccessor.cpp PageSelectionAccessor.h
     PageSelectionProvider.h
+    PageSizePresets.cpp PageSizePresets.h
     ContentSpanFinder.cpp ContentSpanFinder.h
     ImageTransformation.cpp ImageTransformation.h
     ImagePixmapUnion.h
@@ -36,6 +37,7 @@ set(common_sources
     PageOrientationPropagator.cpp PageOrientationPropagator.h
     DebugImagesImpl.cpp DebugImagesImpl.h
     ImageId.cpp ImageId.h
+    PathUtils.h
     PageId.cpp PageId.h
     PageInfo.cpp PageInfo.h
     BackgroundTask.cpp BackgroundTask.h
@@ -59,6 +61,7 @@ set(common_sources
     FilterOptionsWidget.cpp FilterOptionsWidget.h
     FilterUiInterface.h
     ProjectMigration.cpp ProjectMigration.h
+    ProjectBackup.cpp ProjectBackup.h
     ProjectReader.cpp ProjectReader.h
     ProjectWriter.cpp ProjectWriter.h
     AtomicFileOverwriter.cpp AtomicFileOverwriter.h
@@ -67,6 +70,7 @@ set(common_sources
     FileNameDisambiguator.cpp FileNameDisambiguator.h
     OpenGLSupport.cpp OpenGLSupport.h
     OutputFileNameGenerator.cpp OutputFileNameGenerator.h
+    ProcessedPagesExporter.cpp ProcessedPagesExporter.h
     Margins.cpp Margins.h
     ColorScheme.h
     DarkColorScheme.cpp DarkColorScheme.h
@@ -125,7 +129,7 @@ add_library(core STATIC ${common_sources} ${common_ui_files})
 
 target_link_libraries(
   core
-  PRIVATE TIFF::TIFF PNG::PNG ZLIB::ZLIB JPEG::JPEG tomlplusplus::tomlplusplus
+  PRIVATE TIFF::TIFF PNG::PNG ZLIB::ZLIB JPEG::JPEG tomlplusplus::tomlplusplus WebP::webp WebP::libwebpmux
   PUBLIC Qt::Core Qt::Gui Qt::Widgets Qt::Xml Qt::Network Qt::OpenGL Qt::Svg Qt::OpenGLWidgets
   imageproc zones
   fix_orientation page_split deskew select_content page_layout output)

@@ -7,6 +7,7 @@
 #include <PageSizeOrderSnapshot.h>
 
 #include <QMutex>
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -24,6 +25,7 @@
 #include "PageSequence.h"
 #include "Params.h"
 #include "RelinkablePath.h"
+#include "core/PathUtils.h"
 
 
 namespace page_layout {
@@ -36,6 +38,8 @@ class Settings::Item {
   QSizeF contentSizeMM;
   Alignment alignment;
   bool autoMargins;
+  bool pageBoundaryEnabled;
+  QSizeF pageBoundarySizeMM;
   std::size_t sequenceNumber = 0;
 
   Item(const PageId& pageId,
@@ -44,7 +48,9 @@ class Settings::Item {
        const QRectF& contentRect,
        const QSizeF& contentSizeMm,
        const Alignment& alignment,
-       bool autoMargins);
+       bool autoMargins,
+       bool pageBoundaryEnabled = false,
+       const QSizeF& pageBoundarySizeMm = QSizeF());
 
   double hardWidthMM() const;
 
@@ -87,19 +93,31 @@ class Settings::ModifyAlignment {
 
 class Settings::ModifyContentSize {
  public:
-  ModifyContentSize(const QSizeF& contentSizeMm, const QRectF& contentRect, const QRectF& pageRect)
-      : m_contentSizeMM(contentSizeMm), m_contentRect(contentRect), m_pageRect(pageRect) {}
+  ModifyContentSize(const QSizeF& contentSizeMm,
+                    const QRectF& contentRect,
+                    const QRectF& pageRect,
+                    const bool pageBoundaryEnabled,
+                    const QSizeF& pageBoundarySizeMm)
+      : m_contentSizeMM(contentSizeMm),
+        m_contentRect(contentRect),
+        m_pageRect(pageRect),
+        m_pageBoundaryEnabled(pageBoundaryEnabled),
+        m_pageBoundarySizeMM(pageBoundarySizeMm) {}
 
   void operator()(Item& item) {
     item.contentSizeMM = m_contentSizeMM;
     item.contentRect = m_contentRect;
     item.pageRect = m_pageRect;
+    item.pageBoundaryEnabled = m_pageBoundaryEnabled;
+    item.pageBoundarySizeMM = m_pageBoundarySizeMM;
   }
 
  private:
   QSizeF m_contentSizeMM;
   QRectF m_contentRect;
   QRectF m_pageRect;
+  bool m_pageBoundaryEnabled;
+  QSizeF m_pageBoundarySizeMM;
 };
 
 
@@ -131,6 +149,8 @@ class Settings::Impl {
                                        const QRectF& pageRect,
                                        const QRectF& contentRect,
                                        const QSizeF& contentSizeMm,
+                                       bool pageBoundaryEnabled,
+                                       const QSizeF& pageBoundarySizeMm,
                                        QSizeF* aggHardSizeBefore,
                                        QSizeF* aggHardSizeAfter);
 
@@ -152,8 +172,6 @@ class Settings::Impl {
 
   QSizeF computeAggregateHardSizeMMLocked() const;
 
-  QSizeF getAggregateHardSizeMM(const PageId& pageId, const QSizeF& hardSizeMm, const Alignment& alignment) const;
-
   void setAggregateHardSizeFrozen(bool frozen);
 
   bool isAggregateHardSizeFrozen() const;
@@ -165,6 +183,10 @@ class Settings::Impl {
   const DeviationProvider<PageId>& deviationProvider() const;
 
   std::vector<Guide>& guides();
+
+  bool guidesInitialized() const;
+
+  void setGuidesInitialized(bool initialized);
 
   bool isShowingMiddleRectEnabled() const;
 
@@ -376,6 +398,7 @@ class Settings::Impl {
   const bool m_autoMarginsDefault;
   DeviationProvider<PageId> m_deviationProvider;
   std::vector<Guide> m_guides;
+  bool m_guidesInitialized;
   bool m_showMiddleRect;
 
   std::optional<QSizeF> m_frozenAggregateHardSizeMm;
@@ -424,10 +447,12 @@ Params Settings::updateContentSizeAndGetParams(const PageId& pageId,
                                                const QRectF& pageRect,
                                                const QRectF& contentRect,
                                                const QSizeF& contentSizeMm,
+                                               const bool pageBoundaryEnabled,
+                                               const QSizeF& pageBoundarySizeMm,
                                                QSizeF* aggHardSizeBefore,
                                                QSizeF* aggHardSizeAfter) {
-  return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, aggHardSizeBefore,
-                                               aggHardSizeAfter);
+  return m_impl->updateContentSizeAndGetParams(pageId, pageRect, contentRect, contentSizeMm, pageBoundaryEnabled,
+                                               pageBoundarySizeMm, aggHardSizeBefore, aggHardSizeAfter);
 }
 
 Margins Settings::getHardMarginsMM(const PageId& pageId) const {
@@ -458,12 +483,6 @@ QSizeF Settings::getAggregateHardSizeMM() const {
   return m_impl->getAggregateHardSizeMM();
 }
 
-QSizeF Settings::getAggregateHardSizeMM(const PageId& pageId,
-                                        const QSizeF& hardSizeMm,
-                                        const Alignment& alignment) const {
-  return m_impl->getAggregateHardSizeMM(pageId, hardSizeMm, alignment);
-}
-
 void Settings::setAggregateHardSizeFrozen(const bool frozen) {
   m_impl->setAggregateHardSizeFrozen(frozen);
 }
@@ -492,6 +511,14 @@ std::vector<Guide>& Settings::guides() {
   return m_impl->guides();
 }
 
+bool Settings::guidesInitialized() const {
+  return m_impl->guidesInitialized();
+}
+
+void Settings::setGuidesInitialized(const bool initialized) {
+  m_impl->setGuidesInitialized(initialized);
+}
+
 bool Settings::isShowingMiddleRectEnabled() const {
   return m_impl->isShowingMiddleRectEnabled();
 }
@@ -508,29 +535,41 @@ Settings::Item::Item(const PageId& pageId,
                      const QRectF& contentRect,
                      const QSizeF& contentSizeMm,
                      const Alignment& alignment,
-                     const bool autoMargins)
+                     const bool autoMargins,
+                     const bool pageBoundaryEnabled,
+                     const QSizeF& pageBoundarySizeMm)
     : pageId(pageId),
       hardMarginsMM(hardMarginsMm),
       pageRect(pageRect),
       contentRect(contentRect),
       contentSizeMM(contentSizeMm),
       alignment(alignment),
-      autoMargins(autoMargins) {}
+      autoMargins(autoMargins),
+      pageBoundaryEnabled(pageBoundaryEnabled),
+      pageBoundarySizeMM(pageBoundarySizeMm) {}
 
 double Settings::Item::hardWidthMM() const {
-  return contentSizeMM.width() + hardMarginsMM.left() + hardMarginsMM.right();
+  const double hardWidth = contentSizeMM.width() + hardMarginsMM.left() + hardMarginsMM.right();
+  return pageBoundaryEnabled ? std::max(hardWidth, pageBoundarySizeMM.width()) : hardWidth;
 }
 
 double Settings::Item::hardHeightMM() const {
-  return contentSizeMM.height() + hardMarginsMM.top() + hardMarginsMM.bottom();
+  const double hardHeight = contentSizeMM.height() + hardMarginsMM.top() + hardMarginsMM.bottom();
+  return pageBoundaryEnabled ? std::max(hardHeight, pageBoundarySizeMM.height()) : hardHeight;
 }
 
 double Settings::Item::influenceHardWidthMM() const {
-  return alignment.isNull() ? 0.0 : hardWidthMM();
+  if (alignment.isNull()) {
+    return 0.0;
+  }
+  return pageBoundaryEnabled ? std::max(pageBoundarySizeMM.width(), contentSizeMM.width()) : contentSizeMM.width();
 }
 
 double Settings::Item::influenceHardHeightMM() const {
-  return alignment.isNull() ? 0.0 : hardHeightMM();
+  if (alignment.isNull()) {
+    return 0.0;
+  }
+  return pageBoundaryEnabled ? std::max(pageBoundarySizeMM.height(), contentSizeMM.height()) : contentSizeMM.height();
 }
 
 /*============================= Settings::Impl ==============================*/
@@ -542,6 +581,7 @@ Settings::Impl::Impl()
       m_defaultHardMarginsMM(Margins(10.0, 5.0, 10.0, 5.0)),
       m_defaultAlignment(Alignment::TOP, Alignment::HCENTER),
       m_autoMarginsDefault(false),
+      m_guidesInitialized(false),
       m_showMiddleRect(true) {
   m_deviationProvider.setComputeValueByKey([this](const PageId& pageId) -> double {
     auto it = m_items.find(pageId);
@@ -561,6 +601,8 @@ void Settings::Impl::clear() {
   const QMutexLocker locker(&m_mutex);
   m_items.clear();
   m_deviationProvider.clear();
+  m_guides.clear();
+  m_guidesInitialized = false;
   m_frozenAggregateHardSizeMm.reset();
 }
 
@@ -629,7 +671,7 @@ std::unique_ptr<Params> Settings::Impl::getPageParams(const PageId& pageId) cons
     return nullptr;
   }
   return std::make_unique<Params>(it->hardMarginsMM, it->pageRect, it->contentRect, it->contentSizeMM, it->alignment,
-                                  it->autoMargins);
+                                  it->autoMargins, it->pageBoundaryEnabled, it->pageBoundarySizeMM);
 }
 
 std::unordered_map<PageId, QSizeF> Settings::Impl::getOrderSizesSnapshot() const {
@@ -656,7 +698,8 @@ void Settings::Impl::setPageParams(const PageId& pageId, const Params& params) {
   const QMutexLocker locker(&m_mutex);
 
   const Item newItem(pageId, params.hardMarginsMM(), params.pageRect(), params.contentRect(), params.contentSizeMM(),
-                     params.alignment(), params.isAutoMarginsEnabled());
+                     params.alignment(), params.isAutoMarginsEnabled(), params.isPageBoundaryEnabled(),
+                     params.pageBoundarySizeMM());
 
   const Container::iterator it(m_items.find(pageId));
   if (it == m_items.end()) {
@@ -672,6 +715,8 @@ Params Settings::Impl::updateContentSizeAndGetParams(const PageId& pageId,
                                                      const QRectF& pageRect,
                                                      const QRectF& contentRect,
                                                      const QSizeF& contentSizeMm,
+                                                     const bool pageBoundaryEnabled,
+                                                     const QSizeF& pageBoundarySizeMm,
                                                      QSizeF* aggHardSizeBefore,
                                                      QSizeF* aggHardSizeAfter) {
   const QMutexLocker locker(&m_mutex);
@@ -684,10 +729,11 @@ Params Settings::Impl::updateContentSizeAndGetParams(const PageId& pageId,
   Container::iterator itemIt(it);
   if (it == m_items.end()) {
     const Item item(pageId, m_defaultHardMarginsMM, pageRect, contentRect, contentSizeMm, m_defaultAlignment,
-                    m_autoMarginsDefault);
+                    m_autoMarginsDefault, pageBoundaryEnabled, pageBoundarySizeMm);
     itemIt = m_items.insert(it, item);
   } else {
-    m_items.modify(it, ModifyContentSize(contentSizeMm, contentRect, pageRect));
+    m_items.modify(it,
+                   ModifyContentSize(contentSizeMm, contentRect, pageRect, pageBoundaryEnabled, pageBoundarySizeMm));
   }
 
   if (aggHardSizeAfter) {
@@ -696,7 +742,7 @@ Params Settings::Impl::updateContentSizeAndGetParams(const PageId& pageId,
 
   m_deviationProvider.addOrUpdate(pageId);
   return Params(itemIt->hardMarginsMM, itemIt->pageRect, itemIt->contentRect, itemIt->contentSizeMM, itemIt->alignment,
-                itemIt->autoMargins);
+                itemIt->autoMargins, itemIt->pageBoundaryEnabled, itemIt->pageBoundarySizeMM);
 }  // Settings::Impl::updateContentSizeAndGetParams
 
 Margins Settings::Impl::getHardMarginsMM(const PageId& pageId) const {
@@ -771,7 +817,8 @@ Settings::AggregateSizeChanged Settings::Impl::setContentSizeMM(const PageId& pa
                     m_autoMarginsDefault);
     m_items.insert(it, item);
   } else {
-    m_items.modify(it, ModifyContentSize(contentSizeMm, m_invalidRect, it->pageRect));
+    m_items.modify(it, ModifyContentSize(contentSizeMm, m_invalidRect, it->pageRect, it->pageBoundaryEnabled,
+                                         it->pageBoundarySizeMM));
   }
 
   m_deviationProvider.addOrUpdate(pageId);
@@ -789,7 +836,8 @@ void Settings::Impl::invalidateContentSize(const PageId& pageId) {
 
   const Container::iterator it(m_items.find(pageId));
   if (it != m_items.end()) {
-    m_items.modify(it, ModifyContentSize(m_invalidSize, m_invalidRect, it->pageRect));
+    m_items.modify(it, ModifyContentSize(m_invalidSize, m_invalidRect, it->pageRect, it->pageBoundaryEnabled,
+                                         it->pageBoundarySizeMM));
   }
 
   m_deviationProvider.addOrUpdate(pageId);
@@ -801,15 +849,12 @@ QSizeF Settings::Impl::getAggregateHardSizeMM() const {
 }
 
 QSizeF Settings::Impl::computeAggregateHardSizeMMLocked() const {
-  if (m_items.empty()) {
-    return QSizeF(0.0, 0.0);
+  double width = 0.0;
+  double height = 0.0;
+  for (const Item& item : m_items) {
+    width = std::max(width, item.influenceHardWidthMM());
+    height = std::max(height, item.influenceHardHeightMM());
   }
-
-  const Item& maxWidthItem = **m_items.descWidthOrder().begin();
-  const Item& maxHeightItem = **m_items.descHeightOrder().begin();
-
-  const double width = maxWidthItem.influenceHardWidthMM();
-  const double height = maxHeightItem.influenceHardHeightMM();
   return QSizeF(width, height);
 }
 
@@ -833,56 +878,6 @@ bool Settings::Impl::isAggregateHardSizeFrozen() const {
   const QMutexLocker locker(&m_mutex);
   return m_frozenAggregateHardSizeMm.has_value();
 }
-
-QSizeF Settings::Impl::getAggregateHardSizeMM(const PageId& pageId,
-                                              const QSizeF& hardSizeMm,
-                                              const Alignment& alignment) const {
-  const QMutexLocker locker(&m_mutex);
-  if (m_frozenAggregateHardSizeMm) {
-    return *m_frozenAggregateHardSizeMm;
-  }
-
-  if (alignment.isNull()) {
-    return computeAggregateHardSizeMMLocked();
-  }
-
-  if (m_items.empty()) {
-    return QSizeF(0.0, 0.0);
-  }
-
-  double width = 0.0;
-
-  {
-    Container::DescWidthOrder::const_iterator it(m_items.descWidthOrder().begin());
-    if ((*it)->pageId != pageId) {
-      width = (*it)->influenceHardWidthMM();
-    } else {
-      ++it;
-      if (it == m_items.descWidthOrder().end()) {
-        width = hardSizeMm.width();
-      } else {
-        width = std::max(hardSizeMm.width(), qreal((*it)->influenceHardWidthMM()));
-      }
-    }
-  }
-
-  double height = 0.0;
-
-  {
-    Container::DescHeightOrder::const_iterator it(m_items.descHeightOrder().begin());
-    if ((*it)->pageId != pageId) {
-      height = (*it)->influenceHardHeightMM();
-    } else {
-      ++it;
-      if (it == m_items.descHeightOrder().end()) {
-        height = hardSizeMm.height();
-      } else {
-        height = std::max(hardSizeMm.height(), qreal((*it)->influenceHardHeightMM()));
-      }
-    }
-  }
-  return QSizeF(width, height);
-}  // Settings::Impl::getAggregateHardSizeMM
 
 bool Settings::Impl::isPageAutoMarginsEnabled(const PageId& pageId) {
   const QMutexLocker locker(&m_mutex);
@@ -919,6 +914,14 @@ const DeviationProvider<PageId>& Settings::Impl::deviationProvider() const {
 
 std::vector<Guide>& Settings::Impl::guides() {
   return m_guides;
+}
+
+bool Settings::Impl::guidesInitialized() const {
+  return m_guidesInitialized;
+}
+
+void Settings::Impl::setGuidesInitialized(const bool initialized) {
+  m_guidesInitialized = initialized;
 }
 
 bool Settings::Impl::isShowingMiddleRectEnabled() const {

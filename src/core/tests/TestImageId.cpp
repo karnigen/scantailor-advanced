@@ -2,16 +2,15 @@
 // Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
 
 #include <ImageId.h>
-
-#include <QFileInfo>
-#include <QString>
+#include <PathUtils.h>
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 
 
 TEST_CASE("CoreImageIdTestSuite / test_default_constructor_is_null") {
   const ImageId id;
   CHECK(id.isNull());
-  CHECK(id.filePath().isNull());
+  CHECK(id.filePath().empty());
   CHECK(id.page() == 0);
 }
 
@@ -51,9 +50,19 @@ TEST_CASE("CoreImageIdTestSuite / test_ordering") {
 }
 
 TEST_CASE("CoreImageIdTestSuite / test_from_qfileinfo") {
-  const QFileInfo info("/absolute/path/image.jpg");
-  const ImageId id(info, 0);
+  const ImageId id(std::filesystem::path("/absolute/path/image.jpg"), 0);
   CHECK(id.filePath() == "/absolute/path/image.jpg");
+}
+
+TEST_CASE("CoreImageIdTestSuite / test_path_identity_preserves_dot_components") {
+  const ImageId withDot("images/./page.png");
+  const ImageId withoutDot("images/page.png");
+  CHECK(withDot != withoutDot);
+}
+
+TEST_CASE("CoreImageIdTestSuite / test_qstring_path_conversion_preserves_unicode") {
+  const QString path = QStringLiteral("složka/obrázek.tif");
+  CHECK(core::toQString(core::toFileSystemPath(path)) == path);
 }
 
 TEST_CASE("CoreImageIdTestSuite / test_setters") {

@@ -7,8 +7,10 @@
 #include <QDomDocument>
 #include <QString>
 #include <Qt>
+#include <filesystem>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "ImageId.h"
@@ -27,7 +29,7 @@ class ProjectReader {
  public:
   using FilterPtr = std::shared_ptr<AbstractFilter>;
 
-  explicit ProjectReader(const QDomDocument& doc, const QString& projectFilePath = QString());
+  explicit ProjectReader(const QDomDocument& doc, std::filesystem::path projectFilePath = {});
 
   ~ProjectReader();
 
@@ -37,7 +39,7 @@ class ProjectReader {
 
   bool success() const { return (m_pages != nullptr); }
 
-  const QString& outputDirectory() const { return m_outDir; }
+  const std::filesystem::path& outputDirectory() const { return m_outDir; }
 
   const QString& getVersion() const { return m_version; }
 
@@ -55,15 +57,16 @@ class ProjectReader {
 
  private:
   struct FileRecord {
-    QString filePath;
+    std::filesystem::path filePath;
     bool compatMultiPage;  // Backwards compatibility.
 
     FileRecord() : compatMultiPage(false) {}
 
-    FileRecord(const QString& filePath, bool compatMultiPage) : filePath(filePath), compatMultiPage(compatMultiPage) {}
+    FileRecord(std::filesystem::path filePath, bool compatMultiPage)
+        : filePath(std::move(filePath)), compatMultiPage(compatMultiPage) {}
   };
 
-  using DirMap = std::unordered_map<int, QString>;
+  using DirMap = std::unordered_map<int, std::filesystem::path>;
   using FileMap = std::unordered_map<int, FileRecord>;
   using ImageMap = std::unordered_map<int, ImageInfo>;
   using PageMap = std::unordered_map<int, PageId>;
@@ -78,19 +81,19 @@ class ProjectReader {
 
   void processPages(const QDomElement& pagesEl);
 
-  QString getDirPath(int id) const;
+  std::filesystem::path getDirPath(int id) const;
 
   FileRecord getFileRecord(int id) const;
 
-  QString expandFilePath(const QString& pathShorthand) const;
+  std::filesystem::path expandFilePath(const QString& pathShorthand) const;
 
   ImageInfo getImageInfo(int id) const;
 
-  QString resolvePath(const QString& path) const;
+  std::filesystem::path resolvePath(const std::filesystem::path& path) const;
 
   QDomDocument m_doc;
-  QString m_projectDirPath;
-  QString m_outDir;
+  std::filesystem::path m_projectDirPath;
+  std::filesystem::path m_outDir;
   QString m_version;
   ProjectMigrationReport m_migrationReport;
   DirMap m_dirMap;

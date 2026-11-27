@@ -1,0 +1,179 @@
+[[paper_size]]
+name = "A0"
+width_mm = 841.0
+height_mm = 1189.0
+
+[[paper_size]]
+name = "A1"
+width_mm = 594.0
+height_mm = 841.0
+
+[[paper_size]]
+name = "A2"
+width_mm = 420.0
+height_mm = 594.0
+
+[[paper_size]]
+name = "A3"
+width_mm = 297.0
+height_mm = 420.0
+
+[[paper_size]]
+name = "A4"
+width_mm = 210.0
+height_mm = 297.0
+
+[[paper_size]]
+name = "A5"
+width_mm = 148.0
+height_mm = 210.0
+
+[[paper_size]]
+name = "A6"
+width_mm = 105.0
+height_mm = 148.0
+
+[[paper_size]]
+name = "A7"
+width_mm = 74.0
+height_mm = 105.0
+
+[[paper_size]]
+name = "A8"
+width_mm = 52.0
+height_mm = 74.0
+
+[[paper_size]]
+name = "A9"
+width_mm = 37.0
+height_mm = 52.0
+
+[[paper_size]]
+name = "A10"
+width_mm = 26.0
+height_mm = 37.0
+
+[[paper_size]]
+name = "B0"
+width_mm = 1000.0
+height_mm = 1414.0
+
+[[paper_size]]
+name = "B1"
+width_mm = 707.0
+height_mm = 1000.0
+
+[[paper_size]]
+name = "B2"
+width_mm = 500.0
+height_mm = 707.0
+
+[[paper_size]]
+name = "B3"
+width_mm = 353.0
+height_mm = 500.0
+
+[[paper_size]]
+name = "B4"
+width_mm = 250.0
+height_mm = 353.0
+
+[[paper_size]]
+name = "B5"
+width_mm = 176.0
+height_mm = 250.0
+
+[[paper_size]]
+name = "B6"
+width_mm = 125.0
+height_mm = 176.0
+
+[[paper_size]]
+name = "B7"
+width_mm = 88.0
+height_mm = 125.0
+
+[[paper_size]]
+name = "B8"
+width_mm = 62.0
+height_mm = 88.0
+
+[[paper_size]]
+name = "B9"
+width_mm = 44.0
+height_mm = 62.0
+
+[[paper_size]]
+name = "B10"
+width_mm = 31.0
+height_mm = 44.0
+
+[[paper_size]]
+name = "C0"
+width_mm = 917.0
+height_mm = 1297.0
+
+[[paper_size]]
+name = "C1"
+width_mm = 648.0
+height_mm = 917.0
+
+[[paper_size]]
+name = "C2"
+width_mm = 458.0
+height_mm = 648.0
+
+[[paper_size]]
+name = "C3"
+width_mm = 324.0
+height_mm = 458.0
+
+[[paper_size]]
+name = "C4"
+width_mm = 229.0
+height_mm = 324.0
+
+[[paper_size]]
+name = "C5"
+width_mm = 162.0
+height_mm = 229.0
+
+[[paper_size]]
+name = "C6"
+width_mm = 114.0
+height_mm = 162.0
+
+[[paper_size]]
+name = "C7"
+width_mm = 81.0
+height_mm = 114.0
+
+[[paper_size]]
+name = "C8"
+width_mm = 57.0
+height_mm = 81.0
+
+[[paper_size]]
+name = "C9"
+width_mm = 40.0
+height_mm = 57.0
+
+[[paper_size]]
+name = "C10"
+width_mm = 28.0
+height_mm = 40.0
+
+[[paper_size]]
+name = "US Letter"
+width_mm = 215.9
+height_mm = 279.4
+
+[[paper_size]]
+name = "US Legal"
+width_mm = 215.9
+height_mm = 355.6
+
+[[paper_size]]
+name = "US Tabloid"
+width_mm = 279.4
+height_mm = 431.8

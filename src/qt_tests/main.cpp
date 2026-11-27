@@ -24,6 +24,11 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
+  if (qEnvironmentVariableIsSet("SCANTAILOR_BATCH_BENCH_PROJECT")) {
+    TestMainWindowAsync benchmark;
+    return QTest::qExec(&benchmark, argc, argv);
+  }
+
   int status = 0;
 
   TestCoreQt tc1;

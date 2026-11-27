@@ -4,6 +4,7 @@
 #ifndef SCANTAILOR_CORE_THUMBNAILPIXMAPCACHE_H_
 #define SCANTAILOR_CORE_THUMBNAILPIXMAPCACHE_H_
 
+#include <filesystem>
 #include <memory>
 
 #include "AbstractCommand.h"
@@ -42,14 +43,17 @@ class ThumbnailPixmapCache {
    *
    * \see ThumbnailLoadResult::REQUEST_EXPIRED
    */
-  ThumbnailPixmapCache(const QString& thumbDir, const QSize& maxSize, int maxCachedPixmaps, int expirationThreshold);
+  ThumbnailPixmapCache(const std::filesystem::path& thumbDir,
+                       const QSize& maxSize,
+                       int maxCachedPixmaps,
+                       int expirationThreshold);
 
   /**
    * \brief Destructor.  To be called from the GUI thread only.
    */
   virtual ~ThumbnailPixmapCache();
 
-  void setThumbDir(const QString& thumbDir);
+  void setThumbDir(const std::filesystem::path& thumbDir);
 
   const QSize& getMaxThumbSize() const;
 

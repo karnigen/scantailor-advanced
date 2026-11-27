@@ -155,6 +155,7 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data) 
   uiData.setSizeCalc(physSizeCalc);
   uiData.setContentRect(newParams.contentRect());
   uiData.setPageRect(newParams.pageRect());
+  uiData.setPageSizePresetId(newParams.pageSizePresetId());
   uiData.setDependencies(deps);
   uiData.setContentDetectionMode(newParams.contentDetectionMode());
   uiData.setPageDetectionMode(newParams.pageDetectionMode());
@@ -165,11 +166,14 @@ FilterResultPtr Task::process(const TaskStatus& status, const FilterData& data) 
   status.throwIfCancelled();
 
   if (m_nextTask) {
-    return m_nextTask->process(status, FilterData(data, data.xform()), uiData.pageRect(), uiData.contentRect());
+    return m_nextTask->process(status, FilterData(data, data.xform()), uiData.pageRect(), uiData.contentRect(),
+                               uiData.pageDetectionMode() != MODE_DISABLED);
   } else {
+    // Batch results are never displayed, so the mask would be discarded unused.
+    const ContentMask contentMask(m_batchProcessing ? ContentMask()
+                                                    : ContentMask(data.grayImageBlackOnWhite(), data.xform(), status));
     return std::make_shared<UiUpdater>(m_filter, m_pageId, std::move(m_dbg), data.origImage(), data.xform(),
-                                       ContentMask(data.grayImageBlackOnWhite(), data.xform(), status), uiData,
-                                       m_batchProcessing);
+                                       contentMask, uiData, m_batchProcessing);
   }
 }  // Task::process
 
@@ -187,7 +191,7 @@ Task::UiUpdater::UiUpdater(std::shared_ptr<Filter> filter,
       m_pageId(pageId),
       m_dbg(std::move(dbg)),
       m_image(image),
-      m_downscaledImage(ImageView::createDownscaledImage(image)),
+      m_downscaledImage(batch ? QImage() : ImageView::createDownscaledImage(image)),
       m_contentMask(contentMask),
       m_xform(xform),
       m_uiData(uiData),
@@ -205,8 +209,9 @@ void Task::UiUpdater::updateUI(FilterUiInterface* ui) {
   optWidget->postUpdateUI(m_uiData);
   ui->setOptionsWidget(optWidget, ui->KEEP_OWNERSHIP);
 
-  auto* view = new ImageView(m_image, m_downscaledImage, m_contentMask, m_xform, m_uiData.contentRect(),
-                             m_uiData.pageRect(), m_uiData.pageDetectionMode() != MODE_DISABLED);
+  auto* view
+      = new ImageView(m_image, m_downscaledImage, m_contentMask, m_xform, m_uiData.contentRect(), m_uiData.pageRect(),
+                      m_uiData.pageDetectionMode() != MODE_DISABLED, !m_uiData.pageSizePresetId().isEmpty());
   ui->setImageWidget(view, ui->TRANSFER_OWNERSHIP, m_dbg.get());
 
   QObject::connect(view, SIGNAL(manualContentRectSet(const QRectF&)), optWidget,
@@ -217,5 +222,6 @@ void Task::UiUpdater::updateUI(FilterUiInterface* ui) {
   QObject::connect(optWidget, SIGNAL(pageRectChangedLocally(const QRectF&)), view,
                    SLOT(pageRectSetExternally(const QRectF&)));
   QObject::connect(optWidget, SIGNAL(pageRectStateChanged(bool)), view, SLOT(setPageRectEnabled(bool)));
+  QObject::connect(optWidget, SIGNAL(pageRectSizeLockChanged(bool)), view, SLOT(setPageRectSizeLocked(bool)));
 }
 }  // namespace select_content

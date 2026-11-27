@@ -80,9 +80,49 @@ unit-test suites.
   and saving is deferred until the worker finishes and content geometry is reconciled.
   Deferred Save and Save As requests retain their order, including when Save As
   is cancelled or an autosave is requested.
+- Opening a project with a missing output directory asks whether to create it;
+  accepting creates the directory, while declining leaves the project unopened.
+- The Help image-format dialog documents supported input formats, TIFF output,
+  and which image types use the B&W and color compression settings.
 
 The Qt tests use the offscreen platform and can simulate interaction without opening windows.
 They compile application GUI sources for the tests but do not build Qt itself.
+
+## Batch performance benchmark
+
+`qt_tests` includes an opt-in `batchProcessingBenchmark` case. It opens a real
+project, runs the batch through the selected stage, and prints elapsed
+milliseconds and page count. It is skipped in ordinary test runs unless
+`SCANTAILOR_BATCH_BENCH_PROJECT` is set.
+
+Run five repetitions on the same machine and with the same application thread
+setting when comparing builds:
+
+```bash
+QT_QPA_PLATFORM=offscreen \
+SCANTAILOR_BATCH_BENCH_PROJECT=/path/to/project.ScanTailor \
+SCANTAILOR_BATCH_BENCH_STAGE=page-layout \
+build-vcpkg/qt_tests batchProcessingBenchmark -repeat 5
+```
+
+`SCANTAILOR_BATCH_BENCH_STAGE` accepts `fix-orientation`, `select-content`,
+`page-layout` (the default), or `output`. Compare the median elapsed time for
+the same stage and project; timings are diagnostic and are not pass/fail
+thresholds. Batch runs can update project state and output files, so point the
+benchmark at a disposable project copy.
+
+The `stageSwitchBenchmark` case measures end-to-end stage-switch latency,
+including the current-page update, between Fix Orientation and Page Layout
+after warming up both stages:
+
+```bash
+QT_QPA_PLATFORM=offscreen \
+SCANTAILOR_BATCH_BENCH_PROJECT=/path/to/project.ScanTailor \
+build-vcpkg/qt_tests stageSwitchBenchmark
+```
+
+Both opt-in cases use the Qt test configuration directory, not the user's
+application settings.
 
 ## Grayscale scaling: behavior and test coverage
 

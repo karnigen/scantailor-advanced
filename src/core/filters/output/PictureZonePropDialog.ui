@@ -19,18 +19,12 @@
      <property name="text">
       <string>Subtract from all layers</string>
      </property>
-     <property name="toolTip">
-      <string>Select this option: Subtract from all layers.</string>
-     </property>
     </widget>
    </item>
    <item>
     <widget class="QRadioButton" name="zonepainter2">
      <property name="text">
       <string>Add to auto layer</string>
-     </property>
-     <property name="toolTip">
-      <string>Select this option: Add to auto layer.</string>
      </property>
     </widget>
    </item>
@@ -39,9 +33,6 @@
      <property name="text">
       <string>Subtract from auto layer</string>
      </property>
-     <property name="toolTip">
-      <string>Select this option: Subtract from auto layer.</string>
-     </property>
     </widget>
    </item>
    <item>
@@ -49,18 +40,12 @@
      <property name="text">
       <string>Add to foreground</string>
      </property>
-     <property name="toolTip">
-      <string>Select this option: Add to foreground.</string>
-     </property>
     </widget>
    </item>
    <item>
     <widget class="QRadioButton" name="zonebackground">
      <property name="text">
       <string>Add to background</string>
-     </property>
-     <property name="toolTip">
-      <string>Select this option: Add to background.</string>
      </property>
     </widget>
    </item>

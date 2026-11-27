@@ -4,6 +4,7 @@
 #include "ProjectFilesDialog.h"
 
 #include <core/IconProvider.h>
+#include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
 #include <QFileDialog>
@@ -157,7 +158,7 @@ void ProjectFilesDialog::FileList::assign(It begin, It end) {
   append(begin, end);
 }
 
-ProjectFilesDialog::ProjectFilesDialog(QWidget* parent, const QString& initialDirectory)
+ProjectFilesDialog::ProjectFilesDialog(QWidget* parent, std::filesystem::path initialDirectory)
     : QDialog(parent),
       m_offProjectFiles(std::make_unique<FileList>()),
       m_offProjectFilesSorted(std::make_unique<SortedFileList>(*m_offProjectFiles)),
@@ -166,7 +167,7 @@ ProjectFilesDialog::ProjectFilesDialog(QWidget* parent, const QString& initialDi
       m_loadTimerId(0),
       m_metadataLoadFailed(false),
       m_autoOutDir(true),
-      m_initialDirectory(initialDirectory) {
+      m_initialDirectory(std::move(initialDirectory)) {
   m_supportedExtensions.insert("png");
   m_supportedExtensions.insert("jpg");
   m_supportedExtensions.insert("jpeg");
@@ -180,8 +181,8 @@ ProjectFilesDialog::ProjectFilesDialog(QWidget* parent, const QString& initialDi
   offProjectList->setModel(m_offProjectFilesSorted->model());
   inProjectList->setModel(m_inProjectFilesSorted->model());
 
-  if (!m_initialDirectory.isEmpty() && QDir(m_initialDirectory).exists()) {
-    setInputDir(m_initialDirectory);
+  if (!m_initialDirectory.empty() && QDir(core::toQString(m_initialDirectory)).exists()) {
+    setInputDir(core::toQString(m_initialDirectory));
   }
 
   connect(inpDirBrowseBtn, SIGNAL(clicked()), this, SLOT(inpDirBrowse()));
@@ -195,12 +196,12 @@ ProjectFilesDialog::ProjectFilesDialog(QWidget* parent, const QString& initialDi
 
 ProjectFilesDialog::~ProjectFilesDialog() = default;
 
-QString ProjectFilesDialog::inputDirectory() const {
-  return inpDirLine->text();
+std::filesystem::path ProjectFilesDialog::inputDirectory() const {
+  return core::toFileSystemPath(inpDirLine->text());
 }
 
-QString ProjectFilesDialog::outputDirectory() const {
-  return outDirLine->text();
+std::filesystem::path ProjectFilesDialog::outputDirectory() const {
+  return core::toFileSystemPath(outDirLine->text());
 }
 
 
@@ -241,7 +242,7 @@ void ProjectFilesDialog::inpDirBrowse() {
     initialDir = settings.stringValue("lastInputDir");
   }
   if (initialDir.isEmpty() || !QDir(initialDir).exists()) {
-    initialDir = m_initialDirectory;
+    initialDir = core::toQString(m_initialDirectory);
   }
   if (initialDir.isEmpty() || !QDir(initialDir).exists()) {
     initialDir = QDir::home().absolutePath();
@@ -261,7 +262,7 @@ void ProjectFilesDialog::inpDirBrowse() {
 void ProjectFilesDialog::outDirBrowse() {
   QString initialDir(outDirLine->text());
   if (initialDir.isEmpty() || !QDir(initialDir).exists()) {
-    initialDir = m_initialDirectory;
+    initialDir = core::toQString(m_initialDirectory);
   }
   if (initialDir.isEmpty() || !QDir(initialDir).exists()) {
     initialDir = QDir::home().absolutePath();
@@ -583,7 +584,7 @@ ProjectFilesDialog::FileList::LoadStatus ProjectFilesDialog::FileList::loadNextF
   const int itemIdx = m_itemsToLoad.front();
   Item& item = m_items[itemIdx];
   std::vector<ImageMetadata> perPageMetadata;
-  const QString filePath(item.fileInfo().absoluteFilePath());
+  const std::filesystem::path filePath(core::toFileSystemPath(item.fileInfo().absoluteFilePath()));
   const ImageMetadataLoader::Status st = ImageMetadataLoader::load(
       filePath, [&](const ImageMetadata& metadata) { perPageMetadata.push_back(metadata); });
 
