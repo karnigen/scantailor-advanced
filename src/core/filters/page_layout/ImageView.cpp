@@ -314,11 +314,17 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
     painter.drawRect(m_middleRect);
   }
   if (!m_nullContentRect) {
+    QPen contentPen(QColor(0x00, 0x00, 0xff));
+    contentPen.setStyle(Qt::DotLine);
+    contentPen.setCosmetic(true);
+    contentPen.setWidthF(2.0);
+    painter.setPen(contentPen);
     painter.drawRect(m_innerRect);
   }
 
   if (pageParams && pageParams->isPageBoundaryEnabled()) {
     QPen boundaryPen(QColor(0xff, 0x7f, 0x00));
+    boundaryPen.setStyle(Qt::DotLine);
     boundaryPen.setCosmetic(true);
     boundaryPen.setWidthF(2.0);
     painter.setPen(boundaryPen);
