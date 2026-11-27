@@ -14,7 +14,7 @@
 #include <QPainter>
 #include <QScrollBar>
 #include <QSignalSpy>
-#include <QToolButton>
+#include <QWheelEvent>
 #include <QtTest/QtTest>
 
 #include <cmath>
@@ -26,7 +26,7 @@ class TestDeskewQt : public QObject {
   Q_OBJECT
 
  private slots:
-  void testRotationButtonsApplyFineRotation();
+  void testAngleWheelAppliesFineRotation();
   void testRotationControlsPreserveVisualScale();
   void testGridRemainsStableDuringRotation();
   void testCtrlWheelAppliesFineRotation();
@@ -93,10 +93,9 @@ void TestDeskewQt::testGridRemainsStableDuringRotation() {
     QCOMPARE(rotationSpy.count(), i + 1);
     QCOMPARE(gridCenter(), initialGridCenter);
   }
-  auto* rotateLeft = widget.findChild<QToolButton*>(QStringLiteral("rotateLeftBtn"));
-  QVERIFY(rotateLeft);
   for (int i = 0; i < 20; ++i) {
-    rotateLeft->click();
+    QTest::keyClick(view.viewport(), Qt::Key_Comma);
+    QCOMPARE(rotationSpy.count(), i + 21);
     QCOMPARE(gridCenter(), initialGridCenter);
   }
 
@@ -107,7 +106,7 @@ void TestDeskewQt::testGridRemainsStableDuringRotation() {
   QVERIFY(qAlpha(pannedOverlay.pixel(540, 230)) > 0);
 }
 
-void TestDeskewQt::testRotationButtonsApplyFineRotation() {
+void TestDeskewQt::testAngleWheelAppliesFineRotation() {
   const PageId pageId(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/deskew-page.tif"))), PageId::SINGLE_PAGE);
   auto settings = std::make_shared<deskew::Settings>();
   deskew::OptionsWidget widget(settings, PageSelectionAccessor(nullptr));
@@ -116,22 +115,23 @@ void TestDeskewQt::testRotationButtonsApplyFineRotation() {
   widget.show();
 
   auto* angleSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("angleSpinBox"));
-  auto* rotateLeftButton = widget.findChild<QToolButton*>(QStringLiteral("rotateLeftBtn"));
-  auto* rotateRightButton = widget.findChild<QToolButton*>(QStringLiteral("rotateRightBtn"));
   QVERIFY(angleSpinBox);
-  QVERIFY(rotateLeftButton);
-  QVERIFY(rotateRightButton);
-  QVERIFY(rotateLeftButton->isEnabled());
-  QVERIFY(rotateRightButton->isEnabled());
+  QVERIFY(!widget.findChild<QObject*>(QStringLiteral("rotateLeftBtn")));
+  QVERIFY(!widget.findChild<QObject*>(QStringLiteral("rotateRightBtn")));
 
   QSignalSpy rotationSpy(&widget, &deskew::OptionsWidget::manualDeskewAngleSet);
   QSignalSpy reloadSpy(&widget, &FilterOptionsWidget::reloadRequested);
-  QTest::mouseClick(rotateLeftButton, Qt::LeftButton);
+  const QPointF position = angleSpinBox->rect().center();
+  QWheelEvent wheelUp(position, angleSpinBox->mapToGlobal(position.toPoint()), QPoint(), QPoint(0, 120), Qt::NoButton,
+                      Qt::NoModifier, Qt::NoScrollPhase, false);
+  QApplication::sendEvent(angleSpinBox, &wheelUp);
   QVERIFY(std::abs(angleSpinBox->value() - 0.1) < 1e-9);
   QCOMPARE(rotationSpy.count(), 1);
   QVERIFY(std::abs(rotationSpy.takeFirst().at(0).toDouble() + 0.1) < 1e-9);
 
-  QTest::mouseClick(rotateRightButton, Qt::LeftButton);
+  QWheelEvent wheelDown(position, angleSpinBox->mapToGlobal(position.toPoint()), QPoint(), QPoint(0, -120),
+                        Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+  QApplication::sendEvent(angleSpinBox, &wheelDown);
   QVERIFY(std::abs(angleSpinBox->value()) < 1e-9);
   QCOMPARE(rotationSpy.count(), 1);
   QVERIFY(std::abs(rotationSpy.takeFirst().at(0).toDouble()) < 1e-9);
@@ -166,10 +166,10 @@ void TestDeskewQt::testRotationControlsPreserveVisualScale() {
     return QLineF(transform.map(QPointF(20.0, 50.0)), transform.map(QPointF(80.0, 50.0))).length();
   };
 
-  auto* rotateLeftButton = widget.findChild<QToolButton*>(QStringLiteral("rotateLeftBtn"));
-  QVERIFY(rotateLeftButton);
+  auto* angleSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("angleSpinBox"));
+  QVERIFY(angleSpinBox);
   double scaleBefore = horizontalImageScale();
-  QTest::mouseClick(rotateLeftButton, Qt::LeftButton);
+  angleSpinBox->setValue(0.1);
   QVERIFY(std::abs(horizontalImageScale() - scaleBefore) < 1e-5);
 
   auto* rotateRightAction = view.findChild<QAction*>(QStringLiteral("deskewRotateRight"));

@@ -6,8 +6,6 @@
 
 #include <QButtonGroup>
 
-#include <core/IconProvider.h>
-
 #include <utility>
 
 #include "ApplyDialog.h"
@@ -46,9 +44,6 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings, const PageSelec
   m_rotationReloadTimer.setSingleShot(true);
   m_rotationReloadTimer.setInterval(500);
   connect(&m_rotationReloadTimer, &QTimer::timeout, this, &OptionsWidget::reloadAfterRotation);
-  auto& iconProvider = IconProvider::getInstance();
-  rotateLeftBtn->setIcon(iconProvider.getIcon("object-rotate-left"));
-  rotateRightBtn->setIcon(iconProvider.getIcon("object-rotate-right"));
   auto* rotationModeGroup = new QButtonGroup(this);
   rotationModeGroup->setExclusive(true);
   rotationModeGroup->addButton(autoBtn);
@@ -262,8 +257,6 @@ void OptionsWidget::setSpinBoxUnknownState() {
   angleSpinBox->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
   angleSpinBox->setValue(angleSpinBox->minimum());
   angleSpinBox->setEnabled(false);
-  rotateLeftBtn->setEnabled(false);
-  rotateRightBtn->setEnabled(false);
   obliqueSpinBox->setValue(0.0);
   obliqueSpinBox->setEnabled(false);
   obliqueOffBtn->setEnabled(false);
@@ -280,8 +273,6 @@ void OptionsWidget::setSpinBoxKnownState(const double angle) {
   // Right alignment doesn't work correctly, so we use the left one.
   angleSpinBox->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   angleSpinBox->setEnabled(true);
-  rotateLeftBtn->setEnabled(true);
-  rotateRightBtn->setEnabled(true);
   obliqueSpinBox->setEnabled(true);
   obliqueOffBtn->setEnabled(true);
   obliqueAutoBtn->setEnabled(true);
@@ -347,8 +338,6 @@ void OptionsWidget::reloadAfterRotation() {
 
 void OptionsWidget::setupUiConnections() {
   CONNECT(angleSpinBox, SIGNAL(valueChanged(double)), this, SLOT(spinBoxValueChanged(double)));
-  CONNECT(rotateLeftBtn, &QToolButton::clicked, this, [this] { angleSpinBox->setValue(angleSpinBox->value() + 0.1); });
-  CONNECT(rotateRightBtn, &QToolButton::clicked, this, [this] { angleSpinBox->setValue(angleSpinBox->value() - 0.1); });
   CONNECT(obliqueSpinBox, SIGNAL(valueChanged(double)), this, SLOT(obliqueSpinBoxValueChanged(double)));
   CONNECT(autoBtn, SIGNAL(toggled(bool)), this, SLOT(modeChanged(bool)));
   CONNECT(obliqueOffBtn, &QPushButton::clicked, this, [this] { obliqueModeChanged(MODE_DISABLED); });
