@@ -30,4 +30,5 @@ For build requirements, package workflows, and local instructions, see [Building
 
 ## License
 
-This software is licensed under GNU GPLv3, you can read more about it on our [LICENSE](/LICENSE) file.
+This software is licensed under [GNU GPLv3 (29 June 2007)](https://www.gnu.org/licenses/gpl-3.0.html).
+A full copy is included in the repository's [LICENSE](LICENSE) file and in release packages.
