@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_SAFEDELETINGQOBJECTPTR_H_
-#define SCANTAILOR_FOUNDATION_SAFEDELETINGQOBJECTPTR_H_
+#pragma once
 
 #include "NonCopyable.h"
 
@@ -43,5 +42,3 @@ template <typename T>
 void swap(SafeDeletingQObjectPtr<T>& o1, SafeDeletingQObjectPtr<T>& o2) {
   o1.swap(o2);
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_SAFEDELETINGQOBJECTPTR_H_

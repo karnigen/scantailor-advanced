@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_INTERACTION_OBJECTDRAGHANDLER_H_
-#define SCANTAILOR_INTERACTION_OBJECTDRAGHANDLER_H_
+#pragma once
 
 #include <QPointF>
 #include <set>
@@ -62,6 +61,3 @@ class ObjectDragHandler : public InteractionHandler {
   std::set<Qt::KeyboardModifiers> m_keyboardModifiersSet;
   Qt::KeyboardModifiers m_activeKeyboardModifiers;
 };
-
-
-#endif  // ifndef SCANTAILOR_INTERACTION_OBJECTDRAGHANDLER_H_

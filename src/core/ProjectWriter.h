@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PROJECTWRITER_H_
-#define SCANTAILOR_CORE_PROJECTWRITER_H_
+#pragma once
 
 #include <QString>
 #include <Qt>
@@ -184,5 +183,3 @@ template <typename Callable>
 void ProjectWriter::enumPages(Callable out) const {
   enumPagesImpl(ProxyFunction<Callable, void, const PageId&, int>(out));
 }
-
-#endif  // ifndef SCANTAILOR_CORE_PROJECTWRITER_H_

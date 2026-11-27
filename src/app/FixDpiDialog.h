@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_FIXDPIDIALOG_H_
-#define SCANTAILOR_APP_FIXDPIDIALOG_H_
+#pragma once
 
 #include <QDialog>
 #include <QItemSelection>
@@ -70,6 +69,3 @@ class FixDpiDialog : public QDialog, private Ui::FixDpiDialog {
   QPalette m_normalPalette;
   QPalette m_errorPalette;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_FIXDPIDIALOG_H_

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_IMAGEPROC_SHEAR_H_
-#define SCANTAILOR_IMAGEPROC_SHEAR_H_
+#pragma once
 
 #include "BWColor.h"
 
@@ -69,4 +68,3 @@ void hShearInPlace(BinaryImage& image, double shear, double yOrigin, BWColor bac
  */
 void vShearInPlace(BinaryImage& image, double shear, double xOrigin, BWColor backgroundColor);
 }  // namespace imageproc
-#endif

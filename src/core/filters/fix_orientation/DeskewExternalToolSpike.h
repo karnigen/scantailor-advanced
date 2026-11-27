@@ -16,11 +16,8 @@
 //
 // Prefer keeping experimental code on a branch until packaging and UX are settled.
 
-#ifndef SCANTAILOR_FIX_ORIENTATION_DESKEW_EXTERNAL_TOOL_SPIKE_H_
-#define SCANTAILOR_FIX_ORIENTATION_DESKEW_EXTERNAL_TOOL_SPIKE_H_
+#pragma once
 
 namespace fix_orientation {
 // Intentionally empty: see file comment above.
 }  // namespace fix_orientation
-
-#endif

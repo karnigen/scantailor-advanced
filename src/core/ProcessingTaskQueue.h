@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PROCESSINGTASKQUEUE_H_
-#define SCANTAILOR_CORE_PROCESSINGTASKQUEUE_H_
+#pragma once
 
 #include <list>
 #include <set>
@@ -60,6 +59,3 @@ class ProcessingTaskQueue {
   PageInfo m_selectedPage;
   PageInfo m_pageToSelectWhenDone;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_PROCESSINGTASKQUEUE_H_

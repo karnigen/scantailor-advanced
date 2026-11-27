@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_STYLEDICONPACK_H_
-#define SCANTAILOR_CORE_STYLEDICONPACK_H_
+#pragma once
 
 #include <foundation/Hashes.h>
 
@@ -27,6 +26,3 @@ class StyledIconPack : public AbstractIconPack {
 
   std::unordered_map<QString, QIcon, hashes::hash<QString>> m_iconMap;
 };
-
-
-#endif  // SCANTAILOR_CORE_STYLEDICONPACK_H_

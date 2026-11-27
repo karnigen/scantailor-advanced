@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_ADJUSTBRIGHTNESS_H_
-#define SCANTAILOR_IMAGEPROC_ADJUSTBRIGHTNESS_H_
+#pragma once
 
 class QImage;
 
@@ -47,4 +46,3 @@ void adjustBrightnessYUV(QImage& rgbImage, const QImage& brightness);
  */
 void adjustBrightnessGrayscale(QImage& rgbImage, const QImage& brightness);
 }  // namespace imageproc
-#endif

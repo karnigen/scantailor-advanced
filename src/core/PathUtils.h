@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PATHUTILS_H_
-#define SCANTAILOR_CORE_PATHUTILS_H_
+#pragma once
 
 #include <filesystem>
 #include <string>
@@ -31,5 +30,3 @@ inline QString toQString(const std::filesystem::path& path) {
 }
 
 }  // namespace core
-
-#endif  // SCANTAILOR_CORE_PATHUTILS_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_INTERACTION_DRAGGABLEPOLYGON_H_
-#define SCANTAILOR_INTERACTION_DRAGGABLEPOLYGON_H_
+#pragma once
 
 #include <QPointF>
 #include <QPolygonF>
@@ -47,6 +46,3 @@ class DraggablePolygon : public DraggableObject {
   QPolygonF m_initialPolygonPos;
   int m_proximityPriority;
 };
-
-
-#endif  // SCANTAILOR_INTERACTION_DRAGGABLEPOLYGON_H_

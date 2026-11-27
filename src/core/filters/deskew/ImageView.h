@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_DESKEW_IMAGEVIEW_H_
-#define SCANTAILOR_DESKEW_IMAGEVIEW_H_
+#pragma once
 
 #include <QPixmap>
 #include <QPoint>
@@ -83,4 +82,3 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   ImageTransformation m_xform;
 };
 }  // namespace deskew
-#endif  // ifndef SCANTAILOR_DESKEW_IMAGEVIEW_H_

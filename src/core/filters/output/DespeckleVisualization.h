@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_OUTPUT_DESPECKLEVISUALIZATION_H_
-#define SCANTAILOR_OUTPUT_DESPECKLEVISUALIZATION_H_
+#pragma once
 
 #include <QImage>
 
@@ -53,4 +52,3 @@ inline const QImage& DespeckleVisualization::downscaledImage() const {
   return m_downscaledImage;
 }
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_DESPECKLEVISUALIZATION_H_

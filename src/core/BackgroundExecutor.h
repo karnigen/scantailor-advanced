@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_BACKGROUNDEXECUTOR_H_
-#define SCANTAILOR_CORE_BACKGROUNDEXECUTOR_H_
+#pragma once
 
 #include <memory>
 #include <utility>
@@ -62,6 +61,3 @@ class BackgroundExecutor {
 
   std::unique_ptr<Impl> m_impl;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_BACKGROUNDEXECUTOR_H_

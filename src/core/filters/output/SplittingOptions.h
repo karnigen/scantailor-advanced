@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_SPLITTINGOPTIONS_H_
-#define SCANTAILOR_OUTPUT_SPLITTINGOPTIONS_H_
+#pragma once
 
 #include <QtXml/QDomElement>
 
@@ -69,6 +68,3 @@ inline void SplittingOptions::setOriginalBackgroundEnabled(bool enable) {
   SplittingOptions::m_isOriginalBackgroundEnabled = enable;
 }
 }  // namespace output
-
-
-#endif  // SCANTAILOR_OUTPUT_SPLITTINGOPTIONS_H_

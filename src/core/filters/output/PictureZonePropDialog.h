@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_PICTUREZONEPROPDIALOG_H_
-#define SCANTAILOR_OUTPUT_PICTUREZONEPROPDIALOG_H_
+#pragma once
 
 #include <QDialog>
 #include <memory>
@@ -28,4 +27,3 @@ class PictureZonePropDialog : public QDialog {
   std::shared_ptr<PropertySet> m_props;
 };
 }  // namespace output
-#endif

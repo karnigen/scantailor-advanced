@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_PICTURELAYERPROPERTY_H_
-#define SCANTAILOR_OUTPUT_PICTURELAYERPROPERTY_H_
+#pragma once
 
 #include <memory>
 
@@ -54,4 +53,3 @@ inline void PictureLayerProperty::setLayer(PictureLayerProperty::Layer layer) {
   m_layer = layer;
 }
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_PICTURELAYERPROPERTY_H_

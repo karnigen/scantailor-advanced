@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_BINARIZE_H_
-#define SCANTAILOR_IMAGEPROC_BINARIZE_H_
+#pragma once
 
 #include <QSize>
 
@@ -142,4 +141,3 @@ BinaryImage binarizeEdgeDiv(const QImage& src,
 
 BinaryImage peakThreshold(const QImage& image);
 }  // namespace imageproc
-#endif

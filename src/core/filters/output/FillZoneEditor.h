@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_OUTPUT_FILLZONEEDITOR_H_
-#define SCANTAILOR_OUTPUT_FILLZONEEDITOR_H_
+#pragma once
 
 #include <QColor>
 #include <QPoint>
@@ -83,4 +82,3 @@ class FillZoneEditor : public ZoneEditorBase {
   std::shared_ptr<Settings> m_settings;
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_FILLZONEEDITOR_H_

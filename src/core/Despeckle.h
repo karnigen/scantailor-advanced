@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_DESPECKLE_H_
-#define SCANTAILOR_CORE_DESPECKLE_H_
+#pragma once
 
 class Dpi;
 class TaskStatus;
@@ -54,6 +53,3 @@ class Despeckle {
                                const TaskStatus& status,
                                DebugImages* dbg = nullptr);
 };
-
-
-#endif

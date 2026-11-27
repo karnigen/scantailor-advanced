@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_LOADFILETASK_H_
-#define SCANTAILOR_CORE_LOADFILETASK_H_
+#pragma once
 
 #include <memory>
 
@@ -55,6 +54,3 @@ class LoadFileTask : public BackgroundTask {
   const std::shared_ptr<ProjectPages> m_pages;
   const std::shared_ptr<fix_orientation::Task> m_nextTask;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_LOADFILETASK_H_

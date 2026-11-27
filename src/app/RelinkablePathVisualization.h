@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_RELINKABLEPATHVISUALIZATION_H_
-#define SCANTAILOR_APP_RELINKABLEPATHVISUALIZATION_H_
+#pragma once
 
 #include <QString>
 #include <QWidget>
@@ -48,6 +47,3 @@ class RelinkablePathVisualization : public QWidget {
   QHBoxLayout* m_layout;
   bool m_hoverSuppressedUntilMove = false;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_RELINKABLEPATHVISUALIZATION_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_UNITSPROVIDER_H_
-#define SCANTAILOR_CORE_UNITSPROVIDER_H_
+#pragma once
 
 #include <foundation/NonCopyable.h>
 
@@ -41,6 +40,3 @@ class UnitsProvider {
   std::list<UnitsListener*> m_unitsListeners;
   Units m_units;
 };
-
-
-#endif  // SCANTAILOR_CORE_UNITSPROVIDER_H_

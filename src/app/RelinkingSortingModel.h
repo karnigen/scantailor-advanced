@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_RELINKINGSORTINGMODEL_H_
-#define SCANTAILOR_APP_RELINKINGSORTINGMODEL_H_
+#pragma once
 
 #include <QSortFilterProxyModel>
 
@@ -14,6 +13,3 @@ class RelinkingSortingModel : public QSortFilterProxyModel {
  protected:
   bool lessThan(const QModelIndex& left, const QModelIndex& right) const override;
 };
-
-
-#endif

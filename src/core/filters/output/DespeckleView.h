@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_OUTPUT_DESPECKLEVIEW_H_
-#define SCANTAILOR_OUTPUT_DESPECKLEVIEW_H_
+#pragma once
 
 #include <BinaryImage.h>
 
@@ -78,4 +77,3 @@ class DespeckleView : public QStackedWidget {
   bool m_debug;
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_DESPECKLEVIEW_H_

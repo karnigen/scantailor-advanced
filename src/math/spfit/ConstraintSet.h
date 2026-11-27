@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_CONSTRAINTSET_H_
-#define SCANTAILOR_SPFIT_CONSTRAINTSET_H_
+#pragma once
 
 #include <QLineF>
 #include <QPointF>
@@ -35,4 +34,3 @@ class ConstraintSet {
   std::list<LinearFunction> m_constraints;
 };
 }  // namespace spfit
-#endif  // ifndef SCANTAILOR_SPFIT_CONSTRAINTSET_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PROJECTPAGES_H_
-#define SCANTAILOR_CORE_PROJECTPAGES_H_
+#pragma once
 
 #include <QMutex>
 #include <QObject>
@@ -172,6 +171,3 @@ class ProjectPages : public QObject {
   std::vector<ImageDesc> m_images;
   PageId::SubPage m_subPagesInOrder[2];
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_PROJECTPAGES_H_

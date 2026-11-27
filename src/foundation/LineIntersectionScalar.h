@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_LINEINTERSECTIONSCALAR_H_
-#define SCANTAILOR_FOUNDATION_LINEINTERSECTIONSCALAR_H_
+#pragma once
 
 #include <QLineF>
 
@@ -18,5 +17,3 @@ bool lineIntersectionScalar(const QLineF& line1, const QLineF& line2, double& s1
  * Same as the one above, but doesn't bother to calculate s2.
  */
 bool lineIntersectionScalar(const QLineF& line1, const QLineF& line2, double& s1);
-
-#endif

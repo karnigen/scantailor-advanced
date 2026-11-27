@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_DESKEW_DEPENDENCIES_H_
-#define SCANTAILOR_DESKEW_DEPENDENCIES_H_
+#pragma once
 
 #include <QPolygonF>
 
@@ -45,4 +44,3 @@ class Dependencies {
   std::optional<bool> m_algoContentBased;
 };
 }  // namespace deskew
-#endif  // ifndef SCANTAILOR_DESKEW_DEPENDENCIES_H_

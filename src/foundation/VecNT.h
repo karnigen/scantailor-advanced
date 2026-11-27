@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_VECNT_H_
-#define SCANTAILOR_FOUNDATION_VECNT_H_
+#pragma once
 
 #include <QPointF>
 #include <cstddef>
@@ -368,5 +367,3 @@ VecNT<N, T> operator/(T scalar, VecNT<N, T> const& vec) {
   res /= scalar;
   return res;
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_VECNT_H_

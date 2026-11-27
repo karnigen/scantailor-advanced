@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_STATICPOOL_H_
-#define SCANTAILOR_FOUNDATION_STATICPOOL_H_
+#pragma once
 
 #include <cstddef>
 #include <stdexcept>
@@ -65,5 +64,3 @@ T* StaticPoolBase<T>::alloc(size_t numElements) {
   m_sizeRemaining -= numElements;
   return sequence;
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_STATICPOOL_H_

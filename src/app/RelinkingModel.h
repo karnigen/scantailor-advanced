@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_RELINKINGMODEL_H_
-#define SCANTAILOR_APP_RELINKINGMODEL_H_
+#pragma once
 
 #include <QAbstractListModel>
 #include <QColor>
@@ -155,6 +154,3 @@ class RelinkingModel : public QAbstractListModel {
   std::unique_ptr<StatusUpdateThread> m_statusUpdateThread;
   bool m_haveUncommittedChanges;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_RELINKINGMODEL_H_

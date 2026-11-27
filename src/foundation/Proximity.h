@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_PROXIMITY_H_
-#define SCANTAILOR_FOUNDATION_PROXIMITY_H_
+#pragma once
 
 #include <cmath>
 #include <limits>
@@ -44,6 +43,3 @@ class Proximity {
 
   double m_sqDist;
 };
-
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_PROXIMITY_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_WORKERTHREADPOOL_H_
-#define SCANTAILOR_CORE_WORKERTHREADPOOL_H_
+#pragma once
 
 #include <QObject>
 #include <memory>
@@ -52,6 +51,3 @@ class WorkerThreadPool : public QObject {
   int m_pendingTasks = 0;
   SettingsStore m_settings;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_WORKERTHREADPOOL_H_

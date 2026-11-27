@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_DEVIATIONPROVIDER_H_
-#define SCANTAILOR_CORE_DEVIATIONPROVIDER_H_
+#pragma once
 
 #include <foundation/NonCopyable.h>
 
@@ -197,6 +196,3 @@ void DeviationProvider<K, Hash>::clear() {
   m_meanValue = 0.0;
   m_standardDeviation = 0.0;
 }
-
-
-#endif  // SCANTAILOR_CORE_DEVIATIONPROVIDER_H_

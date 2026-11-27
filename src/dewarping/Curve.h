@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_DEWARPING_CURVE_H_
-#define SCANTAILOR_DEWARPING_CURVE_H_
+#pragma once
 
 #include <QPointF>
 #include <vector>
@@ -54,4 +53,3 @@ class Curve {
   std::vector<QPointF> m_polyline;
 };
 }  // namespace dewarping
-#endif  // ifndef SCANTAILOR_DEWARPING_CURVE_H_

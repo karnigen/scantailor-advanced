@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_VECT_H_
-#define SCANTAILOR_FOUNDATION_VECT_H_
+#pragma once
 
 #include <cassert>
 #include <cstddef>
@@ -211,5 +210,3 @@ VecT<T> operator*(double scalar, const VecT<T>& vec) {
   res *= scalar;
   return res;
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_VECT_H_

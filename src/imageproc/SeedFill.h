@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_SEEDFILL_H_
-#define SCANTAILOR_IMAGEPROC_SEEDFILL_H_
+#pragma once
 
 #include "BinaryImage.h"
 #include "Connectivity.h"
@@ -56,4 +55,3 @@ void seedFillGrayInPlace(GrayImage& seed, const GrayImage& mask, Connectivity co
  */
 GrayImage seedFillGraySlow(const GrayImage& seed, const GrayImage& mask, Connectivity connectivity);
 }  // namespace imageproc
-#endif

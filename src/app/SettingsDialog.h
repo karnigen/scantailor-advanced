@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_SETTINGSDIALOG_H_
-#define SCANTAILOR_APP_SETTINGSDIALOG_H_
+#pragma once
 
 #include <QDialog>
 
@@ -31,6 +30,3 @@ class SettingsDialog : public QDialog {
  private:
   Ui::SettingsDialog ui;
 };
-
-
-#endif

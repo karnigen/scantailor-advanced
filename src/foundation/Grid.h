@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_GRID_H_
-#define SCANTAILOR_FOUNDATION_GRID_H_
+#pragma once
 
 #include <memory>
 
@@ -177,5 +176,3 @@ template <typename Node>
 void swap(Grid<Node>& o1, Grid<Node>& o2) {
   o1.swap(o2);
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_GRID_H_

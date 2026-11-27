@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SELECT_CONTENT_PHYSSIZECALC_H_
-#define SCANTAILOR_SELECT_CONTENT_PHYSSIZECALC_H_
+#pragma once
 
 #include <QRectF>
 #include <QSizeF>
@@ -25,4 +24,3 @@ class PhysSizeCalc {
   QTransform m_virtToPhys;
 };
 }  // namespace select_content
-#endif

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_INTERACTION_INTERACTIVEXSPLINE_H_
-#define SCANTAILOR_INTERACTION_INTERACTIVEXSPLINE_H_
+#pragma once
 
 #include <QCoreApplication>
 #include <QPointF>
@@ -93,6 +92,3 @@ class InteractiveXSpline : public InteractionHandler {
   double m_curveProximityT;
   bool m_lastProximity;
 };
-
-
-#endif  // ifndef SCANTAILOR_INTERACTION_INTERACTIVEXSPLINE_H_

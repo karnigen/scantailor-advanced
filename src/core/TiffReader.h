@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_TIFFREADER_H_
-#define SCANTAILOR_CORE_TIFFREADER_H_
+#pragma once
 
 #include "ImageAllocationLimit.h"
 #include "ImageMetadataLoader.h"
@@ -55,6 +54,3 @@ class TiffReader {
 
   static void readAndUnpackLines(const TiffHandle& tif, const TiffInfo& info, QImage& image);
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_TIFFREADER_H_

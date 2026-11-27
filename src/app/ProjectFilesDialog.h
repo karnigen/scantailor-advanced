@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_PROJECTFILESDIALOG_H_
-#define SCANTAILOR_APP_PROJECTFILESDIALOG_H_
+#pragma once
 
 #include <QDialog>
 #include <QSet>
@@ -78,6 +77,3 @@ class ProjectFilesDialog : public QDialog, private Ui::ProjectFilesDialog {
   bool m_autoOutDir;
   std::filesystem::path m_initialDirectory;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_PROJECTFILESDIALOG_H_

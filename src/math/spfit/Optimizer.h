@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_OPTIMIZER_H_
-#define SCANTAILOR_SPFIT_OPTIMIZER_H_
+#pragma once
 
 #include <list>
 #include <vector>
@@ -84,4 +83,3 @@ inline void swap(Optimizer& o1, Optimizer& o2) {
   o1.swap(o2);
 }
 }  // namespace spfit
-#endif  // ifndef SCANTAILOR_SPFIT_OPTIMIZER_H_

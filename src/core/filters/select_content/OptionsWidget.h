@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SELECT_CONTENT_OPTIONSWIDGET_H_
-#define SCANTAILOR_SELECT_CONTENT_OPTIONSWIDGET_H_
+#pragma once
 
 #include <AutoManualMode.h>
 #include <UnitsListener.h>
@@ -213,4 +212,3 @@ inline void OptionsWidget::UiData::setPageSizePresetId(const QString& pageSizePr
   m_pageSizePresetId = pageSizePresetId;
 }
 }  // namespace select_content
-#endif  // ifndef SCANTAILOR_SELECT_CONTENT_OPTIONSWIDGET_H_

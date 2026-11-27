@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_LAYOUT_APPLYDIALOG_H_
-#define SCANTAILOR_PAGE_LAYOUT_APPLYDIALOG_H_
+#pragma once
 
 #include <QButtonGroup>
 #include <QDialog>
@@ -41,4 +40,3 @@ class ApplyDialog : public QDialog, private Ui::ApplyDialog {
   QButtonGroup* m_scopeGroup;
 };
 }  // namespace page_layout
-#endif  // ifndef SCANTAILOR_PAGE_LAYOUT_APPLYDIALOG_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_BACKGROUNDTASK_H_
-#define SCANTAILOR_CORE_BACKGROUNDTASK_H_
+#pragma once
 
 #include <QAtomicInt>
 #include <QString>
@@ -46,5 +45,3 @@ class BackgroundTask : public AbstractCommand<FilterResultPtr>, public TaskStatu
 
 
 using BackgroundTaskPtr = std::shared_ptr<BackgroundTask>;
-
-#endif  // ifndef SCANTAILOR_CORE_BACKGROUNDTASK_H_

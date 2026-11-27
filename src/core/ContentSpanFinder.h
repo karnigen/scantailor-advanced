@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_CONTENTSPANFINDER_H_
-#define SCANTAILOR_CORE_CONTENTSPANFINDER_H_
+#pragma once
 
 #include "Span.h"
 #include "VirtualFunction.h"
@@ -43,5 +42,3 @@ template <typename Callable>
 void ContentSpanFinder::find(const imageproc::SlicedHistogram& histogram, Callable handler) const {
   findImpl(histogram, ProxyFunction<Callable, void, const Span&>(handler));
 }
-
-#endif  // ifndef SCANTAILOR_CORE_CONTENTSPANFINDER_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_IMAGEPRESENTATION_H_
-#define SCANTAILOR_CORE_IMAGEPRESENTATION_H_
+#pragma once
 
 #include <QPolygonF>
 #include <QRectF>
@@ -45,6 +44,3 @@ class ImagePresentation {
   QPolygonF m_cropArea;
   QRectF m_displayArea;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_IMAGEPRESENTATION_H_

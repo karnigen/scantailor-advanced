@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_FILTEROPTIONSWIDGET_H_
-#define SCANTAILOR_CORE_FILTEROPTIONSWIDGET_H_
+#pragma once
 
 #include <QWidget>
 
@@ -35,6 +34,3 @@ class FilterOptionsWidget : public QWidget {
    */
   void goToPage(const PageId& pageId);
 };
-
-
-#endif

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_NONCOPYABLE_H_
-#define SCANTAILOR_FOUNDATION_NONCOPYABLE_H_
+#pragma once
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -21,5 +20,3 @@
   Class& operator=(Class&&) noexcept = delete; \
                                                \
  private:
-
-#endif

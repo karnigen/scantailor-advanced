@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_NUMERICTRAITS_H_
-#define SCANTAILOR_FOUNDATION_NUMERICTRAITS_H_
+#pragma once
 
 #include <limits>
 
@@ -43,4 +42,3 @@ struct IntegerSpecific<T, false> {
   static T min() { return -std::numeric_limits<T>::max(); }
 };
 }  // namespace numeric_traits_impl
-#endif  // ifndef SCANTAILOR_FOUNDATION_NUMERICTRAITS_H_

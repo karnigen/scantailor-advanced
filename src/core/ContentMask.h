@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2020 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_CONTENTMASK_H_
-#define SCANTAILOR_CORE_CONTENTMASK_H_
+#pragma once
 
 #include <imageproc/BinaryImage.h>
 
@@ -36,6 +35,3 @@ class ContentMask {
   QTransform m_originalToContentXform;
   QTransform m_contentToOriginalXform;
 };
-
-
-#endif  // SCANTAILOR_CORE_CONTENTMASK_H_

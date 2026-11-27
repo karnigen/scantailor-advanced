@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_EDITABLESPLINE_H_
-#define SCANTAILOR_ZONES_EDITABLESPLINE_H_
+#pragma once
 
 #include <QPolygonF>
 #include <memory>
@@ -52,6 +51,3 @@ class EditableSpline {
  private:
   std::shared_ptr<SentinelSplineVertex> m_sentinel = std::make_shared<SentinelSplineVertex>();
 };
-
-
-#endif  // ifndef SCANTAILOR_ZONES_EDITABLESPLINE_H_

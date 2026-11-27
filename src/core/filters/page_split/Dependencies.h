@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_DEPENDENCIES_H_
-#define SCANTAILOR_PAGE_SPLIT_DEPENDENCIES_H_
+#pragma once
 
 #include <QSize>
 
@@ -56,4 +55,3 @@ inline void Dependencies::setLayoutType(LayoutType type) {
   m_layoutType = type;
 }
 }  // namespace page_split
-#endif  // ifndef SCANTAILOR_PAGE_SPLIT_DEPENDENCIES_H_

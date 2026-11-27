@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_ARCLENGTHMAPPER_H_
-#define SCANTAILOR_MATH_ARCLENGTHMAPPER_H_
+#pragma once
 
 #include <vector>
 
@@ -91,6 +90,3 @@ class ArcLengthMapper {
   std::vector<Sample> m_samples;
   double m_prevFX;
 };
-
-
-#endif  // ifndef SCANTAILOR_MATH_ARCLENGTHMAPPER_H_

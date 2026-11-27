@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_IMAGEMETADATA_H_
-#define SCANTAILOR_CORE_IMAGEMETADATA_H_
+#pragma once
 
 #include <QSize>
 
@@ -42,6 +41,3 @@ class ImageMetadata {
   QSize m_size;
   Dpi m_dpi;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_IMAGEMETADATA_H_

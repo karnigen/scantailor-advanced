@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_POLYLINEINTERSECTOR_H_
-#define SCANTAILOR_MATH_POLYLINEINTERSECTOR_H_
+#pragma once
 
 #include <QLineF>
 #include <QPointF>
@@ -43,6 +42,3 @@ class PolylineIntersector {
   std::vector<QPointF> m_polyline;
   int m_numSegments;
 };
-
-
-#endif  // ifndef SCANTAILOR_MATH_POLYLINEINTERSECTOR_H_

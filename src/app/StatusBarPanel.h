@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_STATUSBARPANEL_H_
-#define SCANTAILOR_APP_STATUSBARPANEL_H_
+#pragma once
 
 #include <core/ZoneModeListener.h>
 
@@ -54,6 +53,3 @@ class StatusBarPanel : public QWidget, public UnitsListener, public ImageViewInf
   QSizeF m_physSize;
   Dpi m_dpi;
 };
-
-
-#endif  // SCANTAILOR_APP_STATUSBARPANEL_H_

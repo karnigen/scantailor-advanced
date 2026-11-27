@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_MATMNT_H_
-#define SCANTAILOR_FOUNDATION_MATMNT_H_
+#pragma once
 
 #include <cstddef>
 
@@ -96,5 +95,3 @@ MatMNT<M, N, T>::MatMNT(const MatMNT<M, N, OT>& other) {
     m_data[i] = static_cast<T>(data[i]);
   }
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_MATMNT_H_

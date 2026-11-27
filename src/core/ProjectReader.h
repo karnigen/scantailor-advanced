@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PROJECTREADER_H_
-#define SCANTAILOR_CORE_PROJECTREADER_H_
+#pragma once
 
 #include <QDomDocument>
 #include <QString>
@@ -105,6 +104,3 @@ class ProjectReader {
   std::shared_ptr<ProjectPages> m_pages;
   std::shared_ptr<FileNameDisambiguator> m_disambiguator;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_PROJECTREADER_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_ZONEDRAGINTERACTION_H_
-#define SCANTAILOR_ZONES_ZONEDRAGINTERACTION_H_
+#pragma once
 
 #include <QCoreApplication>
 #include <QPointF>
@@ -36,6 +35,3 @@ class ZoneDragInteraction : public InteractionHandler {
   InteractionState::Captor m_interaction;
   BasicSplineVisualizer m_visualizer;
 };
-
-
-#endif  // SCANTAILOR_ZONES_ZONEDRAGINTERACTION_H_

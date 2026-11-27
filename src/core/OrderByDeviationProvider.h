@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_ORDERBYDEVIATIONPROVIDER_H_
-#define SCANTAILOR_CORE_ORDERBYDEVIATIONPROVIDER_H_
+#pragma once
 
 #include "DeviationProvider.h"
 #include "PageId.h"
@@ -20,6 +19,3 @@ class OrderByDeviationProvider : public PageOrderProvider {
  private:
   const DeviationProvider<PageId>* m_deviationProvider;
 };
-
-
-#endif  // SCANTAILOR_CORE_ORDERBYDEVIATIONPROVIDER_H_

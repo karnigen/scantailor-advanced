@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_DESKEW_SETTINGS_H_
-#define SCANTAILOR_DESKEW_SETTINGS_H_
+#pragma once
 
 #include <DeviationProvider.h>
 
@@ -73,4 +72,3 @@ class Settings {
   std::uint64_t m_recomputeGeneration = 0;
 };
 }  // namespace deskew
-#endif  // ifndef SCANTAILOR_DESKEW_SETTINGS_H_

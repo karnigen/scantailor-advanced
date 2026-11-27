@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_TASK_H_
-#define SCANTAILOR_PAGE_SPLIT_TASK_H_
+#pragma once
 
 #include <memory>
 
@@ -55,4 +54,3 @@ class Task {
   bool m_batchProcessing;
 };
 }  // namespace page_split
-#endif  // ifndef SCANTAILOR_PAGE_SPLIT_TASK_H_

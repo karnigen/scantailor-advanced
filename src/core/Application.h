@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_APPLICATION_H_
-#define SCANTAILOR_CORE_APPLICATION_H_
+#pragma once
 
 #include <QApplication>
 #include <QTimer>
@@ -31,6 +30,3 @@ class Application : public QApplication {
   QString m_currentLocale;
   std::map<QString, QString> m_translationsMap;
 };
-
-
-#endif

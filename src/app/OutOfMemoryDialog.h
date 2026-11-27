@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_OUTOFMEMORYDIALOG_H_
-#define SCANTAILOR_APP_OUTOFMEMORYDIALOG_H_
+#pragma once
 
 #include <QDialog>
 #include <QString>
@@ -48,6 +47,3 @@ class OutOfMemoryDialog : public QDialog {
   SelectedPage m_selectedPage;
   OutputFileNameGenerator m_outFileNameGen;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_OUTOFMEMORYDIALOG_H_

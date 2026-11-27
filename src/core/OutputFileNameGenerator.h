@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_OUTPUTFILENAMEGENERATOR_H_
-#define SCANTAILOR_CORE_OUTPUTFILENAMEGENERATOR_H_
+#pragma once
 
 #include <QString>
 #include <Qt>
@@ -45,6 +44,3 @@ class OutputFileNameGenerator {
   std::filesystem::path m_outDir;
   Qt::LayoutDirection m_layoutDirection;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_OUTPUTFILENAMEGENERATOR_H_

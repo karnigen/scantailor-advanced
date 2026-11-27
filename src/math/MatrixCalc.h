@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_MATRIXCALC_H_
-#define SCANTAILOR_MATH_MATRIXCALC_H_
+#pragma once
 
 #include <cassert>
 #include <cstddef>
@@ -328,4 +327,3 @@ Mat<T> operator/(const Mat<T>& m, T scalar) {
   return m * (1.0f / scalar);
 }
 }  // namespace mcalc
-#endif  // ifndef SCANTAILOR_MATH_MATRIXCALC_H_

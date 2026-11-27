@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_PROPERTYFACTORY_H_
-#define SCANTAILOR_FOUNDATION_PROPERTYFACTORY_H_
+#pragma once
 
 #include <QString>
 #include <memory>
@@ -29,6 +28,3 @@ class PropertyFactory {
   using Registry = std::unordered_map<QString, PropertyConstructor, hashes::hash<QString>>;
   Registry m_registry;
 };
-
-
-#endif

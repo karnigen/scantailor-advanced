@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_LINEARSOLVER_H_
-#define SCANTAILOR_MATH_LINEARSOLVER_H_
+#pragma once
 
 #include <NonCopyable.h>
 
@@ -204,5 +203,3 @@ void LinearSolver::solve(const T* A, T* X, const T* B) const {
 
   solve(A, X, B, tbuffer.get(), pbuffer.get());
 }
-
-#endif  // ifndef SCANTAILOR_MATH_LINEARSOLVER_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_IMAGEVIEW_H_
-#define SCANTAILOR_PAGE_SPLIT_IMAGEVIEW_H_
+#pragma once
 
 #include <QPixmap>
 #include <memory>
@@ -126,4 +125,3 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   bool m_rightPageRemoved;
 };
 }  // namespace page_split
-#endif  // ifndef SCANTAILOR_PAGE_SPLIT_IMAGEVIEW_H_

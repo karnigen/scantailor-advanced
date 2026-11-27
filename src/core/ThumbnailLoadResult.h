@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_THUMBNAILLOADRESULT_H_
-#define SCANTAILOR_CORE_THUMBNAILLOADRESULT_H_
+#pragma once
 
 #include <QPixmap>
 
@@ -48,6 +47,3 @@ class ThumbnailLoadResult {
   QPixmap m_pixmap;
   Status m_status;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_THUMBNAILLOADRESULT_H_

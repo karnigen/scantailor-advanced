@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_MAINWINDOW_H_
-#define SCANTAILOR_APP_MAINWINDOW_H_
+#pragma once
 
 #include <QMainWindow>
 #include <QObjectCleanupHandler>
@@ -405,6 +404,3 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QTimer m_maxLogicalThumbSizeUpdater;
   QTimer m_sceneItemsPosUpdater;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_MAINWINDOW_H_

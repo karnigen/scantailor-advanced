@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_OUTPUTMARGINS_H_
-#define SCANTAILOR_OUTPUT_OUTPUTMARGINS_H_
+#pragma once
 
 #include "Margins.h"
 
@@ -19,4 +18,3 @@ class OutputMargins : public Margins {
   OutputMargins() : Margins(10.0, 10.0, 10.0, 10.0) {}
 };
 }  // namespace output
-#endif

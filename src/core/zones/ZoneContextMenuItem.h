@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_ZONECONTEXTMENUITEM_H_
-#define SCANTAILOR_ZONES_ZONECONTEXTMENUITEM_H_
+#pragma once
 
 #include <QString>
 #include <functional>
@@ -35,6 +34,3 @@ class ZoneContextMenuItem {
   QString m_label;
   Callback m_callback;
 };
-
-
-#endif  // ifndef SCANTAILOR_ZONES_ZONECONTEXTMENUITEM_H_

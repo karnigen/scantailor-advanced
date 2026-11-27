@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_OUTPUTIMAGEWITHORIGINALBACKGROUND_H_
-#define SCANTAILOR_OUTPUT_OUTPUTIMAGEWITHORIGINALBACKGROUND_H_
+#pragma once
 
 #include "OutputImageWithForeground.h"
 
@@ -13,6 +12,3 @@ class OutputImageWithOriginalBackground : public virtual OutputImageWithForegrou
   virtual QImage getOriginalBackgroundImage() const = 0;
 };
 }  // namespace output
-
-
-#endif  // SCANTAILOR_OUTPUT_OUTPUTIMAGEWITHORIGINALBACKGROUND_H_

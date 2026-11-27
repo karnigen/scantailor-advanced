@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_RASTEROP_H_
-#define SCANTAILOR_IMAGEPROC_RASTEROP_H_
+#pragma once
 
 #include <QPoint>
 #include <QRect>
@@ -407,4 +406,3 @@ void rasterOp(BinaryImage& dst, const BinaryImage& src) {
   rasterOpInDirection<Rop>(dst, dst.rect(), src, QPoint(0, 0), 1, 1);
 }
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_RASTEROP_H_

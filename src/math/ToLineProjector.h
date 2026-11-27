@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_TOLINEPROJECTOR_H_
-#define SCANTAILOR_MATH_TOLINEPROJECTOR_H_
+#pragma once
 
 #include <QLineF>
 #include <QPointF>
@@ -60,6 +59,3 @@ class ToLineProjector {
   QPointF m_vec;
   Vec2d m_mat;
 };
-
-
-#endif  // ifndef SCANTAILOR_MATH_TOLINEPROJECTOR_H_

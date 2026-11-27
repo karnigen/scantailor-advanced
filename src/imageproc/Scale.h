@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_SCALE_H_
-#define SCANTAILOR_IMAGEPROC_SCALE_H_
+#pragma once
 
 class QSize;
 
@@ -24,4 +23,3 @@ class GrayImage;
  */
 GrayImage scaleToGray(const GrayImage& src, const QSize& dstSize);
 }  // namespace imageproc
-#endif

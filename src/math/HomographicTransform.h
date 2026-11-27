@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_HOMOGRAPHICTRANSFORM_H_
-#define SCANTAILOR_MATH_HOMOGRAPHICTRANSFORM_H_
+#pragma once
 
 #include <cstddef>
 
@@ -79,5 +78,3 @@ T HomographicTransform<1, T>::operator()(T from) const {
   const T* m = this->mat().data();
   return (from * m[0] + m[2]) / (from * m[1] + m[3]);
 }
-
-#endif  // ifndef SCANTAILOR_MATH_HOMOGRAPHICTRANSFORM_H_

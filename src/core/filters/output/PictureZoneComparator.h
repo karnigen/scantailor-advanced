@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_PICTUREZONECOMPARATOR_H_
-#define SCANTAILOR_OUTPUT_PICTUREZONECOMPARATOR_H_
+#pragma once
 
 class ZoneSet;
 class Zone;
@@ -19,4 +18,3 @@ class PictureZoneComparator {
   static bool equal(const PropertySet& lhs, const PropertySet& rhs);
 };
 }  // namespace output
-#endif

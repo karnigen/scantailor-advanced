@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_ALIGNEDARRAY_H_
-#define SCANTAILOR_FOUNDATION_ALIGNEDARRAY_H_
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -69,5 +68,3 @@ void AlignedArray<T, alignment_in_units>::swap(AlignedArray& other) {
   m_storage = other.m_storage;
   other.m_storage = temp;
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_ALIGNEDARRAY_H_

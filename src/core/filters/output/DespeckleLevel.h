@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_DESPECKLELEVEL_H_
-#define SCANTAILOR_OUTPUT_DESPECKLELEVEL_H_
+#pragma once
 
 class QString;
 
@@ -14,4 +13,3 @@ QString despeckleLevelToString(DespeckleLevel level);
 
 DespeckleLevel despeckleLevelFromString(const QString& str);
 }  // namespace output
-#endif

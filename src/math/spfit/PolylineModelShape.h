@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_POLYLINEMODELSHAPE_H_
-#define SCANTAILOR_SPFIT_POLYLINEMODELSHAPE_H_
+#pragma once
 
 #include <QPointF>
 #include <vector>
@@ -40,4 +39,3 @@ class PolylineModelShape : public ModelShape {
 
 DEFINE_FLAG_OPS(PolylineModelShape::Flags)
 }  // namespace spfit
-#endif  // ifndef SCANTAILOR_SPFIT_POLYLINEMODELSHAPE_H_

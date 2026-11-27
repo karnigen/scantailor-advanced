@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_COLORSEGMENTER_H_
-#define SCANTAILOR_IMAGEPROC_COLORSEGMENTER_H_
+#pragma once
 
 #include <QImage>
 
@@ -35,5 +34,3 @@ class ColorSegmenter {
   int m_blueThresholdAdjustment;
 };
 }  // namespace imageproc
-
-#endif  // SCANTAILOR_IMAGEPROC_COLORSEGMENTER_H_

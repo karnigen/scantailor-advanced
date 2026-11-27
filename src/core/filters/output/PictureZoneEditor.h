@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_OUTPUT_PICTUREZONEEDITOR_H_
-#define SCANTAILOR_OUTPUT_PICTUREZONEEDITOR_H_
+#pragma once
 
 #include <BinaryImage.h>
 
@@ -96,4 +95,3 @@ class PictureZoneEditor : public ZoneEditorBase {
   std::shared_ptr<Settings> m_settings;
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_PICTUREZONEEDITOR_H_

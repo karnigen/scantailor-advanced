@@ -3,8 +3,7 @@
 // SPDX-FileCopyrightText: 1995 Spencer Kimball and Peter Mattis
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_
-#define SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_
+#pragma once
 
 #include <QSize>
 #include <cstring>
@@ -197,4 +196,3 @@ void gaussBlurGeneric(const QSize size,
   }
 }  // gaussBlurGeneric
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_

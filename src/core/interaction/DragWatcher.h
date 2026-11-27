@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_INTERACTION_DRAGWATCHER_H_
-#define SCANTAILOR_INTERACTION_DRAGWATCHER_H_
+#pragma once
 
 #include <QDateTime>
 #include <QPoint>
@@ -40,6 +39,3 @@ class DragWatcher : public InteractionHandler {
   int m_dragMaxSqDist;
   bool m_dragInProgress;
 };
-
-
-#endif  // ifndef SCANTAILOR_INTERACTION_DRAGWATCHER_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_DRAWOVER_H_
-#define SCANTAILOR_IMAGEPROC_DRAWOVER_H_
+#pragma once
 
 class QImage;
 class QRect;
@@ -26,4 +25,3 @@ namespace imageproc {
  */
 void drawOver(QImage& dst, const QRect& dstRect, const QImage& src, const QRect& srcRect);
 }  // namespace imageproc
-#endif

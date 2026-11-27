@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_CONNCOMPERASEREXT_H_
-#define SCANTAILOR_IMAGEPROC_CONNCOMPERASEREXT_H_
+#pragma once
 
 #include "BinaryImage.h"
 #include "ConnComp.h"
@@ -77,4 +76,3 @@ class ConnCompEraserExt {
   ConnComp m_lastCC;
 };
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_CONNCOMPERASEREXT_H_

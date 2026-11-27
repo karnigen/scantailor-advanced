@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_RELINKINGDIALOG_H_
-#define SCANTAILOR_APP_RELINKINGDIALOG_H_
+#pragma once
 
 #include <QDialog>
 #include <QStandardItemModel>
@@ -101,6 +100,3 @@ class RelinkingDialog : public QDialog {
   std::filesystem::path m_projectFileDir;
   bool m_treeBuilt = false;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_RELINKINGDIALOG_H_

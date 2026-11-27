@@ -5,8 +5,7 @@
 // Split Params (Issue #1): refactor into RotationParams and ObliqueParams as requested by Zvezdochiot;
 // in the dev branch this is implemented (single <params> XML preserved for compatibility).
 
-#ifndef SCANTAILOR_DESKEW_PARAMS_H_
-#define SCANTAILOR_DESKEW_PARAMS_H_
+#pragma once
 
 #include <QString>
 #include <algorithm>
@@ -97,5 +96,3 @@ inline bool Params::autoOblique() const {
   return m_oblique.mode == MODE_AUTO;
 }
 }  // namespace deskew
-
-#endif  // ifndef SCANTAILOR_DESKEW_PARAMS_H_

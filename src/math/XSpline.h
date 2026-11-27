@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_XSPLINE_H_
-#define SCANTAILOR_MATH_XSPLINE_H_
+#pragma once
 
 #include <QLineF>
 #include <QPointF>
@@ -209,5 +208,3 @@ class XSpline : public spfit::FittableSpline {
 inline void swap(XSpline& o1, XSpline& o2) {
   o1.swap(o2);
 }
-
-#endif  // ifndef SCANTAILOR_MATH_XSPLINE_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_PROJECTOPENINGCONTEXT_H_
-#define SCANTAILOR_APP_PROJECTOPENINGCONTEXT_H_
+#pragma once
 
 #include <QObject>
 #include <QPointer>
@@ -52,6 +51,3 @@ class ProjectOpeningContext : public QObject {
   QPointer<FixDpiDialog> m_fixDpiDialog;
   QWidget* m_parent;
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_PROJECTOPENINGCONTEXT_H_

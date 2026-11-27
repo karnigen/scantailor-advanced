@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_CONNCOMP_H_
-#define SCANTAILOR_IMAGEPROC_CONNCOMP_H_
+#pragma once
 
 #include <QRect>
 
@@ -41,4 +40,3 @@ class ConnComp {
   int m_pixCount;
 };
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_CONNCOMP_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_MODELSHAPE_H_
-#define SCANTAILOR_SPFIT_MODELSHAPE_H_
+#pragma once
 
 #include <QPointF>
 
@@ -27,4 +26,3 @@ class ModelShape {
   virtual SqDistApproximant localSqDistApproximant(const QPointF& pt, FittableSpline::SampleFlags flags) const = 0;
 };
 }  // namespace spfit
-#endif

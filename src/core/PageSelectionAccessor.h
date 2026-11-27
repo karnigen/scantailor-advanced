@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PAGESELECTIONACCESSOR_H_
-#define SCANTAILOR_CORE_PAGESELECTIONACCESSOR_H_
+#pragma once
 
 #include <memory>
 #include <set>
@@ -29,6 +28,3 @@ class PageSelectionAccessor {
  private:
   std::shared_ptr<const PageSelectionProvider> m_provider;
 };
-
-
-#endif

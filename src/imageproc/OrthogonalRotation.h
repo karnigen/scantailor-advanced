@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_IMAGEPROC_ORTHOGONALROTATION_H_
-#define SCANTAILOR_IMAGEPROC_ORTHOGONALROTATION_H_
+#pragma once
 
 class QRect;
 
@@ -34,4 +33,3 @@ BinaryImage orthogonalRotation(const BinaryImage& src, const QRect& srcRect, int
  */
 BinaryImage orthogonalRotation(const BinaryImage& src, int degrees);
 }  // namespace imageproc
-#endif

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SELECT_CONTENT_THUMBNAIL_H_
-#define SCANTAILOR_SELECT_CONTENT_THUMBNAIL_H_
+#pragma once
 
 #include <QRectF>
 
@@ -35,4 +34,3 @@ class Thumbnail : public ThumbnailBase {
   bool m_deviant;
 };
 }  // namespace select_content
-#endif

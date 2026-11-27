@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_DEFAULTPARAMSDIALOG_H_
-#define SCANTAILOR_APP_DEFAULTPARAMSDIALOG_H_
+#pragma once
 
 #include <core/ConnectionManager.h>
 
@@ -158,6 +157,3 @@ class DefaultParamsDialog : public QDialog, private Ui::DefaultParamsDialog {
 
   ConnectionManager m_connectionManager;
 };
-
-
-#endif  // SCANTAILOR_APP_DEFAULTPARAMSDIALOG_H_

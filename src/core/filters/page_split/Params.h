@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_PARAMS_H_
-#define SCANTAILOR_PAGE_SPLIT_PARAMS_H_
+#pragma once
 
 #include <QString>
 #include <utility>
@@ -71,4 +70,3 @@ inline void Params::setSplitLineMode(AutoManualMode mode) {
   m_splitLineMode = mode;
 }
 }  // namespace page_split
-#endif  // ifndef SCANTAILOR_PAGE_SPLIT_PARAMS_H_

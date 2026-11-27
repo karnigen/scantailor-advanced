@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef TST_UX_QT_H
-#define TST_UX_QT_H
+#pragma once
 
 #include <QObject>
 
@@ -18,5 +17,3 @@ class TestUxQt : public QObject {
   void testConfigurationDialogShowsPathsAndReloadsSettings();
   void testSingleColumnSettingUpdatesButtonState();
 };
-
-#endif

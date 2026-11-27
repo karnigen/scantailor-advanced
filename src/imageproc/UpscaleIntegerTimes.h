@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_UPSCALEINTEGERTIMES_H_
-#define SCANTAILOR_IMAGEPROC_UPSCALEINTEGERTIMES_H_
+#pragma once
 
 #include "BWColor.h"
 
@@ -27,4 +26,3 @@ BinaryImage upscaleIntegerTimes(const BinaryImage& src, int xscale, int yscale);
  */
 BinaryImage upscaleIntegerTimes(const BinaryImage& src, const QSize& dstSize, BWColor padding);
 }  // namespace imageproc
-#endif

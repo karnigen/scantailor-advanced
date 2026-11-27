@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_SPLINEFITTER_H_
-#define SCANTAILOR_SPFIT_SPLINEFITTER_H_
+#pragma once
 
 #include <vector>
 
@@ -70,4 +69,3 @@ class SplineFitter {
   std::vector<FittableSpline::LinearCoefficient> m_tempCoeffs;
 };
 }  // namespace spfit
-#endif  // ifndef SCANTAILOR_SPFIT_SPLINEFITTER_H_

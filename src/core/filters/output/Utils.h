@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_UTILS_H_
-#define SCANTAILOR_OUTPUT_UTILS_H_
+#pragma once
 
 #include <filesystem>
 
@@ -37,4 +36,3 @@ class Utils {
   static Params buildDefaultParams();
 };
 }  // namespace output
-#endif

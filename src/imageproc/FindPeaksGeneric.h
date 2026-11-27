@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_FINDPEAKSGENERIC_H_
-#define SCANTAILOR_IMAGEPROC_FINDPEAKSGENERIC_H_
+#pragma once
 
 #include <QDebug>
 #include <QPoint>
@@ -181,4 +180,3 @@ BinaryImage findPeaksGeneric(MostSignificantSelector mostSignificant,
   return peaks;
 }  // findPeaksGeneric
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_FINDPEAKSGENERIC_H_

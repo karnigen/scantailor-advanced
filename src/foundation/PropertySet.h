@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_PROPERTYSET_H_
-#define SCANTAILOR_FOUNDATION_PROPERTYSET_H_
+#pragma once
 
 #include <memory>
 #include <typeindex>
@@ -122,5 +121,3 @@ inline void PropertySet::swap(PropertySet& other) {
 inline void swap(PropertySet& o1, PropertySet& o2) {
   o1.swap(o2);
 }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_PROPERTYSET_H_

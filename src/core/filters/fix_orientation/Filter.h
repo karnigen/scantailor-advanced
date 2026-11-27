@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FIX_ORIENTATION_FILTER_H_
-#define SCANTAILOR_FIX_ORIENTATION_FILTER_H_
+#pragma once
 
 #include <memory>
 
@@ -79,4 +78,3 @@ class Filter : public AbstractFilter {
   SafeDeletingQObjectPtr<OptionsWidget> m_optionsWidget;
 };
 }  // namespace fix_orientation
-#endif  // ifndef SCANTAILOR_FIX_ORIENTATION_FILTER_H_

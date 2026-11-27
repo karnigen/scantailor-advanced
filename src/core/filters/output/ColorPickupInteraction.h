@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_COLORPICKUPINTERACTION_H_
-#define SCANTAILOR_OUTPUT_COLORPICKUPINTERACTION_H_
+#pragma once
 
 #include <QCoreApplication>
 #include <QRect>
@@ -59,4 +58,3 @@ class ColorPickupInteraction : public InteractionHandler {
   static const uint32_t m_sBitUnmixingLUT[3][256];
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_COLORPICKUPINTERACTION_H_

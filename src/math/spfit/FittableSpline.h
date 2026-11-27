@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_FITTABLESPLINE_H_
-#define SCANTAILOR_SPFIT_FITTABLESPLINE_H_
+#pragma once
 
 #include <QPointF>
 #include <vector>
@@ -100,4 +99,3 @@ class FittableSpline {
 
 DEFINE_FLAG_OPS(FittableSpline::SampleFlags)
 }  // namespace spfit
-#endif  // ifndef SCANTAILOR_SPFIT_FITTABLESPLINE_H_

@@ -5,8 +5,7 @@
 // Auto oblique (Issue #2): algorithm requested by Zvezdochiot; in the dev branch this is implemented
 // as requested (sausage mask, 90° rotation, skew difference, ±5° limit).
 
-#ifndef SCANTAILOR_CORE_OBLIQUEFINDER_H_
-#define SCANTAILOR_CORE_OBLIQUEFINDER_H_
+#pragma once
 
 #include <optional>
 
@@ -39,5 +38,3 @@ std::optional<double> findObliqueDegrees(const imageproc::BinaryImage& mask,
                                          double maxObliqueDeg = 5.0);
 
 }  // namespace deskew
-
-#endif

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_EDITABLEZONESET_H_
-#define SCANTAILOR_ZONES_EDITABLEZONESET_H_
+#pragma once
 
 #include <QObject>
 #include <cstddef>
@@ -128,5 +127,3 @@ class EditableZoneSet : public QObject {
   ZoneItemsBySpline m_zoneItemsBySpline;
   PropertySet m_defaultProps;
 };
-
-#endif  // ifndef SCANTAILOR_ZONES_EDITABLEZONESET_H_

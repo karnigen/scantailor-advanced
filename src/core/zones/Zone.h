@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_ZONE_H_
-#define SCANTAILOR_ZONES_ZONE_H_
+#pragma once
 
 #include <PropertySet.h>
 
@@ -48,5 +47,3 @@ inline PropertySet& Zone::properties() {
 inline const PropertySet& Zone::properties() const {
   return m_props;
 }
-
-#endif  // ifndef SCANTAILOR_ZONES_ZONE_H_

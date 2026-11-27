@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_OUTPUTPARAMS_H_
-#define SCANTAILOR_OUTPUT_OUTPUTPARAMS_H_
+#pragma once
 
 #include "OutputFileParams.h"
 #include "OutputImageParams.h"
@@ -105,4 +104,3 @@ inline const OutputFileParams& OutputParams::sourceFileParams() const {
   return m_sourceFileParams;
 }
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_OUTPUTPARAMS_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_BADALLOCIFNULL_H_
-#define SCANTAILOR_IMAGEPROC_BADALLOCIFNULL_H_
+#pragma once
 
 class QImage;
 
@@ -23,5 +22,3 @@ namespace imageproc {
  */
 const QImage& badAllocIfNull(const QImage& image);
 }  // namespace imageproc
-
-#endif

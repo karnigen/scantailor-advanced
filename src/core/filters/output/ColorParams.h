@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_COLORPARAMS_H_
-#define SCANTAILOR_OUTPUT_COLORPARAMS_H_
+#pragma once
 
 #include "BlackWhiteOptions.h"
 #include "ColorCommonOptions.h"
@@ -70,4 +69,3 @@ inline void ColorParams::setBlackWhiteOptions(const BlackWhiteOptions& opt) {
   m_bwOptions = opt;
 }
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_COLORPARAMS_H_

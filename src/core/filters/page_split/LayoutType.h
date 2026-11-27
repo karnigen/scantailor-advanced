@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_LAYOUTTYPE_H_
-#define SCANTAILOR_PAGE_SPLIT_LAYOUTTYPE_H_
+#pragma once
 
 #include <QString>
 
@@ -14,4 +13,3 @@ QString layoutTypeToString(LayoutType type);
 
 LayoutType layoutTypeFromString(const QString& layoutType);
 }  // namespace page_split
-#endif

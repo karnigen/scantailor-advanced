@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_APPLYCOLORSDIALOG_H_
-#define SCANTAILOR_OUTPUT_APPLYCOLORSDIALOG_H_
+#pragma once
 
 #include <QButtonGroup>
 #include <QDialog>
@@ -39,4 +38,3 @@ class ApplyColorsDialog : public QDialog, private Ui::ApplyColorsDialog {
   QButtonGroup* m_scopeGroup;
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_APPLYCOLORSDIALOG_H_

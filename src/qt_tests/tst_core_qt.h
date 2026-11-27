@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef TST_CORE_QT_H
-#define TST_CORE_QT_H
+#pragma once
 
 #include <QObject>
 #include <QString>
@@ -40,5 +39,3 @@ class Emitter : public QObject {
  signals:
   void valueChanged(const QString& value);
 };
-
-#endif

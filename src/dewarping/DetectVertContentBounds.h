@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_DEWARPING_DETECTVERTCONTENTBOUNDS_H_
-#define SCANTAILOR_DEWARPING_DETECTVERTCONTENTBOUNDS_H_
+#pragma once
 
 #include <QLineF>
 #include <utility>
@@ -28,4 +27,3 @@ namespace dewarping {
  */
 std::pair<QLineF, QLineF> detectVertContentBounds(const imageproc::BinaryImage& image, DebugImages* dbg);
 }  // namespace dewarping
-#endif

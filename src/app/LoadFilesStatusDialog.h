@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_LOADFILESSTATUSDIALOG_H_
-#define SCANTAILOR_APP_LOADFILESSTATUSDIALOG_H_
+#pragma once
 
 #include <QString>
 #include <vector>
@@ -25,6 +24,3 @@ class LoadFilesStatusDialog : public QDialog {
   QString m_loadedTabNameTemplate;
   QString m_failedTabNameTemplate;
 };
-
-
-#endif

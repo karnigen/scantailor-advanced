@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_SAVGOLFILTER_H_
-#define SCANTAILOR_IMAGEPROC_SAVGOLFILTER_H_
+#pragma once
 
 class QImage;
 class QSize;
@@ -34,4 +33,3 @@ namespace imageproc {
  */
 QImage savGolFilter(const QImage& src, const QSize& windowSize, int horDegree, int vertDegree);
 }  // namespace imageproc
-#endif

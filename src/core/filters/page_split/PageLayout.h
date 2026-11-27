@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_PAGELAYOUT_H_
-#define SCANTAILOR_PAGE_SPLIT_PAGELAYOUT_H_
+#pragma once
 
 #include <QLineF>
 #include <QPolygonF>
@@ -197,4 +196,3 @@ inline const QPolygonF& PageLayout::uncutOutline() const {
   return m_uncutOutline;
 }
 }  // namespace page_split
-#endif  // ifndef SCANTAILOR_PAGE_SPLIT_PAGELAYOUT_H_

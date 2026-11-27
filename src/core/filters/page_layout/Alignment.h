@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_LAYOUT_ALIGNMENT_H_
-#define SCANTAILOR_PAGE_LAYOUT_ALIGNMENT_H_
+#pragma once
 
 class QDomDocument;
 class QDomElement;
@@ -90,4 +89,3 @@ inline bool Alignment::isAutoHorizontal() const {
   return (m_horizontal == HAUTO) || (m_horizontal == HORIGINAL);
 }
 }  // namespace page_layout
-#endif  // ifndef SCANTAILOR_PAGE_LAYOUT_ALIGNMENT_H_

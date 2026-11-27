@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_FLAGOPS_H_
-#define SCANTAILOR_FOUNDATION_FLAGOPS_H_
+#pragma once
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -40,5 +39,3 @@
     lhs = lhs ^ rhs;                             \
     return lhs;                                  \
   }
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_FLAGOPS_H_

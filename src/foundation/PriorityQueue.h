@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_PRIORITYQUEUE_H_
-#define SCANTAILOR_FOUNDATION_PRIORITYQUEUE_H_
+#pragma once
 
 #include <algorithm>
 #include <cassert>
@@ -219,5 +218,3 @@ size_t PriorityQueue<T, SubClass>::bubbleDown(size_t idx) {
   }
   return idx;
 }  // >::bubbleDown
-
-#endif  // ifndef SCANTAILOR_FOUNDATION_PRIORITYQUEUE_H_

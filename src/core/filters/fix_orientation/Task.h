@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FIX_ORIENTATION_TASK_H_
-#define SCANTAILOR_FIX_ORIENTATION_TASK_H_
+#pragma once
 
 #include <FilterData.h>
 
@@ -53,4 +52,3 @@ class Task {
   bool m_batchProcessing;
 };
 }  // namespace fix_orientation
-#endif  // ifndef SCANTAILOR_FIX_ORIENTATION_TASK_H_

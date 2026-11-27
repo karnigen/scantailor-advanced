@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_IMAGEINFO_H_
-#define SCANTAILOR_CORE_IMAGEINFO_H_
+#pragma once
 
 #include "ImageId.h"
 #include "ImageMetadata.h"
@@ -41,6 +40,3 @@ class ImageInfo {
   bool m_leftHalfRemoved;   // Both can't be true, and if one is true,
   bool m_rightHalfRemoved;  // then m_numSubPages is 1.
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_IMAGEINFO_H_

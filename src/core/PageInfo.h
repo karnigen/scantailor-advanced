@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PAGEINFO_H_
-#define SCANTAILOR_CORE_PAGEINFO_H_
+#pragma once
 
 #include "ImageMetadata.h"
 #include "PageId.h"
@@ -42,6 +41,3 @@ class PageInfo {
   bool m_leftHalfRemoved;
   bool m_rightHalfRemoved;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_PAGEINFO_H_

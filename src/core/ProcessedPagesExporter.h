@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PROCESSEDPAGESEXPORTER_H_
-#define SCANTAILOR_CORE_PROCESSEDPAGESEXPORTER_H_
+#pragma once
 
 #include <QString>
 #include <QStringList>
@@ -31,5 +30,3 @@ class ProcessedPagesExporter {
                         const ProgressCallback& progress,
                         QString* errorMessage);
 };
-
-#endif  // SCANTAILOR_CORE_PROCESSEDPAGESEXPORTER_H_

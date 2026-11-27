@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_DESKEW_CACHEDRIVENTASK_H_
-#define SCANTAILOR_DESKEW_CACHEDRIVENTASK_H_
+#pragma once
 
 #include <memory>
 
@@ -36,4 +35,3 @@ class CacheDrivenTask {
   std::shared_ptr<Settings> m_settings;
 };
 }  // namespace deskew
-#endif  // ifndef SCANTAILOR_DESKEW_CACHEDRIVENTASK_H_

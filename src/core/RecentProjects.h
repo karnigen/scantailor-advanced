@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_RECENTPROJECTS_H_
-#define SCANTAILOR_CORE_RECENTPROJECTS_H_
+#pragma once
 
 #include <QString>
 #include <filesystem>
@@ -64,5 +63,3 @@ void RecentProjects::enumerate(Out out, int maxItems) const {
     out(*it);
   }
 }
-
-#endif  // ifndef SCANTAILOR_CORE_RECENTPROJECTS_H_

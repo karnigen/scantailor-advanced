@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_TRANSFORM_H_
-#define SCANTAILOR_IMAGEPROC_TRANSFORM_H_
+#pragma once
 
 #include <QColor>
 #include <QSizeF>
@@ -100,4 +99,3 @@ GrayImage transformToGray(const QImage& src,
                           OutsidePixels outsidePixels,
                           const QSizeF& minMappingArea = QSizeF(0.9, 0.9));
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_TRANSFORM_H_

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 
-#ifndef SCANTAILOR_OUTPUT_DESPECKLESTATE_H_
-#define SCANTAILOR_OUTPUT_DESPECKLESTATE_H_
+#pragma once
 
 #include <BinaryImage.h>
 
@@ -75,4 +74,3 @@ inline double DespeckleState::level() const {
   return m_despeckleLevel;
 }
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_DESPECKLESTATE_H_

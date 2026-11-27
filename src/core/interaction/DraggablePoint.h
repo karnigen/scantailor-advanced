@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_INTERACTION_DRAGGABLEPOINT_H_
-#define SCANTAILOR_INTERACTION_DRAGGABLEPOINT_H_
+#pragma once
 
 #include <QPointF>
 #include <functional>
@@ -56,6 +55,3 @@ class DraggablePoint : public DraggableObject {
   double m_hitAreaRadius;
   int m_proximityPriority;
 };
-
-
-#endif  // ifndef SCANTAILOR_INTERACTION_DRAGGABLEPOINT_H_

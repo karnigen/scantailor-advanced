@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_BASICSPLINEVISUALIZER_H_
-#define SCANTAILOR_ZONES_BASICSPLINEVISUALIZER_H_
+#pragma once
 
 #include <QColor>
 #include <QPen>
@@ -38,6 +37,3 @@ class BasicSplineVisualizer {
   QRgb m_highlightDarkColor;
   QPen m_pen;
 };
-
-
-#endif  // ifndef SCANTAILOR_ZONES_BASICSPLINEVISUALIZER_H_

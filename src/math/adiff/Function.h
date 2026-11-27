@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ADIFF_FUNCTION_H_
-#define SCANTAILOR_ADIFF_FUNCTION_H_
+#pragma once
 
 #include <cstddef>
 
@@ -89,4 +88,3 @@ Function<2> operator*(double scalar, const Function<2>& f);
 
 Function<2> operator/(const Function<2>& num, const Function<2>& den);
 }  // namespace adiff
-#endif  // ifndef SCANTAILOR_ADIFF_FUNCTION_H_

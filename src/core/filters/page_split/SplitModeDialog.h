@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_SPLITMODEDIALOG_H_
-#define SCANTAILOR_PAGE_SPLIT_SPLITMODEDIALOG_H_
+#pragma once
 
 #include <QButtonGroup>
 #include <QDialog>
@@ -56,4 +55,3 @@ class SplitModeDialog : public QDialog, private Ui::SplitModeDialog {
   PageLayout::Type m_autoDetectedLayoutType;
 };
 }  // namespace page_split
-#endif  // ifndef SCANTAILOR_PAGE_SPLIT_SPLITMODEDIALOG_H_

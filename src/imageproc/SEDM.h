@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_SEDM_H_
-#define SCANTAILOR_IMAGEPROC_SEDM_H_
+#pragma once
 
 #include <FlagOps.h>
 
@@ -190,4 +189,3 @@ inline void swap(SEDM& o1, SEDM& o2) {
 
 DEFINE_FLAG_OPS(SEDM::Borders)
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_SEDM_H_

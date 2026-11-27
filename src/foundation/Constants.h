@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_FOUNDATION_CONSTANTS_H_
-#define SCANTAILOR_FOUNDATION_CONSTANTS_H_
+#pragma once
 
 namespace constants {
 extern const double PI;
@@ -40,4 +39,3 @@ extern const double DPI2DPM;
  */
 extern const double DPM2DPI;
 }  // namespace constants
-#endif

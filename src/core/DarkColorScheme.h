@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_DARKCOLORSCHEME_H_
-#define SCANTAILOR_CORE_DARKCOLORSCHEME_H_
+#pragma once
 
 #include <QPalette>
 #include <QString>
@@ -33,6 +32,3 @@ class DarkColorScheme : public ColorScheme {
   QString m_styleSheet;
   ColorParams m_customColors;
 };
-
-
-#endif  // SCANTAILOR_CORE_DARKCOLORSCHEME_H_

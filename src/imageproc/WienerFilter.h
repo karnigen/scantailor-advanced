@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2015 Joseph Artsimovich <joseph.artsimovich@gmail.com>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef SCANTAILOR_IMAGEPROC_WIENER_FILTER_H_
-#define SCANTAILOR_IMAGEPROC_WIENER_FILTER_H_
+#pragma once
 
 #include "GrayImage.h"
 
@@ -35,5 +34,3 @@ QImage wienerColorFilter(QImage const& image, QSize const& window_size, double c
 void wienerColorFilterInPlace(QImage& image, QSize const& window_size, double coef);
 
 }  // namespace imageproc
-
-#endif

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_MATH_QUADRATICFUNCTION_H_
-#define SCANTAILOR_MATH_QUADRATICFUNCTION_H_
+#pragma once
 
 #include <cstddef>
 
@@ -82,5 +81,3 @@ class QuadraticFunction {
 inline void swap(QuadraticFunction& f1, QuadraticFunction& f2) {
   f1.swap(f2);
 }
-
-#endif  // ifndef SCANTAILOR_MATH_QUADRATICFUNCTION_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_SETTINGSSTORE_H_
-#define SCANTAILOR_CORE_SETTINGSSTORE_H_
+#pragma once
 
 #include <QByteArray>
 #include <QSize>
@@ -68,5 +67,3 @@ class SettingsStore {
   std::filesystem::path m_filePath;
   std::unique_ptr<Backend> m_backend;
 };
-
-#endif  // SCANTAILOR_CORE_SETTINGSSTORE_H_

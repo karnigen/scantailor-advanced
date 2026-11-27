@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_FILTER_H_
-#define SCANTAILOR_OUTPUT_FILTER_H_
+#pragma once
 
 #include <QCoreApplication>
 #include <QImage>
@@ -78,4 +77,3 @@ class Filter : public AbstractFilter {
   int m_selectedPageOrder;
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_FILTER_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_APP_NEWOPENPROJECTPANEL_H_
-#define SCANTAILOR_APP_NEWOPENPROJECTPANEL_H_
+#pragma once
 
 #include <QWidget>
 #include <memory>
@@ -31,6 +30,3 @@ class NewOpenProjectPanel : public QWidget, private Ui::NewOpenProjectPanel {
  private:
   void addRecentProject(const QString& filePath);
 };
-
-
-#endif  // ifndef SCANTAILOR_APP_NEWOPENPROJECTPANEL_H_

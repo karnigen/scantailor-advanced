@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SELECT_CONTENT_CACHEDRIVENTASK_H_
-#define SCANTAILOR_SELECT_CONTENT_CACHEDRIVENTASK_H_
+#pragma once
 
 #include <memory>
 
@@ -36,4 +35,3 @@ class CacheDrivenTask {
   std::shared_ptr<page_layout::CacheDrivenTask> m_nextTask;
 };
 }  // namespace select_content
-#endif  // ifndef SCANTAILOR_SELECT_CONTENT_CACHEDRIVENTASK_H_

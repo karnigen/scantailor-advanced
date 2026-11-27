@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_ZONES_ZONEDEFAULTINTERACTION_H_
-#define SCANTAILOR_ZONES_ZONEDEFAULTINTERACTION_H_
+#pragma once
 
 #include <QCoreApplication>
 #include <QPointF>
@@ -86,6 +85,3 @@ class ZoneDefaultInteraction : public InteractionHandler {
   std::unique_ptr<QShortcut> m_removeZoneShortcut;
   std::unique_ptr<QShortcut> m_removeVertexShortcut;
 };
-
-
-#endif  // ifndef SCANTAILOR_ZONES_ZONEDEFAULTINTERACTION_H_

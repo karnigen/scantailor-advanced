@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_OUTPUT_OUTPUTGENERATOR_H_
-#define SCANTAILOR_OUTPUT_OUTPUTGENERATOR_H_
+#pragma once
 
 #include <QRect>
 #include <memory>
@@ -101,4 +100,3 @@ class OutputGenerator {
   QRect m_contentRect;
 };
 }  // namespace output
-#endif  // ifndef SCANTAILOR_OUTPUT_OUTPUTGENERATOR_H_

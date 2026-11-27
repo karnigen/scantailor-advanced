@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_PAGE_SPLIT_PAGELAYOUTADAPTER_H_
-#define SCANTAILOR_PAGE_SPLIT_PAGELAYOUTADAPTER_H_
+#pragma once
 
 #include <QtCore/QLineF>
 #include <QtCore/QRectF>
@@ -47,6 +46,3 @@ class PageLayoutAdapter {
   static QVector<QLineF> adaptCutters(const QVector<QLineF>& cuttersList, const QRectF& newRect);
 };
 }  // namespace page_split
-
-
-#endif  // SCANTAILOR_PAGE_SPLIT_PAGELAYOUTADAPTER_H_

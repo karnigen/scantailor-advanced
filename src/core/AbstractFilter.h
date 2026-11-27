@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_ABSTRACTFILTER_H_
-#define SCANTAILOR_CORE_ABSTRACTFILTER_H_
+#pragma once
 
 #include <vector>
 
@@ -48,6 +47,3 @@ class AbstractFilter : public std::enable_shared_from_this<AbstractFilter> {
 
   virtual void loadDefaultSettings(const PageInfo& pageInfo) = 0;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_ABSTRACTFILTER_H_

@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PAGEORIENTATIONPROPAGATOR_H_
-#define SCANTAILOR_CORE_PAGEORIENTATIONPROPAGATOR_H_
+#pragma once
 
 #include <QSizeF>
 #include <memory>
@@ -39,6 +38,3 @@ class PageOrientationPropagator {
   std::shared_ptr<page_split::Filter> m_pageSplitFilter;
   std::shared_ptr<CompositeCacheDrivenTask> m_task;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_PAGEORIENTATIONPROPAGATOR_H_

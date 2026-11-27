@@ -2,8 +2,7 @@
 // SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PROCESSINGINDICATIONWIDGET_H_
-#define SCANTAILOR_CORE_PROCESSINGINDICATIONWIDGET_H_
+#pragma once
 
 #include <QColor>
 #include <QWidget>
@@ -49,6 +48,3 @@ class ProcessingIndicationWidget : public QWidget {
   double m_distinctionDelta;
   int m_timerId;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_PROCESSINGINDICATIONWIDGET_H_
