@@ -8,9 +8,12 @@
 #include <core/IconProvider.h>
 
 #include <QFont>
+#include <QGridLayout>
 #include <QIntValidator>
 #include <QLineEdit>
 #include <QTextDocument>
+#include <QToolButton>
+#include <QVBoxLayout>
 #include <utility>
 
 #include "../../Utils.h"
@@ -32,6 +35,8 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
       m_sourceDpiFocusWidget(nullptr),
       m_leftRightLinked(true),
       m_topBottomLinked(true),
+      m_alignmentButtonGroup(nullptr),
+      m_zeroMarginsBtn(nullptr),
       m_connectionManager(std::bind(&OptionsWidget::setupUiConnections, this)) {
   {
     SettingsStore appSettings;
@@ -40,6 +45,23 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings,
   }
 
   setupUi(this);
+  m_zeroMarginsBtn = new QToolButton(this);
+  m_zeroMarginsBtn->setText(QStringLiteral("0"));
+  m_zeroMarginsBtn->setToolTip(tr("Set all four margins to zero."));
+  m_zeroMarginsBtn->setAccessibleName(tr("Set all margins to zero"));
+  m_zeroMarginsBtn->setAutoRaise(true);
+  m_zeroMarginsBtn->setFixedSize(20, 20);
+
+  gridLayout->removeWidget(topBottomLink);
+  gridLayout->removeWidget(leftRightLink);
+  auto* marginActionsLayout = new QVBoxLayout;
+  marginActionsLayout->setSpacing(0);
+  marginActionsLayout->setContentsMargins(0, 0, 0, 0);
+  marginActionsLayout->addWidget(topBottomLink, 0, Qt::AlignCenter);
+  marginActionsLayout->addWidget(m_zeroMarginsBtn, 0, Qt::AlignCenter);
+  marginActionsLayout->addWidget(leftRightLink, 0, Qt::AlignCenter);
+  gridLayout->addLayout(marginActionsLayout, 0, 2, 4, 1, Qt::AlignCenter);
+
   setupIcons();
   setupSourceDpiControls();
   QFont helpFont = textBrowser->font();
@@ -246,6 +268,19 @@ void OptionsWidget::leftRightLinkClicked() {
   SettingsStore().setValue("margins/leftRightLinked", m_leftRightLinked);
   updateLinkDisplay(leftRightLink, m_leftRightLinked);
   leftRightLinkToggled(m_leftRightLinked);
+}
+
+void OptionsWidget::zeroMarginsClicked() {
+  {
+    auto block = m_connectionManager.getScopedBlock();
+    topMarginSpinBox->setValue(0.0);
+    bottomMarginSpinBox->setValue(0.0);
+    leftMarginSpinBox->setValue(0.0);
+    rightMarginSpinBox->setValue(0.0);
+  }
+
+  m_marginsMM = Margins(0.0, 0.0, 0.0, 0.0);
+  emit marginsSetLocally(m_marginsMM);
 }
 
 void OptionsWidget::alignWithOthersToggled() {
@@ -498,6 +533,7 @@ void OptionsWidget::updateMarginsControlsEnabled() {
   rightMarginSpinBox->setEnabled(enabled);
   topBottomLink->setEnabled(enabled);
   leftRightLink->setEnabled(enabled);
+  m_zeroMarginsBtn->setEnabled(enabled);
 }
 
 #define CONNECT(...) m_connectionManager.addConnection(connect(__VA_ARGS__))
@@ -512,6 +548,7 @@ void OptionsWidget::setupUiConnections() {
   CONNECT(vAlignmentModeCB, SIGNAL(currentIndexChanged(int)), this, SLOT(verticalAlignmentModeChanged(int)));
   CONNECT(topBottomLink, SIGNAL(clicked()), this, SLOT(topBottomLinkClicked()));
   CONNECT(leftRightLink, SIGNAL(clicked()), this, SLOT(leftRightLinkClicked()));
+  CONNECT(m_zeroMarginsBtn, SIGNAL(clicked()), this, SLOT(zeroMarginsClicked()));
   CONNECT(applySettingsBtn, SIGNAL(clicked()), this, SLOT(showApplySettingsDialog()));
   CONNECT(sourceDpiCombo, SIGNAL(activated(int)), this, SLOT(sourceDpiComboActivated(int)));
   CONNECT(sourceXDpi, SIGNAL(editingFinished()), this, SLOT(sourceDpiEditingFinished()));

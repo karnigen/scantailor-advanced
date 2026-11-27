@@ -85,6 +85,8 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
 
   void leftRightLinkClicked();
 
+  void zeroMarginsClicked();
+
   void alignWithOthersToggled();
 
   void alignmentButtonClicked();
@@ -161,6 +163,7 @@ class OptionsWidget : public FilterOptionsWidget, public UnitsListener, private 
   bool m_leftRightLinked;
   bool m_topBottomLinked;
   QButtonGroup* m_alignmentButtonGroup;
+  QToolButton* m_zeroMarginsBtn;
 
   ConnectionManager m_connectionManager;
 };
