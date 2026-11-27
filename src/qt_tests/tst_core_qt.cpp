@@ -12,6 +12,7 @@
 #include <UnitsConverter.h>
 #include <filters/page_layout/Filter.h>
 #include <filters/page_layout/Params.h>
+#include <filters/page_split/Filter.h>
 #include <filters/select_content/CacheDrivenTask.h>
 #include <filters/select_content/Dependencies.h>
 #include <filters/select_content/OptionsWidget.h>
@@ -45,6 +46,7 @@
 #include "PageSelectionAccessor.h"
 #include "ProcessingTaskQueue.h"
 #include "ProjectPages.h"
+#include "ProjectReader.h"
 #include "ProjectWriter.h"
 #include "SelectedPage.h"
 #include "WorkerThreadPool.h"
@@ -380,6 +382,59 @@ void TestCoreQt::testImageViewResizePreservesZoomFocalPoint() {
   const QSize newViewportSize = view.maximumViewportSize();
   const QPointF newCenter(newViewportSize.width() / 2.0, newViewportSize.height() / 2.0);
   QCOMPARE(view.getWidgetFocalPoint() - newCenter, focalOffset);
+}
+
+void TestCoreQt::testPerSpreadReadingDirectionPersistsAndAffectsOutputNames() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  const QString imagePath = directory.filePath("spread.png");
+  QImage image(QSize(200, 120), QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const ImageMetadata metadata(QSize(200, 120), Dpi(300, 300));
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, metadata, 2, false, false)}, Qt::LeftToRight);
+  const OutputFileNameGenerator output(std::make_shared<FileNameDisambiguator>(),
+                                       core::toFileSystemPath(directory.path()), Qt::LeftToRight, pages);
+
+  QVERIFY(output.fileNameFor(PageId(imageId, PageId::LEFT_PAGE)).endsWith(QStringLiteral("_1L.tif")));
+  pages->setLayoutDirectionFor(imageId, Qt::RightToLeft);
+  QVERIFY(output.fileNameFor(PageId(imageId, PageId::LEFT_PAGE)).endsWith(QStringLiteral("_2L.tif")));
+
+  const auto splitFilter = std::make_shared<page_split::Filter>(pages, PageSelectionAccessor(nullptr));
+  const ProjectWriter writer(pages, SelectedPage(), output);
+  const QString projectPath = directory.filePath("project.ScanTailor");
+  QString error;
+  QVERIFY2(writer.write(core::toFileSystemPath(projectPath), {splitFilter}, &error), qPrintable(error));
+
+  QFile projectFile(projectPath);
+  QVERIFY(projectFile.open(QIODevice::ReadOnly));
+  QDomDocument document;
+  QVERIFY(document.setContent(&projectFile));
+  projectFile.close();
+
+  const QDomElement splitSettings
+      = document.documentElement().firstChildElement("filters").firstChildElement("page-split");
+  const QDomElement imageSettings = splitSettings.firstChildElement("image");
+  QCOMPARE(imageSettings.attribute("readingDirection"), QStringLiteral("RTL"));
+
+  ProjectReader reader(document, core::toFileSystemPath(projectPath));
+  QVERIFY(reader.success());
+  const ImageId loadedImageId = reader.imageId(imageSettings.attribute("id").toInt());
+  QVERIFY(!loadedImageId.isNull());
+  QCOMPARE(loadedImageId.page(), imageId.page());
+  const auto loadedFilter = std::make_shared<page_split::Filter>(reader.pages(), PageSelectionAccessor(nullptr));
+  reader.readFilterSettings({loadedFilter});
+  QCOMPARE(reader.pages()->layoutDirection(), Qt::LeftToRight);
+  QCOMPARE(reader.pages()->layoutDirectionFor(loadedImageId), Qt::RightToLeft);
+  QCOMPARE(reader.pages()->toPageSequence(PAGE_VIEW).pageAt(0).id().subPage(), PageId::RIGHT_PAGE);
+
+  const OutputFileNameGenerator loadedOutput(reader.namingDisambiguator(), reader.outputDirectory(),
+                                             reader.pages()->layoutDirection(), reader.pages());
+  QVERIFY(loadedOutput.fileNameFor(PageId(loadedImageId, PageId::LEFT_PAGE)).endsWith(QStringLiteral("_2L.tif")));
 }
 
 void TestCoreQt::testUnitsToString() {

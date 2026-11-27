@@ -127,8 +127,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void pastLastPageContextMenuRequested(const QPoint& screenPos);
 
-  void toggleTwoPageSpreadReadingOrder();
-
   void thumbViewFocusToggled(bool checked);
 
   void filterSelectionChanged(const QItemSelection& selected);

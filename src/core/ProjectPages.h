@@ -50,6 +50,14 @@ class ProjectPages : public QObject {
 
   Qt::LayoutDirection layoutDirection() const;
 
+  Qt::LayoutDirection layoutDirectionFor(const ImageId& imageId) const;
+
+  std::optional<Qt::LayoutDirection> layoutDirectionOverride(const ImageId& imageId) const;
+
+  void setLayoutDirectionFor(const ImageId& imageId, Qt::LayoutDirection direction);
+
+  int numLogicalPagesFor(const ImageId& imageId) const;
+
   /**
    * \brief Swap logical order of left/right sub-pages for two-page layouts (issue #62).
    */
@@ -130,6 +138,8 @@ class ProjectPages : public QObject {
 
   void modified();
 
+  void pageOrderChanged();
+
  private:
   struct ImageDesc {
     ImageId id;
@@ -137,13 +147,14 @@ class ProjectPages : public QObject {
     int numLogicalPages;    // 1 or 2
     bool leftHalfRemoved;   // Both can't be true, and if one is true,
     bool rightHalfRemoved;  // then numLogicalPages is 1.
+    std::optional<Qt::LayoutDirection> layoutDirectionOverride;
     std::uint64_t layoutRevision = 0;
 
     explicit ImageDesc(const ImageInfo& imageInfo);
 
     ImageDesc(const ImageId& id, const ImageMetadata& metadata, Pages pages);
 
-    PageId::SubPage logicalPageToSubPage(int logicalPage, const PageId::SubPage* subPagesInOrder) const;
+    PageId::SubPage logicalPageToSubPage(int logicalPage, Qt::LayoutDirection defaultDirection) const;
   };
 
   void initSubPagesInOrder(Qt::LayoutDirection layoutDirection);
@@ -169,5 +180,5 @@ class ProjectPages : public QObject {
   mutable QMutex m_mutex;
   std::uint64_t m_nextLayoutRevision = 0;
   std::vector<ImageDesc> m_images;
-  PageId::SubPage m_subPagesInOrder[2];
+  Qt::LayoutDirection m_layoutDirection = Qt::LeftToRight;
 };

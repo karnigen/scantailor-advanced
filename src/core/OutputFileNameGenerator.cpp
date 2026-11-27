@@ -10,6 +10,7 @@
 #include "AbstractRelinker.h"
 #include "PageId.h"
 #include "PathUtils.h"
+#include "ProjectPages.h"
 #include "RelinkablePath.h"
 
 OutputFileNameGenerator::OutputFileNameGenerator()
@@ -17,8 +18,12 @@ OutputFileNameGenerator::OutputFileNameGenerator()
 
 OutputFileNameGenerator::OutputFileNameGenerator(std::shared_ptr<FileNameDisambiguator> disambiguator,
                                                  std::filesystem::path outDir,
-                                                 Qt::LayoutDirection layoutDirection)
-    : m_disambiguator(std::move(disambiguator)), m_outDir(std::move(outDir)), m_layoutDirection(layoutDirection) {
+                                                 Qt::LayoutDirection layoutDirection,
+                                                 std::shared_ptr<const ProjectPages> projectPages)
+    : m_disambiguator(std::move(disambiguator)),
+      m_outDir(std::move(outDir)),
+      m_layoutDirection(layoutDirection),
+      m_projectPages(std::move(projectPages)) {
   assert(m_disambiguator);
 }
 
@@ -28,7 +33,9 @@ void OutputFileNameGenerator::performRelinking(const AbstractRelinker& relinker)
 }
 
 QString OutputFileNameGenerator::fileNameFor(const PageId& page) const {
-  const bool ltr = (m_layoutDirection == Qt::LeftToRight);
+  const Qt::LayoutDirection direction
+      = m_projectPages ? m_projectPages->layoutDirectionFor(page.imageId()) : m_layoutDirection;
+  const bool ltr = (direction == Qt::LeftToRight);
   const PageId::SubPage subPage = page.subPage();
   const std::filesystem::path& imagePath = page.imageId().filePath();
   const int label = m_disambiguator->getLabel(imagePath);

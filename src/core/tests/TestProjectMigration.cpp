@@ -280,7 +280,7 @@ TEST_CASE("CoreProjectMigrationTestSuite / test_project_backup_retention_keeps_l
   CHECK(backupsDirectory.entryList({QStringLiteral("*.ScanTailor")}, QDir::Files, QDir::Name).size() == 2);
 }
 
-TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v4_with_relative_paths_and_preserves_backup") {
+TEST_CASE("CoreProjectMigrationTestSuite / test_v3_save_writes_v5_with_relative_paths_and_preserves_backup") {
   QTemporaryDir tempDir;
   REQUIRE(tempDir.isValid());
   const QDir rootDir(tempDir.path());

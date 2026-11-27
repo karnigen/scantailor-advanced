@@ -89,6 +89,13 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
       continue;
     }
 
+    const QString readingDirection(el.attribute("readingDirection"));
+    if (readingDirection == "LTR") {
+      m_pages->setLayoutDirectionFor(imageId, Qt::LeftToRight);
+    } else if (readingDirection == "RTL") {
+      m_pages->setLayoutDirectionFor(imageId, Qt::RightToLeft);
+    }
+
     Settings::UpdateAction update;
 
     const QString layoutType(el.attribute("layoutType"));
@@ -130,12 +137,23 @@ void Filter::writeImageSettings(QDomDocument& doc,
 
   QDomElement imageEl(doc.createElement("image"));
   imageEl.setAttribute("id", numericId);
+  bool hasSettings = false;
   if (const LayoutType* layoutType = record.layoutType()) {
     imageEl.setAttribute("layoutType", layoutTypeToString(*layoutType));
+    hasSettings = true;
   }
 
   if (const Params* params = record.params()) {
     imageEl.appendChild(params->toXml(doc, "params"));
+    hasSettings = true;
+  }
+
+  if (const auto direction = m_pages->layoutDirectionOverride(imageId)) {
+    imageEl.setAttribute("readingDirection", *direction == Qt::LeftToRight ? "LTR" : "RTL");
+    hasSettings = true;
+  }
+
+  if (hasSettings) {
     filterEl.appendChild(imageEl);
   }
 }

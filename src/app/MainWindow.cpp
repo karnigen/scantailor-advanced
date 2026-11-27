@@ -420,7 +420,6 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   });
 
   connect(actionFixDpi, SIGNAL(triggered(bool)), SLOT(fixDpiDialogRequested()));
-  connect(actionReverseTwoPageOrder, SIGNAL(triggered(bool)), SLOT(toggleTwoPageSpreadReadingOrder()));
   connect(actionRelinking, SIGNAL(triggered(bool)), SLOT(showRelinkingDialog()));
 #ifdef ENABLE_DEBUG_FEATURES
   connect(actionDebug, SIGNAL(toggled(bool)), SLOT(debugToggled(bool)));
@@ -514,7 +513,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
     disambiguator.reset(new FileNameDisambiguator);
   }
 
-  m_outFileNameGen = OutputFileNameGenerator(disambiguator, outDir, pages->layoutDirection());
+  m_outFileNameGen = OutputFileNameGenerator(disambiguator, outDir, pages->layoutDirection(), pages);
   // These two need to go in this order.
   updateDisambiguationRecords(pages->toPageSequence(IMAGE_VIEW));
 
@@ -568,6 +567,11 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
     if (isProjectLoaded()) {
       m_projectModifiedTimer.start(300);
     }
+  });
+  connect(m_pages.get(), &ProjectPages::pageOrderChanged, this, [this]() {
+    resetThumbSequence(currentPageOrderProvider(), ThumbnailSequence::KEEP_SELECTION);
+    m_thumbSequence->invalidateAllThumbnails();
+    updateMainArea();
   });
 }  // MainWindow::switchToNewProject
 
@@ -1322,18 +1326,6 @@ void MainWindow::pageContextMenuRequested(const PageInfo& pageInfo_, const QPoin
   }
 }  // MainWindow::pageContextMenuRequested
 
-void MainWindow::toggleTwoPageSpreadReadingOrder() {
-  if (!isProjectLoaded() || !m_pages) {
-    return;
-  }
-  const Qt::LayoutDirection nextDir
-      = (m_pages->layoutDirection() == Qt::LeftToRight) ? Qt::RightToLeft : Qt::LeftToRight;
-  m_pages->setLayoutDirection(nextDir);
-  m_outFileNameGen.setLayoutDirection(nextDir);
-  resetThumbSequence(currentPageOrderProvider(), ThumbnailSequence::KEEP_SELECTION);
-  invalidateAllThumbnails();
-}
-
 void MainWindow::pastLastPageContextMenuRequested(const QPoint& screenPos) {
   if (!isProjectLoaded()) {
     return;
@@ -1440,7 +1432,6 @@ void MainWindow::waitForCancelledTasks() {
     removeFilterOptionsWidget();
     actionFixDpi->setEnabled(false);
     actionRelinking->setEnabled(false);
-    actionReverseTwoPageOrder->setEnabled(false);
     if (m_fixDpiDialog) {
       m_fixDpiDialog->setEnabled(false);
     }
@@ -2573,7 +2564,6 @@ void MainWindow::updateProjectActions() {
   actionExportPagesToPdf->setEnabled(canExport);
   actionFixDpi->setEnabled(loaded);
   actionRelinking->setEnabled(loaded);
-  actionReverseTwoPageOrder->setEnabled(loaded);
 }
 
 bool MainWindow::isBatchProcessingInProgress() const {

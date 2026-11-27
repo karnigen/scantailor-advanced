@@ -138,6 +138,19 @@
        </layout>
       </item>
       <item>
+       <widget class="QCheckBox" name="rightToLeftOrderCB">
+        <property name="text">
+         <string>Read right to left</string>
+        </property>
+        <property name="toolTip">
+         <string>Reverse the page order for this two-page scan.</string>
+        </property>
+        <property name="visible">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="scopeLabel">
         <property name="text">
          <string>?</string>

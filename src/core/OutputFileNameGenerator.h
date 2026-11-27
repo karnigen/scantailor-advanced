@@ -13,6 +13,7 @@
 
 class PageId;
 class AbstractRelinker;
+class ProjectPages;
 
 class OutputFileNameGenerator {
   // Member-wise copying is OK.
@@ -21,7 +22,8 @@ class OutputFileNameGenerator {
 
   OutputFileNameGenerator(std::shared_ptr<FileNameDisambiguator> disambiguator,
                           std::filesystem::path outDir,
-                          Qt::LayoutDirection layoutDirection);
+                          Qt::LayoutDirection layoutDirection,
+                          std::shared_ptr<const ProjectPages> projectPages = nullptr);
 
   void performRelinking(const AbstractRelinker& relinker);
 
@@ -43,4 +45,5 @@ class OutputFileNameGenerator {
   std::shared_ptr<FileNameDisambiguator> m_disambiguator;
   std::filesystem::path m_outDir;
   Qt::LayoutDirection m_layoutDirection;
+  std::shared_ptr<const ProjectPages> m_projectPages;
 };

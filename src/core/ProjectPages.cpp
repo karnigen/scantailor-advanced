@@ -66,30 +66,87 @@ ProjectPages::ProjectPages(const std::vector<ImageFileInfo>& files,
 ProjectPages::~ProjectPages() = default;
 
 Qt::LayoutDirection ProjectPages::layoutDirection() const {
-  if (m_subPagesInOrder[0] == PageId::LEFT_PAGE) {
-    return Qt::LeftToRight;
-  } else {
-    assert(m_subPagesInOrder[0] == PageId::RIGHT_PAGE);
-    return Qt::RightToLeft;
+  const QMutexLocker locker(&m_mutex);
+  return m_layoutDirection;
+}
+
+Qt::LayoutDirection ProjectPages::layoutDirectionFor(const ImageId& imageId) const {
+  const QMutexLocker locker(&m_mutex);
+  for (const ImageDesc& image : m_images) {
+    if (image.id == imageId) {
+      return image.layoutDirectionOverride.value_or(m_layoutDirection);
+    }
   }
+  return m_layoutDirection;
+}
+
+std::optional<Qt::LayoutDirection> ProjectPages::layoutDirectionOverride(const ImageId& imageId) const {
+  const QMutexLocker locker(&m_mutex);
+  for (const ImageDesc& image : m_images) {
+    if (image.id == imageId) {
+      return image.layoutDirectionOverride;
+    }
+  }
+  return std::nullopt;
+}
+
+void ProjectPages::setLayoutDirectionFor(const ImageId& imageId, const Qt::LayoutDirection direction) {
+  bool wasModified = false;
+  {
+    const QMutexLocker locker(&m_mutex);
+    for (ImageDesc& image : m_images) {
+      if (image.id != imageId) {
+        continue;
+      }
+
+      const Qt::LayoutDirection currentDirection = image.layoutDirectionOverride.value_or(m_layoutDirection);
+      if (currentDirection == direction) {
+        break;
+      }
+
+      if (direction == m_layoutDirection) {
+        image.layoutDirectionOverride.reset();
+      } else {
+        image.layoutDirectionOverride = direction;
+      }
+      wasModified = true;
+      break;
+    }
+  }
+
+  if (wasModified) {
+    emit modified();
+    emit pageOrderChanged();
+  }
+}
+
+int ProjectPages::numLogicalPagesFor(const ImageId& imageId) const {
+  const QMutexLocker locker(&m_mutex);
+  for (const ImageDesc& image : m_images) {
+    if (image.id == imageId) {
+      return image.numLogicalPages;
+    }
+  }
+  return 0;
 }
 
 void ProjectPages::setLayoutDirection(const Qt::LayoutDirection dir) {
+  bool wasModified = false;
   {
-    QMutexLocker locker(&m_mutex);
-    initSubPagesInOrder(dir);
+    const QMutexLocker locker(&m_mutex);
+    if (m_layoutDirection != dir) {
+      initSubPagesInOrder(dir);
+      wasModified = true;
+    }
   }
-  emit modified();
+  if (wasModified) {
+    emit modified();
+    emit pageOrderChanged();
+  }
 }
 
 void ProjectPages::initSubPagesInOrder(const Qt::LayoutDirection layoutDirection) {
-  if (layoutDirection == Qt::LeftToRight) {
-    m_subPagesInOrder[0] = PageId::LEFT_PAGE;
-    m_subPagesInOrder[1] = PageId::RIGHT_PAGE;
-  } else {
-    m_subPagesInOrder[0] = PageId::RIGHT_PAGE;
-    m_subPagesInOrder[1] = PageId::LEFT_PAGE;
-  }
+  m_layoutDirection = layoutDirection;
 }
 
 PageSequence ProjectPages::toPageSequence(const PageView view) const {
@@ -103,7 +160,8 @@ PageSequence ProjectPages::toPageSequence(const PageView view) const {
       const ImageDesc& image = m_images[i];
       assert(image.numLogicalPages >= 1 && image.numLogicalPages <= 2);
       for (int j = 0; j < image.numLogicalPages; ++j) {
-        const PageId id(image.id, image.logicalPageToSubPage(j, m_subPagesInOrder));
+        const PageId id(image.id,
+                        image.logicalPageToSubPage(j, image.layoutDirectionOverride.value_or(m_layoutDirection)));
         pages.append(
             PageInfo(id, image.metadata, image.numLogicalPages, image.leftHalfRemoved, image.rightHalfRemoved));
       }
@@ -511,11 +569,11 @@ std::vector<PageInfo> ProjectPages::insertImageImpl(const ImageInfo& newImage,
     logicalPages.push_back(pageInfoTempl);
   } else {
     if ((imageDesc.numLogicalPages == 2) || ((imageDesc.numLogicalPages == 1) && imageDesc.rightHalfRemoved)) {
-      pageInfoTempl.setId(PageId(newImage.id(), m_subPagesInOrder[0]));
+      pageInfoTempl.setId(PageId(newImage.id(), imageDesc.logicalPageToSubPage(0, m_layoutDirection)));
       logicalPages.push_back(pageInfoTempl);
     }
     if ((imageDesc.numLogicalPages == 2) || ((imageDesc.numLogicalPages == 1) && imageDesc.leftHalfRemoved)) {
-      pageInfoTempl.setId(PageId(newImage.id(), m_subPagesInOrder[1]));
+      pageInfoTempl.setId(PageId(newImage.id(), imageDesc.logicalPageToSubPage(1, m_layoutDirection)));
       logicalPages.push_back(pageInfoTempl);
     }
   }
@@ -623,7 +681,7 @@ ProjectPages::ImageDesc::ImageDesc(const ImageId& id, const ImageMetadata& metad
 }
 
 PageId::SubPage ProjectPages::ImageDesc::logicalPageToSubPage(const int logicalPage,
-                                                              const PageId::SubPage* subPagesInOrder) const {
+                                                              const Qt::LayoutDirection defaultDirection) const {
   assert(numLogicalPages >= 1 && numLogicalPages <= 2);
   assert(logicalPage >= 0 && logicalPage < numLogicalPages);
 
@@ -636,6 +694,8 @@ PageId::SubPage ProjectPages::ImageDesc::logicalPageToSubPage(const int logicalP
       return PageId::SINGLE_PAGE;
     }
   } else {
-    return subPagesInOrder[logicalPage];
+    const Qt::LayoutDirection direction = layoutDirectionOverride.value_or(defaultDirection);
+    const bool leftPage = (logicalPage == 0) == (direction == Qt::LeftToRight);
+    return leftPage ? PageId::LEFT_PAGE : PageId::RIGHT_PAGE;
   }
 }

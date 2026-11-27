@@ -31,6 +31,7 @@
 #include "RelinkingDialog.h"
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QColor>

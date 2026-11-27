@@ -75,7 +75,7 @@
     </widget>
     <addaction name="actionFixDpi"/>
     <addaction name="actionRelinking"/>
-    <addaction name="actionReverseTwoPageOrder"/>
+
     <addaction name="separator"/>
     <addaction name="actionDebug"/>
     <addaction name="separator"/>
@@ -1388,20 +1388,6 @@ QToolButton:pressed {
    </property>
    <property name="toolTip">
     <string>Find missing source images for this project.</string>
-   </property>
-  </action>
-  <action name="actionReverseTwoPageOrder">
-   <property name="text">
-    <string>Reverse two-page spread order</string>
-   </property>
-   <property name="toolTip">
-    <string>Swap left/right page order for two-page scans (e.g. Japanese book reading order).</string>
-   </property>
-   <property name="shortcut">
-    <string notr="true"/>
-   </property>
-   <property name="autoRepeat">
-    <bool>false</bool>
    </property>
   </action>
   <action name="actionSwitchFilter1">
