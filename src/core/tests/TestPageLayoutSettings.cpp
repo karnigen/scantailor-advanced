@@ -8,7 +8,9 @@
 #include "../filters/page_layout/Settings.h"
 #include "../filters/page_layout/Utils.h"
 
+#include <Dpi.h>
 #include <ImageId.h>
+#include <ImageTransformation.h>
 #include <PageId.h>
 
 #include <QPointF>
@@ -28,13 +30,13 @@ TEST_CASE("PageLayoutSettingsTestSuite / test_aggregate_dimensions_track_indepen
 
   settings.setContentSizeMM(first, QSizeF(100.0, 50.0));
   settings.setContentSizeMM(second, QSizeF(200.0, 20.0));
-  CHECK(settings.getAggregateHardSizeMM() == QSizeF(220.0, 60.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(200.0, 50.0));
 
   settings.setContentSizeMM(second, QSizeF(50.0, 100.0));
-  CHECK(settings.getAggregateHardSizeMM() == QSizeF(120.0, 110.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(100.0, 100.0));
 
-  settings.setHardMarginsMM(first, Margins(0.0, 0.0, 0.0, 0.0));
-  CHECK(settings.getAggregateHardSizeMM() == QSizeF(100.0, 110.0));
+  settings.setHardMarginsMM(first, Margins(1000.0, 1000.0, 1000.0, 1000.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(100.0, 100.0));
 
   page_layout::Alignment unaligned;
   unaligned.setNull(true);
@@ -55,7 +57,7 @@ TEST_CASE("PageLayoutSettingsTestSuite / test_equal_dimensions_keep_both_ordered
   page_layout::Alignment unaligned;
   unaligned.setNull(true);
   settings.setPageAlignment(first, unaligned);
-  CHECK(settings.getAggregateHardSizeMM() == QSizeF(120.0, 60.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(100.0, 50.0));
 }
 
 TEST_CASE("PageLayoutSettingsTestSuite / active_page_boundary_contributes_to_common_size") {
@@ -69,9 +71,100 @@ TEST_CASE("PageLayoutSettingsTestSuite / active_page_boundary_contributes_to_com
   CHECK(params.isPageBoundaryEnabled());
   CHECK(params.pageBoundarySizeMM() == QSizeF(200.0, 150.0));
   CHECK(settings.getAggregateHardSizeMM() == QSizeF(200.0, 150.0));
+
+  settings.setHardMarginsMM(pageId, Margins(1000.0, 1000.0, 1000.0, 1000.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(200.0, 150.0));
 }
 
-TEST_CASE("PageLayoutSettingsTestSuite / page_boundary_is_included_in_output_rectangle") {
+TEST_CASE("PageLayoutSettingsTestSuite / content larger than active page boundary contributes to common size") {
+  page_layout::Settings settings;
+  const PageId pageId(ImageId("/large-content.tif", 0), PageId::SINGLE_PAGE);
+
+  settings.updateContentSizeAndGetParams(pageId, QRectF(0.0, 0.0, 800.0, 600.0), QRectF(50.0, 50.0, 700.0, 500.0),
+                                         QSizeF(120.0, 60.0), true, QSizeF(80.0, 40.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(120.0, 60.0));
+
+  settings.setHardMarginsMM(pageId, Margins(1000.0, 1000.0, 1000.0, 1000.0));
+  CHECK(settings.getAggregateHardSizeMM() == QSizeF(120.0, 60.0));
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / hard margins are constrained when Page Box supplies common size") {
+  const QPolygonF contentRectMm{QPointF(10.0, 10.0), QPointF(90.0, 10.0), QPointF(90.0, 190.0), QPointF(10.0, 190.0)};
+  const Margins requestedMargins(30.0, 30.0, 30.0, 30.0);
+
+  const Margins constrainedMargins
+      = page_layout::Utils::constrainHardMarginsMM(contentRectMm, requestedMargins, QSizeF(100.0, 200.0));
+
+  QPolygonF outputRect(contentRectMm);
+  page_layout::Utils::extendPolyRectWithMargins(outputRect, constrainedMargins);
+  const QRectF outputBounds(outputRect.boundingRect());
+
+  CHECK(outputBounds.width() <= 100.0);
+  CHECK(outputBounds.height() <= 200.0);
+  CHECK(constrainedMargins.left() < requestedMargins.left());
+  CHECK(constrainedMargins.top() < requestedMargins.top());
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / hard margins are constrained when content defines common size") {
+  const QPolygonF contentRectMm{QPointF(10.0, 10.0), QPointF(90.0, 10.0), QPointF(90.0, 190.0), QPointF(10.0, 190.0)};
+  const Margins requestedMargins(30.0, 30.0, 30.0, 30.0);
+
+  const Margins constrainedMargins
+      = page_layout::Utils::constrainHardMarginsMM(contentRectMm, requestedMargins, QSizeF(80.0, 180.0));
+
+  QPolygonF outputRect(contentRectMm);
+  page_layout::Utils::extendPolyRectWithMargins(outputRect, constrainedMargins);
+  const QRectF outputBounds(outputRect.boundingRect());
+
+  CHECK(outputBounds.width() <= 80.0);
+  CHECK(outputBounds.height() <= 180.0);
+  CHECK(constrainedMargins.left() < requestedMargins.left());
+  CHECK(constrainedMargins.top() < requestedMargins.top());
+
+  const Margins horizontalLimitedMargins
+      = page_layout::Utils::constrainHardMarginsMM(contentRectMm, Margins(30.0, 2.0, 30.0, 2.0), QSizeF(100.0, 200.0));
+  CHECK(horizontalLimitedMargins.top() == 2.0);
+  CHECK(horizontalLimitedMargins.bottom() == 2.0);
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / content placement margins remain adjustable within Page Box size") {
+  const QPolygonF contentRectMm{QPointF(0.0, 0.0), QPointF(40.0, 0.0), QPointF(40.0, 40.0), QPointF(0.0, 40.0)};
+  const Margins requestedMargins(20.0, 10.0, 30.0, 20.0);
+
+  const Margins constrainedMargins
+      = page_layout::Utils::constrainHardMarginsMM(contentRectMm, requestedMargins, QSizeF(100.0, 100.0));
+
+  CHECK(constrainedMargins.left() == requestedMargins.left());
+  CHECK(constrainedMargins.top() == requestedMargins.top());
+  CHECK(constrainedMargins.right() == requestedMargins.right());
+  CHECK(constrainedMargins.bottom() == requestedMargins.bottom());
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / Page Box size stays fixed while margins reposition content") {
+  const ImageTransformation xform(QRectF(0.0, 0.0, 200.0, 200.0), Dpi(254, 254));
+  const QRectF pageRect(0.0, 0.0, 100.0, 100.0);
+  const QRectF contentRect(20.0, 20.0, 40.0, 40.0);
+  const QPolygonF contentRectPhys(xform.transformBack().map(QPolygonF(contentRect)));
+  const page_layout::Alignment topLeftAlignment(page_layout::Alignment::TOP, page_layout::Alignment::LEFT);
+  const page_layout::Params firstParams(Margins(1.0, 1.0, 3.0, 1.0), pageRect, contentRect, QSizeF(4.0, 4.0),
+                                        topLeftAlignment, false, true, QSizeF(10.0, 10.0));
+  const page_layout::Params secondParams(Margins(2.0, 2.0, 2.0, 2.0), pageRect, contentRect, QSizeF(4.0, 4.0),
+                                         topLeftAlignment, false, true, QSizeF(10.0, 10.0));
+
+  const QRectF firstOutputBounds(
+      page_layout::Utils::calcPageRectPhys(xform, contentRectPhys, firstParams, QSizeF(10.0, 10.0)).boundingRect());
+  const QRectF secondOutputBounds(
+      page_layout::Utils::calcPageRectPhys(xform, contentRectPhys, secondParams, QSizeF(10.0, 10.0)).boundingRect());
+
+  CHECK(firstOutputBounds.width() > 99.9);
+  CHECK(firstOutputBounds.width() < 100.1);
+  CHECK(secondOutputBounds.width() > 99.9);
+  CHECK(secondOutputBounds.width() < 100.1);
+  CHECK(firstOutputBounds.left() - secondOutputBounds.left() > 9.9);
+  CHECK(firstOutputBounds.left() - secondOutputBounds.left() < 10.1);
+}
+
+TEST_CASE("PageLayoutSettingsTestSuite / extend_poly_rect_includes_other_rectangle") {
   QPolygonF outputRect{QPointF(0.0, 0.0), QPointF(10.0, 0.0), QPointF(10.0, 10.0), QPointF(0.0, 10.0)};
   const QPolygonF pageBoundary{QPointF(-5.0, -10.0), QPointF(15.0, -10.0), QPointF(15.0, 20.0), QPointF(-5.0, 20.0)};
 

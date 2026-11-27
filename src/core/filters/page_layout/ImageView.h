@@ -30,9 +30,11 @@
 class Margins;
 class QKeyEvent;
 class QPainter;
+class QPolygonF;
 
 namespace page_layout {
 class OptionsWidget;
+class Params;
 class Settings;
 
 class ImageView : public ImageViewBase, private InteractionHandler {
@@ -131,6 +133,8 @@ class ImageView : public ImageViewBase, private InteractionHandler {
 
   void recalcBoxesAndFit(const Margins& marginsMm);
 
+  Margins constrainHardMarginsMM(const Margins& marginsMm, const Params& params, const QPolygonF& contentRectMm) const;
+
   void updatePresentationTransform(FitMode fitMode);
 
   void forceNonNegativeHardMargins(QRectF& middleRect) const;
@@ -138,8 +142,6 @@ class ImageView : public ImageViewBase, private InteractionHandler {
   Margins calcHardMarginsMM() const;
 
   void recalcOuterRect();
-
-  QSizeF origRectToSizeMM(const QRectF& rect) const;
 
   AggregateSizeChanged commitHardMargins(const Margins& marginsMm);
 

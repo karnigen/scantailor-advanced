@@ -143,15 +143,6 @@ class Settings {
   QSizeF getAggregateHardSizeMM() const;
 
   /**
-   * \brief Same as getAggregateHardSizeMM(), but assumes a specified
-   *        size and alignment for a specified page.
-   *
-   * This function doesn't modify anything, it just pretends that
-   * the size and alignment of a specified page have changed.
-   */
-  QSizeF getAggregateHardSizeMM(const PageId& pageId, const QSizeF& hardSizeMm, const Alignment& alignment) const;
-
-  /**
    * \brief When frozen, getAggregateHardSizeMM() returns a fixed reference size
    *        until unfrozen, so the "match size" target does not change when
    *        switching pages.

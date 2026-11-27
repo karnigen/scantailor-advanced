@@ -172,8 +172,6 @@ class Settings::Impl {
 
   QSizeF computeAggregateHardSizeMMLocked() const;
 
-  QSizeF getAggregateHardSizeMM(const PageId& pageId, const QSizeF& hardSizeMm, const Alignment& alignment) const;
-
   void setAggregateHardSizeFrozen(bool frozen);
 
   bool isAggregateHardSizeFrozen() const;
@@ -485,12 +483,6 @@ QSizeF Settings::getAggregateHardSizeMM() const {
   return m_impl->getAggregateHardSizeMM();
 }
 
-QSizeF Settings::getAggregateHardSizeMM(const PageId& pageId,
-                                        const QSizeF& hardSizeMm,
-                                        const Alignment& alignment) const {
-  return m_impl->getAggregateHardSizeMM(pageId, hardSizeMm, alignment);
-}
-
 void Settings::setAggregateHardSizeFrozen(const bool frozen) {
   m_impl->setAggregateHardSizeFrozen(frozen);
 }
@@ -567,11 +559,17 @@ double Settings::Item::hardHeightMM() const {
 }
 
 double Settings::Item::influenceHardWidthMM() const {
-  return alignment.isNull() ? 0.0 : hardWidthMM();
+  if (alignment.isNull()) {
+    return 0.0;
+  }
+  return pageBoundaryEnabled ? std::max(pageBoundarySizeMM.width(), contentSizeMM.width()) : contentSizeMM.width();
 }
 
 double Settings::Item::influenceHardHeightMM() const {
-  return alignment.isNull() ? 0.0 : hardHeightMM();
+  if (alignment.isNull()) {
+    return 0.0;
+  }
+  return pageBoundaryEnabled ? std::max(pageBoundarySizeMM.height(), contentSizeMM.height()) : contentSizeMM.height();
 }
 
 /*============================= Settings::Impl ==============================*/
@@ -851,15 +849,12 @@ QSizeF Settings::Impl::getAggregateHardSizeMM() const {
 }
 
 QSizeF Settings::Impl::computeAggregateHardSizeMMLocked() const {
-  if (m_items.empty()) {
-    return QSizeF(0.0, 0.0);
+  double width = 0.0;
+  double height = 0.0;
+  for (const Item& item : m_items) {
+    width = std::max(width, item.influenceHardWidthMM());
+    height = std::max(height, item.influenceHardHeightMM());
   }
-
-  const Item& maxWidthItem = **m_items.descWidthOrder().begin();
-  const Item& maxHeightItem = **m_items.descHeightOrder().begin();
-
-  const double width = maxWidthItem.influenceHardWidthMM();
-  const double height = maxHeightItem.influenceHardHeightMM();
   return QSizeF(width, height);
 }
 
@@ -883,56 +878,6 @@ bool Settings::Impl::isAggregateHardSizeFrozen() const {
   const QMutexLocker locker(&m_mutex);
   return m_frozenAggregateHardSizeMm.has_value();
 }
-
-QSizeF Settings::Impl::getAggregateHardSizeMM(const PageId& pageId,
-                                              const QSizeF& hardSizeMm,
-                                              const Alignment& alignment) const {
-  const QMutexLocker locker(&m_mutex);
-  if (m_frozenAggregateHardSizeMm) {
-    return *m_frozenAggregateHardSizeMm;
-  }
-
-  if (alignment.isNull()) {
-    return computeAggregateHardSizeMMLocked();
-  }
-
-  if (m_items.empty()) {
-    return QSizeF(0.0, 0.0);
-  }
-
-  double width = 0.0;
-
-  {
-    Container::DescWidthOrder::const_iterator it(m_items.descWidthOrder().begin());
-    if ((*it)->pageId != pageId) {
-      width = (*it)->influenceHardWidthMM();
-    } else {
-      ++it;
-      if (it == m_items.descWidthOrder().end()) {
-        width = hardSizeMm.width();
-      } else {
-        width = std::max(hardSizeMm.width(), qreal((*it)->influenceHardWidthMM()));
-      }
-    }
-  }
-
-  double height = 0.0;
-
-  {
-    Container::DescHeightOrder::const_iterator it(m_items.descHeightOrder().begin());
-    if ((*it)->pageId != pageId) {
-      height = (*it)->influenceHardHeightMM();
-    } else {
-      ++it;
-      if (it == m_items.descHeightOrder().end()) {
-        height = hardSizeMm.height();
-      } else {
-        height = std::max(hardSizeMm.height(), qreal((*it)->influenceHardHeightMM()));
-      }
-    }
-  }
-  return QSizeF(width, height);
-}  // Settings::Impl::getAggregateHardSizeMM
 
 bool Settings::Impl::isPageAutoMarginsEnabled(const PageId& pageId) {
   const QMutexLocker locker(&m_mutex);
