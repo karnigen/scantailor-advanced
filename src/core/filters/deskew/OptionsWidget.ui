@@ -118,6 +118,44 @@
          </widget>
         </item>
         <item>
+         <widget class="QToolButton" name="rotateLeftBtn">
+          <property name="text">
+           <string>,</string>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>16</width>
+            <height>16</height>
+           </size>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonTextBesideIcon</enum>
+          </property>
+          <property name="toolTip">
+           <string>Rotate the page counter-clockwise by 0.10 degrees. Shortcut: comma.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="rotateRightBtn">
+          <property name="text">
+           <string>.</string>
+          </property>
+          <property name="iconSize">
+           <size>
+            <width>16</width>
+            <height>16</height>
+           </size>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonTextBesideIcon</enum>
+          </property>
+          <property name="toolTip">
+           <string>Rotate the page clockwise by 0.10 degrees. Shortcut: period.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <spacer>
           <property name="orientation">
            <enum>Qt::Horizontal</enum>

@@ -10,6 +10,8 @@
 #include <memory>
 #include <set>
 
+#include <QTimer>
+
 #include "AutoManualMode.h"
 #include "Dependencies.h"
 #include "FilterOptionsWidget.h"
@@ -92,6 +94,8 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
 
   void showDeskewDialog();
 
+  void reloadAfterRotation();
+
   void appliedTo(const std::set<PageId>& pages, bool applyDeskew, bool applyOblique);
 
   void appliedToAllPages(const std::set<PageId>& pages, bool applyDeskew, bool applyOblique);
@@ -109,6 +113,8 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
 
   void commitCurrentParams();
 
+  void scheduleRotationReload();
+
   void setupUiConnections();
 
   static double spinBoxToDegrees(double sbValue);
@@ -124,6 +130,7 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
   PageSelectionAccessor m_pageSelectionAccessor;
 
   ConnectionManager m_connectionManager;
+  QTimer m_rotationReloadTimer;
 };
 
 

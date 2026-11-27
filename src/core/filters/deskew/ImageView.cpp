@@ -28,6 +28,8 @@ ImageView::ImageView(const QImage& image, const QImage& downscaledImage, const I
       m_dragHandler(*this),
       m_zoomHandler(*this),
       m_xform(xform) {
+  setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   setMouseTracking(true);
 
   interactionState().setDefaultStatusTip(tr("Use Ctrl+Wheel to rotate or Ctrl+Shift+Wheel for finer rotation."));
@@ -90,7 +92,7 @@ void ImageView::manualDeskewAngleSetExternally(const double degrees) {
   }
 
   m_xform.setPostRotation(degrees);
-  updateTransform(ImagePresentation(m_xform.transform(), m_xform.resultingPreCropArea()));
+  updateTransformPreservingScale(ImagePresentation(m_xform.transform(), m_xform.resultingPreCropArea()));
 }
 
 void ImageView::manualObliqueAngleSetExternally(const double degrees) {
@@ -110,6 +112,8 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
   const QPointF center(getImageRotationOrigin());
 
   // Draw the semi-transparent grid.
+  painter.save();
+  painter.setClipRect(contentArea);
   QPen pen(QColor(0, 0, 0xd1, 90));
   pen.setCosmetic(true);
   pen.setWidth(1);
@@ -135,6 +139,7 @@ void ImageView::onPaint(QPainter& painter, const InteractionState& interaction) 
   painter.setBrush(Qt::NoBrush);
   painter.drawLine(QPointF(contentArea.left() + 0.5, center.y()), QPointF(contentArea.right() - 0.5, center.y()));
   painter.drawLine(QPointF(center.x(), contentArea.top() + 0.5), QPointF(center.x(), contentArea.bottom() - 0.5));
+  painter.restore();
   // Draw the rotation arcs.
   // Those will look like this (  )
   const QRectF arcSquare(getRotationArcSquare());
@@ -171,16 +176,12 @@ void ImageView::onWheelEvent(QWheelEvent* event, InteractionState& interaction) 
     return;
   }
 
-  double degreeFraction = 0;
-
-  if (event->modifiers() == Qt::ControlModifier) {
-    degreeFraction = 0.1;
-  } else if (event->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier)) {
-    degreeFraction = 0.05;
-  } else {
+  const Qt::KeyboardModifiers modifiers = event->modifiers();
+  if (!modifiers.testFlag(Qt::ControlModifier)) {
     return;
   }
 
+  const double degreeFraction = modifiers.testFlag(Qt::ShiftModifier) ? 0.05 : 0.1;
   event->accept();
   const double delta = degreeFraction * event->angleDelta().y() / 120;
   double angleDeg = m_xform.postRotation() - delta;
@@ -258,12 +259,10 @@ void ImageView::dragFinished() {
 }
 
 /**
- * Get the point at the center of the widget content area, in widget coordinates.
+ * Keep the grid anchored to the viewport while the image is rotated.
  */
 QPointF ImageView::getImageRotationOrigin() const {
-  const QRectF contentArea(getOccupiedWidgetRect());
-  return QPointF(std::floor(0.5 * contentArea.width()) + 0.5 + contentArea.x(),
-                 std::floor(0.5 * contentArea.height()) + 0.5 + contentArea.y());
+  return QPointF(std::floor(0.5 * viewport()->width()) + 0.5, std::floor(0.5 * viewport()->height()) + 0.5);
 }
 
 /**
