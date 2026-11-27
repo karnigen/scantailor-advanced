@@ -1,5 +1,5 @@
-// Copyright (C) 2026 ScanTailor Advanced contributors
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
+// SPDX-License-Identifier: GPL-3.0-only
 
 #ifndef TST_MAINWINDOW_H
 #define TST_MAINWINDOW_H

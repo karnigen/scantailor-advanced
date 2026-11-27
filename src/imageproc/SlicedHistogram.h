@@ -1,5 +1,6 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
 #ifndef SCANTAILOR_IMAGEPROC_SLICEDHISTOGRAM_H_
 #define SCANTAILOR_IMAGEPROC_SLICEDHISTOGRAM_H_
