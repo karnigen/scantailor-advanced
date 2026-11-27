@@ -16,6 +16,8 @@
 #include <webp/encode.h>
 #include <webp/mux.h>
 
+#include <utility>
+
 #include "ImageLoader.h"
 #include "OutputFileNameGenerator.h"
 #include "PageInfo.h"
@@ -276,6 +278,18 @@ bool ProcessedPagesExporter::exportPdf(const PageSequence& pages,
     QPdfWriter writer(&file);
     writer.setResolution(300);
     writer.setTitle(QFileInfo(outputFilePath).completeBaseName());
+
+    QImage firstImage = loadProcessedPage(*pages.begin(), fileNameGenerator, errorMessage);
+    if (firstImage.isNull()) {
+      file.cancelWriting();
+      return false;
+    }
+    if (!writer.setPageLayout(pageLayoutFor(firstImage))) {
+      file.cancelWriting();
+      setError(errorMessage, QStringLiteral("Could not set the PDF page dimensions."));
+      return false;
+    }
+
     QPainter painter(&writer);
     if (!painter.isActive()) {
       file.cancelWriting();
@@ -286,24 +300,25 @@ bool ProcessedPagesExporter::exportPdf(const PageSequence& pages,
     int completed = 0;
     const int total = static_cast<int>(pages.numPages());
     for (const PageInfo& page : pages) {
-      QImage image = loadProcessedPage(page, fileNameGenerator, errorMessage);
+      QImage image = completed == 0 ? std::move(firstImage) : loadProcessedPage(page, fileNameGenerator, errorMessage);
       if (image.isNull()) {
         file.cancelWriting();
         return false;
       }
 
-      const QPageLayout layout = pageLayoutFor(image);
-      if (!writer.setPageLayout(layout)) {
-        painter.end();
-        file.cancelWriting();
-        setError(errorMessage, QStringLiteral("Could not set the PDF page dimensions."));
-        return false;
-      }
-      if (completed > 0 && !writer.newPage()) {
-        painter.end();
-        file.cancelWriting();
-        setError(errorMessage, QStringLiteral("Could not create a PDF page."));
-        return false;
+      if (completed > 0) {
+        if (!writer.setPageLayout(pageLayoutFor(image))) {
+          painter.end();
+          file.cancelWriting();
+          setError(errorMessage, QStringLiteral("Could not set the PDF page dimensions."));
+          return false;
+        }
+        if (!writer.newPage()) {
+          painter.end();
+          file.cancelWriting();
+          setError(errorMessage, QStringLiteral("Could not create a PDF page."));
+          return false;
+        }
       }
       painter.drawImage(writer.pageLayout().paintRectPixels(writer.resolution()), image);
       ++completed;
