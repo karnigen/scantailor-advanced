@@ -85,7 +85,11 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
 
   void showChangeDialog();
 
-  void layoutTypeSet(const std::set<PageId>& pages, LayoutType layoutType, bool applyCut);
+  void layoutTypeSet(const std::set<PageId>& pages,
+                     LayoutType layoutType,
+                     bool applyCut,
+                     bool applyPageOrder,
+                     bool reversePageOrder);
 
   void splitLineModeChanged(bool autoMode);
 

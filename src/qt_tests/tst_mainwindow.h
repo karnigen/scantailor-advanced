@@ -20,6 +20,7 @@ class TestMainWindowAsync : public QObject {
   void compareFilesDetectsSameSizeChanges();
   void windowTitleShowsUnsavedProjectChanges();
   void supportedImageFormatsHelpShowsOutputAndCompression();
+  void splitModeDialogOptionsFollowSelectedLayout();
   void applyAlignmentCopiesSelectedSettingsIndependently();
   void applySourceDpiCopiesSelectedAxesIndependently();
   void filterDockWidthRestoresFromConfiguration();
