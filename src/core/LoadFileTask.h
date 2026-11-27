@@ -1,8 +1,8 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_LOADFILETASK_H_
-#define SCANTAILOR_CORE_LOADFILETASK_H_
+#pragma once
 
 #include <memory>
 
@@ -54,6 +54,3 @@ class LoadFileTask : public BackgroundTask {
   const std::shared_ptr<ProjectPages> m_pages;
   const std::shared_ptr<fix_orientation::Task> m_nextTask;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_LOADFILETASK_H_

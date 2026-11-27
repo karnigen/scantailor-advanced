@@ -1,9 +1,9 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Copyright (C) 1995 Spencer Kimball and Peter Mattis
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-FileCopyrightText: 1995 Spencer Kimball and Peter Mattis
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_
-#define SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_
+#pragma once
 
 #include <QSize>
 #include <cstring>
@@ -196,4 +196,3 @@ void gaussBlurGeneric(const QSize size,
   }
 }  // gaussBlurGeneric
 }  // namespace imageproc
-#endif  // ifndef SCANTAILOR_IMAGEPROC_GAUSSBLUR_H_

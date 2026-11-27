@@ -1,8 +1,8 @@
-// Copyright (C) 2020  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2020 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2020 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SELECT_CONTENT_UTILS_H_
-#define SCANTAILOR_SELECT_CONTENT_UTILS_H_
+#pragma once
 
 class Dpi;
 
@@ -16,5 +16,3 @@ class Utils {
   static Params buildDefaultParams(const Dpi& dpi);
 };
 }  // namespace select_content
-
-#endif  // SCANTAILOR_SELECT_CONTENT_UTILS_H_

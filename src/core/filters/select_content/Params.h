@@ -1,8 +1,8 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SELECT_CONTENT_PARAMS_H_
-#define SCANTAILOR_SELECT_CONTENT_PARAMS_H_
+#pragma once
 
 #include <AutoManualMode.h>
 
@@ -148,4 +148,3 @@ inline void Params::setPageSizePresetId(const QString& pageSizePresetId) {
   m_pageSizePresetId = pageSizePresetId;
 }
 }  // namespace select_content
-#endif  // ifndef SCANTAILOR_SELECT_CONTENT_PARAMS_H_

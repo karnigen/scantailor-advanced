@@ -1,8 +1,8 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_FILTERUIINTERFACE_H_
-#define SCANTAILOR_CORE_FILTERUIINTERFACE_H_
+#pragma once
 
 #include <memory>
 
@@ -27,8 +27,7 @@ class FilterUiInterface {
   virtual void setImageWidget(QWidget* widget,
                               Ownership ownership,
                               DebugImages* debugImages = nullptr,
-                              bool overlay = false)
-      = 0;
+                              bool overlay = false) = 0;
 
   virtual void invalidateThumbnail(const PageId& pageId) = 0;
 
@@ -39,6 +38,3 @@ class FilterUiInterface {
    */
   virtual std::shared_ptr<AbstractCommand<void>> relinkingDialogRequester() = 0;
 };
-
-
-#endif  // ifndef SCANTAILOR_CORE_FILTERUIINTERFACE_H_

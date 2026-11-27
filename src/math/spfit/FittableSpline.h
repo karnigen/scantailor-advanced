@@ -1,8 +1,8 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_SPFIT_FITTABLESPLINE_H_
-#define SCANTAILOR_SPFIT_FITTABLESPLINE_H_
+#pragma once
 
 #include <QPointF>
 #include <vector>
@@ -92,11 +92,9 @@ class FittableSpline {
   virtual void sample(const VirtualFunction<void, const QPointF&, double, SampleFlags>& sink,
                       const SamplingParams& params,
                       double fromT = 0.0,
-                      double toT = 1.0) const
-      = 0;
+                      double toT = 1.0) const = 0;
 };
 
 
 DEFINE_FLAG_OPS(FittableSpline::SampleFlags)
 }  // namespace spfit
-#endif  // ifndef SCANTAILOR_SPFIT_FITTABLESPLINE_H_

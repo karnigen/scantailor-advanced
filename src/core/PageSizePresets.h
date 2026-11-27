@@ -1,8 +1,7 @@
-// Copyright (C) 2026  ScanTailor Advanced contributors
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_CORE_PAGESIZEPRESETS_H_
-#define SCANTAILOR_CORE_PAGESIZEPRESETS_H_
+#pragma once
 
 #include <QSizeF>
 #include <QString>
@@ -21,5 +20,3 @@ bool sizesMatch(const QSizeF& lhs, const QSizeF& rhs);
 
 QString matchingName(const QSizeF& sizeMm);
 }  // namespace page_sizes
-
-#endif  // SCANTAILOR_CORE_PAGESIZEPRESETS_H_

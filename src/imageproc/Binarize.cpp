@@ -1,5 +1,6 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
 #include "Binarize.h"
 
@@ -398,7 +399,7 @@ BinaryImage binarizeWindow(const QImage& src,
   const uint64_t meanFull = integralImage.sum(QRect(0, 0, w, h)) / areaFull;
   double deviationMax = 0.0;
   double deviationMin = 256.0;
-  const double coefw = k * 3.0; // translate from Wolf to Window coef.
+  const double coefw = k * 3.0;  // translate from Wolf to Window coef.
 
   grayLine = gray.bits();
   for (int y = 0; y < h; ++y) {

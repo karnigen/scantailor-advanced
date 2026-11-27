@@ -1,5 +1,5 @@
-// Copyright (C) 2019  Joseph Artsimovich <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
 #include "ConfigurationDialog.h"
 

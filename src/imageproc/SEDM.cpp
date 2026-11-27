@@ -1,6 +1,7 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Copyright (C) 2002,2003  Ricardo Fabbri <rfabbri@if.sc.usp.br>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-FileCopyrightText: 2002,2003  Ricardo Fabbri <rfabbri@if.sc.usp.br>
+// SPDX-License-Identifier: GPL-3.0-only
 
 #include "SEDM.h"
 

@@ -1,8 +1,8 @@
-// Copyright (C) 2019  Joseph Artsimovich <joseph.artsimovich@gmail.com>, 4lex4 <4lex49@zoho.com>
-// Use of this source code is governed by the GNU GPLv3 license that can be found in the LICENSE file.
+// SPDX-FileCopyrightText: 2019 Joseph Artsimovich <joseph.artsimovich@gmail.com>
+// SPDX-FileCopyrightText: 2019 4lex4 <4lex49@zoho.com>
+// SPDX-License-Identifier: GPL-3.0-only
 
-#ifndef SCANTAILOR_INTERACTION_DRAGWATCHER_H_
-#define SCANTAILOR_INTERACTION_DRAGWATCHER_H_
+#pragma once
 
 #include <QDateTime>
 #include <QPoint>
@@ -39,6 +39,3 @@ class DragWatcher : public InteractionHandler {
   int m_dragMaxSqDist;
   bool m_dragInProgress;
 };
-
-
-#endif  // ifndef SCANTAILOR_INTERACTION_DRAGWATCHER_H_
