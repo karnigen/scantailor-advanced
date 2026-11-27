@@ -1658,12 +1658,15 @@ void MainWindow::filterResult(const BackgroundTaskPtr& task,
     m_batchQueue->processingFinished(task);
   }
 
-  if (task->isCancelled()) {
-    return;
-  }
-
   if (isBatchProcessingInProgress()) {
     feedWorkerPool();
+  }
+
+  if (task->isCancelled()) {
+    if (isBatchProcessingInProgress() && m_batchQueue->allProcessed()) {
+      stopBatchProcessing();
+    }
+    return;
   }
 
   bool batchFailureRecorded = false;

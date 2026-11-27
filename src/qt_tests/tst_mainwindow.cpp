@@ -78,6 +78,7 @@
 #include <QWheelEvent>
 #include <QWidget>
 #include <QtTest/QtTest>
+#include <atomic>
 #include <functional>
 #include <stdexcept>
 
@@ -120,6 +121,28 @@ class BlockingTask : public BackgroundTask {
   QSemaphore& m_started;
   QSemaphore& m_release;
   std::function<void()> m_update;
+};
+
+class SuccessfulBatchResult : public FilterResult {
+ public:
+  void updateUI(FilterUiInterface*) override {}
+
+  std::shared_ptr<AbstractFilter> filter() override { return nullptr; }
+};
+
+class SuccessfulBatchTask : public BackgroundTask {
+ public:
+  explicit SuccessfulBatchTask(std::atomic_int& completed) : BackgroundTask(BATCH), m_completed(completed) {}
+
+  FilterResultPtr operator()() override {
+    ++m_completed;
+    return std::make_shared<SuccessfulBatchResult>();
+  }
+
+  FilterResultPtr exceptionResult(const QString&) override { return std::make_shared<SuccessfulBatchResult>(); }
+
+ private:
+  std::atomic_int& m_completed;
 };
 
 class AutoSaveSetting {
@@ -227,6 +250,82 @@ void TestMainWindowAsync::cancelledBatchDefersSaveAndKeepsLatestFilter() {
   QVERIFY(!savedPage.isNull());
   const page_layout::Params saved(savedPage.firstChildElement("params"));
   QCOMPARE(saved.contentRect(), newContent);
+}
+
+void TestMainWindowAsync::cancelledBatchReplenishesWorkersAfterPageRemoval() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  std::vector<ImageInfo> imageInfos;
+  for (int i = 0; i < 2; ++i) {
+    const QString imagePath = directory.filePath(QStringLiteral("page-%1.png").arg(i));
+    QImage image(100, 120, QImage::Format_RGB32);
+    image.fill(Qt::white);
+    QVERIFY(image.save(imagePath));
+    imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)),
+                            1, false, false);
+  }
+
+  const auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
+  QSemaphore started;
+  QSemaphore release;
+  std::atomic_int completed = 0;
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()),
+                            core::toFileSystemPath(directory.filePath("project.ScanTailor")));
+  QTRY_VERIFY(window.m_workerThreadPool->isIdle());
+
+  const PageSequence sequence(pages->toPageSequence(PAGE_VIEW));
+  const PageInfo firstPage = sequence.pageAt(0);
+  const PageInfo secondPage = sequence.pageAt(1);
+  const auto cancelledTask = std::make_shared<BlockingTask>(started, release, []() {});
+  const auto queuedTask = std::make_shared<SuccessfulBatchTask>(completed);
+  window.m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  window.m_batchQueue->addProcessingTask(firstPage, cancelledTask);
+  window.m_batchQueue->addProcessingTask(secondPage, queuedTask);
+  QCOMPARE(window.m_batchQueue->takeForProcessing(), cancelledTask);
+  window.m_workerThreadPool->submitTask(cancelledTask);
+  QTRY_VERIFY(started.available() == 1);
+
+  window.removeFromProject({firstPage.id()});
+  release.release();
+
+  QTRY_COMPARE(completed.load(), 1);
+  QTRY_VERIFY(!window.isBatchProcessingInProgress());
+  QVERIFY(window.m_workerThreadPool->isIdle());
+}
+
+void TestMainWindowAsync::cancelledBatchStopsWhenAllPagesAreRemoved() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const QString imagePath = directory.filePath("page.png");
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+  const ImageId imageId(core::toFileSystemPath(imagePath), 0);
+  const auto pages = std::make_shared<ProjectPages>(
+      std::vector<ImageInfo>{ImageInfo(imageId, ImageMetadata(image.size(), Dpi(300, 300)), 1, false, false)},
+      Qt::LeftToRight);
+  QSemaphore started;
+  QSemaphore release;
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()),
+                            core::toFileSystemPath(directory.filePath("project.ScanTailor")));
+  QTRY_VERIFY(window.m_workerThreadPool->isIdle());
+
+  const PageInfo page = pages->toPageSequence(PAGE_VIEW).pageAt(0);
+  const auto task = std::make_shared<BlockingTask>(started, release, []() {});
+  window.m_batchQueue = std::make_unique<ProcessingTaskQueue>();
+  window.m_batchQueue->addProcessingTask(page, task);
+  QCOMPARE(window.m_batchQueue->takeForProcessing(), task);
+  window.m_workerThreadPool->submitTask(task);
+  QTRY_VERIFY(started.available() == 1);
+
+  window.removeFromProject({page.id()});
+  QVERIFY(window.isBatchProcessingInProgress());
+  release.release();
+
+  QTRY_VERIFY(!window.isBatchProcessingInProgress());
+  QVERIFY(window.m_workerThreadPool->isIdle());
 }
 
 void TestMainWindowAsync::deferredSavesPreserveOrder_data() {

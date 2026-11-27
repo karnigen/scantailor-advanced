@@ -10,6 +10,8 @@ class TestMainWindowAsync : public QObject {
   Q_OBJECT
  private slots:
   void cancelledBatchDefersSaveAndKeepsLatestFilter();
+  void cancelledBatchReplenishesWorkersAfterPageRemoval();
+  void cancelledBatchStopsWhenAllPagesAreRemoved();
   void deferredSavesPreserveOrder_data();
   void deferredSavesPreserveOrder();
   void keyboardShortcutsShowConciseStageNames();
