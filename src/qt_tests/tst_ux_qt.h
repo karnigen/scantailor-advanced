@@ -16,4 +16,5 @@ class TestUxQt : public QObject {
   void testErrorWidgetCreation();
   void testConfigurationDialogShowsPathsAndReloadsSettings();
   void testSingleColumnSettingUpdatesButtonState();
+  void testSettingsDialogRestoresTiffCompressionDefaults();
 };

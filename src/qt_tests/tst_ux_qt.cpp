@@ -7,10 +7,13 @@
 #include <CollapsibleGroupBox.h>
 #include <ConfigurationDialog.h>
 #include <ErrorWidget.h>
+#include <SettingsDialog.h>
 #include <ThumbnailViewMode.h>
+#include <core/ApplicationSettings.h>
 #include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
+#include <QComboBox>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QLabel>
@@ -135,4 +138,25 @@ void TestUxQt::testSingleColumnSettingUpdatesButtonState() {
 
   setSingleColumnViewButtonState(button, false);
   QVERIFY(!button.isChecked());
+}
+
+void TestUxQt::testSettingsDialogRestoresTiffCompressionDefaults() {
+  SettingsDialog dialog;
+  auto* bwCompression = dialog.findChild<QComboBox*>(QStringLiteral("tiffCompressionBWBox"));
+  auto* colorCompression = dialog.findChild<QComboBox*>(QStringLiteral("tiffCompressionColorBox"));
+  auto* restoreBwButton = dialog.findChild<QToolButton*>(QStringLiteral("restoreTiffCompressionBWButton"));
+  auto* restoreColorButton = dialog.findChild<QToolButton*>(QStringLiteral("restoreTiffCompressionColorButton"));
+
+  QVERIFY(bwCompression);
+  QVERIFY(colorCompression);
+  QVERIFY(restoreBwButton);
+  QVERIFY(restoreColorButton);
+
+  bwCompression->setCurrentIndex(0);
+  colorCompression->setCurrentIndex(0);
+  QTest::mouseClick(restoreBwButton, Qt::LeftButton);
+  QTest::mouseClick(restoreColorButton, Qt::LeftButton);
+
+  QCOMPARE(bwCompression->currentData().toInt(), ApplicationSettings::DEFAULT_TIFF_BW_COMPRESSION);
+  QCOMPARE(colorCompression->currentData().toInt(), ApplicationSettings::DEFAULT_TIFF_COLOR_COMPRESSION);
 }
