@@ -71,7 +71,59 @@ TEST_CASE("Processed pages can be exported to WebP with resolution metadata", "[
   REQUIRE(webp.size() > 12);
   CHECK(webp.left(4) == QByteArrayLiteral("RIFF"));
   CHECK(webp.mid(8, 4) == QByteArrayLiteral("WEBP"));
-  CHECK(webp.contains(QByteArrayLiteral("EXIF")));
+
+  const auto readLittleEndian16 = [&webp](const qsizetype offset) {
+    return static_cast<quint16>(static_cast<quint8>(webp.at(offset)))
+           | static_cast<quint16>(static_cast<quint8>(webp.at(offset + 1)) << 8);
+  };
+  const auto readLittleEndian32 = [&webp](const qsizetype offset) {
+    return static_cast<quint32>(static_cast<quint8>(webp.at(offset)))
+           | (static_cast<quint32>(static_cast<quint8>(webp.at(offset + 1))) << 8)
+           | (static_cast<quint32>(static_cast<quint8>(webp.at(offset + 2))) << 16)
+           | (static_cast<quint32>(static_cast<quint8>(webp.at(offset + 3))) << 24);
+  };
+
+  qsizetype chunkOffset = 12;
+  qsizetype exifOffset = -1;
+  quint32 exifSize = 0;
+  while (chunkOffset + 8 <= webp.size()) {
+    const quint32 chunkSize = readLittleEndian32(chunkOffset + 4);
+    REQUIRE(chunkSize <= static_cast<quint32>(webp.size() - chunkOffset - 8));
+    if (webp.mid(chunkOffset, 4) == QByteArrayLiteral("EXIF")) {
+      exifOffset = chunkOffset + 8;
+      exifSize = chunkSize;
+      break;
+    }
+    chunkOffset += 8 + chunkSize + (chunkSize & 1);
+  }
+
+  REQUIRE(exifOffset >= 0);
+  REQUIRE(exifSize >= 66);
+  CHECK(webp.mid(exifOffset, 6) == QByteArray("Exif\0\0", 6));
+  const qsizetype tiffOffset = exifOffset + 6;
+  CHECK(webp.mid(tiffOffset, 2) == QByteArrayLiteral("II"));
+  CHECK(readLittleEndian16(tiffOffset + 2) == 42);
+
+  const quint32 ifdOffset = readLittleEndian32(tiffOffset + 4);
+  REQUIRE(ifdOffset + 2 + 3 * 12 + 4 <= exifSize - 6);
+  const qsizetype ifd = tiffOffset + ifdOffset;
+  REQUIRE(readLittleEndian16(ifd) == 3);
+
+  const qsizetype xResolutionEntry = ifd + 2;
+  CHECK(readLittleEndian16(xResolutionEntry) == 0x011a);
+  CHECK(readLittleEndian16(xResolutionEntry + 2) == 5);
+  CHECK(readLittleEndian32(xResolutionEntry + 4) == 1);
+  const quint32 xResolutionOffset = readLittleEndian32(xResolutionEntry + 8);
+  CHECK(readLittleEndian32(tiffOffset + xResolutionOffset) == 150);
+  CHECK(readLittleEndian32(tiffOffset + xResolutionOffset + 4) == 1);
+
+  const qsizetype yResolutionEntry = xResolutionEntry + 12;
+  CHECK(readLittleEndian16(yResolutionEntry) == 0x011b);
+  CHECK(readLittleEndian16(yResolutionEntry + 2) == 5);
+  CHECK(readLittleEndian32(yResolutionEntry + 4) == 1);
+  const quint32 yResolutionOffset = readLittleEndian32(yResolutionEntry + 8);
+  CHECK(readLittleEndian32(tiffOffset + yResolutionOffset) == 150);
+  CHECK(readLittleEndian32(tiffOffset + yResolutionOffset + 4) == 1);
 }
 
 TEST_CASE("Processed pages can be exported as a multi-page PDF", "[processed-pages-export]") {
