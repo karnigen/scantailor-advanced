@@ -145,7 +145,11 @@ void OptionsWidget::manualObliqueAngleSetExternally(const double degrees) {
 void OptionsWidget::preUpdateUI(const PageId& pageId) {
   auto block = m_connectionManager.getScopedBlock();
 
+  const bool rotationReloadPending = m_rotationReloadTimer.isActive();
   m_rotationReloadTimer.stop();
+  if (rotationReloadPending && m_uiData.obliqueMode() == MODE_AUTO) {
+    m_settings->requestRecompute(m_pageId, false, true);
+  }
   m_pageId = pageId;
   setSpinBoxUnknownState();
   autoBtn->setEnabled(false);

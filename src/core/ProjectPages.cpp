@@ -100,17 +100,42 @@ void ProjectPages::setLayoutDirectionFor(const ImageId& imageId, const Qt::Layou
       }
 
       const Qt::LayoutDirection currentDirection = image.layoutDirectionOverride.value_or(m_layoutDirection);
-      if (currentDirection == direction) {
+      const bool useProjectDirection = direction == m_layoutDirection;
+      if (currentDirection == direction && (!useProjectDirection || !image.layoutDirectionOverride)) {
         break;
       }
 
-      if (direction == m_layoutDirection) {
+      if (useProjectDirection) {
         image.layoutDirectionOverride.reset();
       } else {
         image.layoutDirectionOverride = direction;
       }
       image.layoutRevision = ++m_nextLayoutRevision;
       wasModified = true;
+      break;
+    }
+  }
+
+  if (wasModified) {
+    emit modified();
+    emit pageOrderChanged();
+  }
+}
+
+void ProjectPages::setLayoutDirectionOverrideFor(const ImageId& imageId, const Qt::LayoutDirection direction) {
+  bool wasModified = false;
+  {
+    const QMutexLocker locker(&m_mutex);
+    for (ImageDesc& image : m_images) {
+      if (image.id != imageId) {
+        continue;
+      }
+
+      if (image.layoutDirectionOverride != direction) {
+        image.layoutDirectionOverride = direction;
+        image.layoutRevision = ++m_nextLayoutRevision;
+        wasModified = true;
+      }
       break;
     }
   }

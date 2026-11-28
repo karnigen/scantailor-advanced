@@ -435,6 +435,35 @@ void TestCoreQt::testPerSpreadReadingDirectionPersistsAndAffectsOutputNames() {
   const OutputFileNameGenerator loadedOutput(reader.namingDisambiguator(), reader.outputDirectory(),
                                              reader.pages()->layoutDirection(), reader.pages());
   QVERIFY(loadedOutput.fileNameFor(PageId(loadedImageId, PageId::LEFT_PAGE)).endsWith(QStringLiteral("_2L.tif")));
+
+  reader.pages()->setLayoutDirection(Qt::RightToLeft);
+  const OutputFileNameGenerator matchingDefaultOutput(reader.namingDisambiguator(), reader.outputDirectory(),
+                                                      reader.pages()->layoutDirection(), reader.pages());
+  const ProjectWriter matchingDefaultWriter(reader.pages(), reader.selectedPage(), matchingDefaultOutput);
+  const QString matchingDefaultProjectPath = directory.filePath("matching-default.ScanTailor");
+  QVERIFY2(matchingDefaultWriter.write(core::toFileSystemPath(matchingDefaultProjectPath), {loadedFilter}, &error),
+           qPrintable(error));
+
+  QFile matchingDefaultProject(matchingDefaultProjectPath);
+  QVERIFY(matchingDefaultProject.open(QIODevice::ReadOnly));
+  QDomDocument matchingDefaultDocument;
+  QVERIFY(matchingDefaultDocument.setContent(&matchingDefaultProject));
+  matchingDefaultProject.close();
+  const QDomElement matchingDefaultImageSettings = matchingDefaultDocument.documentElement()
+                                                       .firstChildElement("filters")
+                                                       .firstChildElement("page-split")
+                                                       .firstChildElement("image");
+  QCOMPARE(matchingDefaultImageSettings.attribute("readingDirection"), QStringLiteral("RTL"));
+
+  ProjectReader matchingDefaultReader(matchingDefaultDocument, core::toFileSystemPath(matchingDefaultProjectPath));
+  QVERIFY(matchingDefaultReader.success());
+  const auto matchingDefaultFilter
+      = std::make_shared<page_split::Filter>(matchingDefaultReader.pages(), PageSelectionAccessor(nullptr));
+  matchingDefaultReader.readFilterSettings({matchingDefaultFilter});
+  QCOMPARE(matchingDefaultReader.pages()->layoutDirection(), Qt::RightToLeft);
+  const auto matchingDefaultOverride = matchingDefaultReader.pages()->layoutDirectionOverride(loadedImageId);
+  QVERIFY(matchingDefaultOverride.has_value());
+  QCOMPARE(*matchingDefaultOverride, Qt::RightToLeft);
 }
 
 void TestCoreQt::testUnitsToString() {

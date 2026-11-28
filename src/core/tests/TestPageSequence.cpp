@@ -183,6 +183,23 @@ TEST_CASE("ProjectPages / project reading direction invalidates only images with
   CHECK(updated.pageAt(3).id().subPage() == PageId::LEFT_PAGE);
 }
 
+TEST_CASE("ProjectPages / persisted direction overrides matching the default remain explicit") {
+  const ImageId imageId("/page.tif", 0);
+  const ImageMetadata metadata(QSize(200, 100), Dpi(300, 300));
+  ProjectPages pages({ImageInfo(imageId, metadata, 2, false, false)}, Qt::LeftToRight);
+  pages.setLayoutDirection(Qt::RightToLeft);
+  pages.setLayoutDirectionOverrideFor(imageId, Qt::RightToLeft);
+
+  CHECK(pages.layoutDirectionOverride(imageId) == Qt::RightToLeft);
+  pages.setLayoutDirection(Qt::LeftToRight);
+  CHECK(pages.layoutDirectionFor(imageId) == Qt::RightToLeft);
+  CHECK(pages.layoutDirectionOverride(imageId) == Qt::RightToLeft);
+
+  pages.setLayoutDirectionFor(imageId, Qt::LeftToRight);
+  CHECK_FALSE(pages.layoutDirectionOverride(imageId));
+  CHECK(pages.layoutDirectionFor(imageId) == Qt::LeftToRight);
+}
+
 TEST_CASE("ProjectPages / another image does not invalidate a cached split") {
   const ImageId firstId("/first.tif", 0);
   const ImageId secondId("/second.tif", 0);

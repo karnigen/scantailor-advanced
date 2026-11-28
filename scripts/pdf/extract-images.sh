@@ -49,23 +49,42 @@ fi
 TEMP_DIR="$(mktemp -d "$OUTPUT_DIR/.${FILE_STEM}.extract.XXXXXX")"
 MOVED_FILES=()
 COMMITTED=0
+CHILD_PID=""
+run_external() {
+  "$@" &
+  CHILD_PID=$!
+  local exit_code=0
+  wait "$CHILD_PID" || exit_code=$?
+  CHILD_PID=""
+  return "$exit_code"
+}
 cleanup() {
+  if [[ -n "$CHILD_PID" ]]; then
+    kill "$CHILD_PID" 2>/dev/null || true
+    wait "$CHILD_PID" 2>/dev/null || true
+    CHILD_PID=""
+  fi
   local moved_file
   if [[ "$COMMITTED" != "1" ]]; then
-    for moved_file in "${MOVED_FILES[@]}"; do
+    for moved_file in "${MOVED_FILES[@]-}"; do
+      [[ -n "$moved_file" ]] || continue
       rm -f -- "$moved_file"
     done
   fi
   rm -rf -- "$TEMP_DIR"
 }
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 INFO_FILE="$TEMP_DIR/image-info.txt"
-"$PDFIMAGES_BIN" -list "$PDF_PATH" > "$INFO_FILE"
-"$PDFIMAGES_BIN" -all "$PDF_PATH" "$TEMP_DIR/$FILE_STEM"
+run_external "$PDFIMAGES_BIN" -list "$PDF_PATH" > "$INFO_FILE"
+run_external "$PDFIMAGES_BIN" -all "$PDF_PATH" "$TEMP_DIR/$FILE_STEM"
 
 shopt -s nullglob
-IMAGE_FILES=("$TEMP_DIR/$FILE_STEM"-*)
+IMAGE_FILES=()
+for candidate in "$TEMP_DIR/$FILE_STEM"-*; do
+  [[ "$candidate" == "$INFO_FILE" ]] || IMAGE_FILES+=("$candidate")
+done
 if ((${#IMAGE_FILES[@]} == 0)); then
   fail "No embedded images were found. Use render-pages.sh for vector or text-based PDF pages."
 fi

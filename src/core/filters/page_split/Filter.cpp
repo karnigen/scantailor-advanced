@@ -91,9 +91,9 @@ void Filter::loadSettings(const ProjectReader& reader, const QDomElement& filter
 
     const QString readingDirection(el.attribute("readingDirection"));
     if (readingDirection == "LTR") {
-      m_pages->setLayoutDirectionFor(imageId, Qt::LeftToRight);
+      m_pages->setLayoutDirectionOverrideFor(imageId, Qt::LeftToRight);
     } else if (readingDirection == "RTL") {
-      m_pages->setLayoutDirectionFor(imageId, Qt::RightToLeft);
+      m_pages->setLayoutDirectionOverrideFor(imageId, Qt::RightToLeft);
     }
 
     Settings::UpdateAction update;

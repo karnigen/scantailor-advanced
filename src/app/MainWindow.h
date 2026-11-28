@@ -11,6 +11,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <atomic>
 #include <deque>
 #include <filesystem>
 #include <functional>
@@ -297,6 +298,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void runPdfHelper(bool renderPages);
 
+  void cancelPdfOperation();
+
   bool isBatchProcessingInProgress() const;
 
   void feedWorkerPool();
@@ -387,6 +390,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QPointer<QProcess> m_pdfHelperProcess;
   QPointer<QProgressDialog> m_pdfHelperProgressDialog;
   QPointer<QThread> m_pdfOptimizationThread;
+  std::shared_ptr<std::atomic_bool> m_pdfCancellationRequested;
   std::unique_ptr<TabbedDebugImages> m_tabbedDebugImages;
   std::unique_ptr<ContentBoxPropagator> m_contentBoxPropagator;
   std::unique_ptr<PageOrientationPropagator> m_pageOrientationPropagator;

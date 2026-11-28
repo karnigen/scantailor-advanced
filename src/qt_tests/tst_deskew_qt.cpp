@@ -30,6 +30,7 @@ class TestDeskewQt : public QObject {
   void testRotationControlsPreserveVisualScale();
   void testGridRemainsStableDuringRotation();
   void testCtrlWheelAppliesFineRotation();
+  void testPendingAutoObliqueRecomputeSurvivesPageChange();
 };
 
 class TestDeskewImageView : public deskew::ImageView {
@@ -206,6 +207,29 @@ void TestDeskewQt::testCtrlWheelAppliesFineRotation() {
   QCOMPARE(view.verticalScrollBarPolicy(), Qt::ScrollBarAlwaysOff);
   QVERIFY(!view.horizontalScrollBar()->isVisible());
   QVERIFY(!view.verticalScrollBar()->isVisible());
+}
+
+void TestDeskewQt::testPendingAutoObliqueRecomputeSurvivesPageChange() {
+  auto settings = std::make_shared<deskew::Settings>();
+  deskew::OptionsWidget widget(settings, PageSelectionAccessor(nullptr));
+  const PageId firstPage(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/deskew-first.tif"))), PageId::SINGLE_PAGE);
+  const PageId secondPage(ImageId(core::toFileSystemPath(QStringLiteral("/tmp/deskew-second.tif"))),
+                          PageId::SINGLE_PAGE);
+  deskew::OptionsWidget::UiData uiData;
+  uiData.setMode(MODE_AUTO);
+  uiData.setObliqueMode(MODE_AUTO);
+  widget.preUpdateUI(firstPage);
+  widget.postUpdateUI(uiData);
+
+  auto* angleSpinBox = widget.findChild<QDoubleSpinBox*>(QStringLiteral("angleSpinBox"));
+  QVERIFY(angleSpinBox);
+  angleSpinBox->setValue(0.1);
+  QVERIFY(!settings->pendingRecompute(firstPage).oblique);
+
+  widget.preUpdateUI(secondPage);
+  QVERIFY(settings->pendingRecompute(firstPage).oblique);
+  QVERIFY(!settings->pendingRecompute(firstPage).deskew);
+  QVERIFY(!settings->pendingRecompute(secondPage).oblique);
 }
 
 QTEST_MAIN(TestDeskewQt)

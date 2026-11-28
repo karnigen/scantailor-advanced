@@ -9,6 +9,7 @@
 
 #include <TiffWriter.h>
 #include <tiffio.h>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -18,35 +19,35 @@ struct TiffMetadata {
   uint16_t samplesPerPixel = 0;
   uint16_t photometric = 0;
   uint16_t compression = 0;
+  uint16_t resolutionUnit = 0;
   float xResolution = 0;
   float yResolution = 0;
 };
 
 TiffMetadata readMetadata(const QString& path) {
   const QByteArray nativePath = QFile::encodeName(path);
-  TIFF* tiff = TIFFOpen(nativePath.constData(), "r");
+  const std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(TIFFOpen(nativePath.constData(), "r"), TIFFClose);
   REQUIRE(tiff != nullptr);
 
   TiffMetadata metadata;
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &metadata.bitsPerSample));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_SAMPLESPERPIXEL, &metadata.samplesPerPixel));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_PHOTOMETRIC, &metadata.photometric));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_COMPRESSION, &metadata.compression));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_XRESOLUTION, &metadata.xResolution));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_YRESOLUTION, &metadata.yResolution));
-  TIFFClose(tiff);
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_BITSPERSAMPLE, &metadata.bitsPerSample));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_SAMPLESPERPIXEL, &metadata.samplesPerPixel));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_PHOTOMETRIC, &metadata.photometric));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_COMPRESSION, &metadata.compression));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_XRESOLUTION, &metadata.xResolution));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_YRESOLUTION, &metadata.yResolution));
+  TIFFGetFieldDefaulted(tiff.get(), TIFFTAG_RESOLUTIONUNIT, &metadata.resolutionUnit);
   return metadata;
 }
 
-void setResolution(QImage& image) {
-  const int dotsPerMeter = qRound(300.0 / 0.0254);
-  image.setDotsPerMeterX(dotsPerMeter);
-  image.setDotsPerMeterY(dotsPerMeter);
+void setResolution(QImage& image, const int dpiX = 300, const int dpiY = 300) {
+  image.setDotsPerMeterX(qRound(dpiX / 0.0254));
+  image.setDotsPerMeterY(qRound(dpiY / 0.0254));
 }
 
 void checkPixelsMatch(const QImage& expected, const QString& path) {
   const QByteArray nativePath = QFile::encodeName(path);
-  TIFF* tiff = TIFFOpen(nativePath.constData(), "r");
+  const std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(TIFFOpen(nativePath.constData(), "r"), TIFFClose);
   REQUIRE(tiff != nullptr);
 
   uint32_t width = 0;
@@ -54,26 +55,33 @@ void checkPixelsMatch(const QImage& expected, const QString& path) {
   uint16_t bitsPerSample = 0;
   uint16_t samplesPerPixel = 0;
   uint16_t photometric = 0;
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &height));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_BITSPERSAMPLE, &bitsPerSample));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel));
-  REQUIRE(TIFFGetField(tiff, TIFFTAG_PHOTOMETRIC, &photometric));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_IMAGEWIDTH, &width));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_IMAGELENGTH, &height));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_BITSPERSAMPLE, &bitsPerSample));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel));
+  REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_PHOTOMETRIC, &photometric));
   REQUIRE(width == static_cast<uint32_t>(expected.width()));
   REQUIRE(height == static_cast<uint32_t>(expected.height()));
+
+  const bool paletteLayout
+      = photometric == PHOTOMETRIC_PALETTE && samplesPerPixel == 1 && (bitsPerSample == 1 || bitsPerSample == 8);
+  const bool grayscaleLayout = (photometric == PHOTOMETRIC_MINISBLACK || photometric == PHOTOMETRIC_MINISWHITE)
+                               && samplesPerPixel == 1 && (bitsPerSample == 1 || bitsPerSample == 8);
+  const bool rgbLayout = photometric == PHOTOMETRIC_RGB && samplesPerPixel == 3 && bitsPerSample == 8;
+  REQUIRE((paletteLayout || grayscaleLayout || rgbLayout));
 
   uint16_t* redMap = nullptr;
   uint16_t* greenMap = nullptr;
   uint16_t* blueMap = nullptr;
   if (photometric == PHOTOMETRIC_PALETTE) {
-    REQUIRE(TIFFGetField(tiff, TIFFTAG_COLORMAP, &redMap, &greenMap, &blueMap));
+    REQUIRE(TIFFGetField(tiff.get(), TIFFTAG_COLORMAP, &redMap, &greenMap, &blueMap));
   }
-  const tmsize_t scanlineSize = TIFFScanlineSize(tiff);
+  const tmsize_t scanlineSize = TIFFScanlineSize(tiff.get());
   REQUIRE(scanlineSize > 0);
   std::vector<uint8_t> scanline(static_cast<size_t>(scanlineSize));
 
   for (uint32_t y = 0; y < height; ++y) {
-    REQUIRE(TIFFReadScanline(tiff, scanline.data(), y, 0) >= 0);
+    REQUIRE(TIFFReadScanline(tiff.get(), scanline.data(), y, 0) >= 0);
     for (uint32_t x = 0; x < width; ++x) {
       uint8_t red = 0;
       uint8_t green = 0;
@@ -100,14 +108,34 @@ void checkPixelsMatch(const QImage& expected, const QString& path) {
       CHECK(expected.pixelColor(static_cast<int>(x), static_cast<int>(y)) == QColor(red, green, blue));
     }
   }
-  TIFFClose(tiff);
 }
 
-QString writeSourceTiff(const QTemporaryDir& directory, const QString& fileName, QImage& image) {
-  setResolution(image);
+QString writeSourceTiff(const QTemporaryDir& directory,
+                        const QString& fileName,
+                        QImage& image,
+                        const int dpiX = 300,
+                        const int dpiY = 300) {
+  setResolution(image, dpiX, dpiY);
   const QString path = directory.filePath(fileName);
   REQUIRE(TiffWriter::writeImage(path, image));
   return path;
+}
+
+void appendOnePixelRgbDirectory(const QString& path) {
+  const QByteArray nativePath = QFile::encodeName(path);
+  const std::unique_ptr<TIFF, decltype(&TIFFClose)> tiff(TIFFOpen(nativePath.constData(), "a"), TIFFClose);
+  REQUIRE(tiff != nullptr);
+
+  TIFFSetField(tiff.get(), TIFFTAG_IMAGEWIDTH, uint32_t{1});
+  TIFFSetField(tiff.get(), TIFFTAG_IMAGELENGTH, uint32_t{1});
+  TIFFSetField(tiff.get(), TIFFTAG_SAMPLESPERPIXEL, uint16_t{3});
+  TIFFSetField(tiff.get(), TIFFTAG_BITSPERSAMPLE, uint16_t{8});
+  TIFFSetField(tiff.get(), TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+  TIFFSetField(tiff.get(), TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+  TIFFSetField(tiff.get(), TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+  uint8_t pixel[3] = {0, 0, 0};
+  REQUIRE(TIFFWriteScanline(tiff.get(), pixel, 0, 0) >= 0);
+  REQUIRE(TIFFWriteDirectory(tiff.get()));
 }
 
 }  // namespace
@@ -133,6 +161,7 @@ TEST_CASE("Rendered TIFF optimization stores exact black and white pixels as bil
   CHECK(metadata.xResolution < 301.0F);
   CHECK(metadata.yResolution > 299.0F);
   CHECK(metadata.yResolution < 301.0F);
+  CHECK(metadata.resolutionUnit == RESUNIT_INCH);
   checkPixelsMatch(image, path);
 }
 
@@ -174,7 +203,7 @@ TEST_CASE("Rendered TIFF optimization uses 1-bit indexed color for two exact col
   image.setPixelColor(2, 1, QColor(10, 170, 240));
   image.setPixelColor(3, 1, QColor(230, 20, 30));
   image.setPixelColor(4, 1, QColor(10, 170, 240));
-  const QString path = writeSourceTiff(directory, QStringLiteral("two-colors.tif"), image);
+  const QString path = writeSourceTiff(directory, QStringLiteral("two-colors.tif"), image, 400, 600);
 
   const auto result = TiffWriter::optimizeRenderedPdfPage(path, 300);
   CHECK(result.mode == TiffWriter::RenderedPageColorMode::IndexedColor);
@@ -183,6 +212,10 @@ TEST_CASE("Rendered TIFF optimization uses 1-bit indexed color for two exact col
   CHECK(metadata.samplesPerPixel == 1);
   CHECK(metadata.photometric == PHOTOMETRIC_PALETTE);
   CHECK(metadata.compression == COMPRESSION_LZW);
+  CHECK(metadata.xResolution > 399.0F);
+  CHECK(metadata.xResolution < 401.0F);
+  CHECK(metadata.yResolution > 599.0F);
+  CHECK(metadata.yResolution < 601.0F);
   checkPixelsMatch(image, path);
 }
 
@@ -221,4 +254,25 @@ TEST_CASE("Rendered TIFF optimization leaves pages with more than 256 colors in 
   CHECK(metadata.samplesPerPixel == 3);
   CHECK(metadata.photometric == PHOTOMETRIC_RGB);
   checkPixelsMatch(image, path);
+}
+
+TEST_CASE("Rendered TIFF optimization leaves multi-directory TIFFs unchanged", "[tiff-optimization]") {
+  QTemporaryDir directory;
+  REQUIRE(directory.isValid());
+  QImage image(2, 1, QImage::Format_RGB32);
+  image.setPixelColor(0, 0, Qt::black);
+  image.setPixelColor(1, 0, Qt::white);
+  const QString path = writeSourceTiff(directory, QStringLiteral("multi-page.tif"), image);
+  appendOnePixelRgbDirectory(path);
+
+  QFile source(path);
+  REQUIRE(source.open(QIODevice::ReadOnly));
+  const QByteArray original = source.readAll();
+  source.close();
+
+  const auto result = TiffWriter::optimizeRenderedPdfPage(path, 300);
+
+  CHECK(result.mode == TiffWriter::RenderedPageColorMode::Unsupported);
+  REQUIRE(source.open(QIODevice::ReadOnly));
+  CHECK(source.readAll() == original);
 }

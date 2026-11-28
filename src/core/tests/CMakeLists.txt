@@ -29,7 +29,7 @@ set(sources
 add_executable(core_tests ${sources})
 target_link_libraries(
     core_tests
-    PRIVATE core Catch2::Catch2WithMain ${EXTRA_LIBS})
+    PRIVATE core Catch2::Catch2WithMain TIFF::TIFF ${EXTRA_LIBS})
 
 add_test(NAME core_tests COMMAND core_tests)
 add_test(NAME settings_store_persistence_error_tests COMMAND core_tests "[settings-store-persistence-error]")

@@ -193,6 +193,9 @@ TiffWriter::RenderedPageOptimizationResult TiffWriter::optimizeRenderedPdfPage(c
     if (!input.handle()) {
       return errorResult(QStringLiteral("Could not read the rendered TIFF."));
     }
+    if (!TIFFLastDirectory(input.handle())) {
+      return {Mode::Unsupported, {}};
+    }
 
     uint32_t width = 0;
     uint32_t height = 0;
@@ -409,6 +412,13 @@ TiffWriter::RenderedPageOptimizationResult TiffWriter::optimizeRenderedPdfPage(c
         outputDevice.cancelWriting();
         return errorResult(QStringLiteral("Could not write an optimized TIFF scanline."));
       }
+    }
+
+    if (!TIFFWriteDirectory(output.handle())) {
+      output.close();
+      input.close();
+      outputDevice.cancelWriting();
+      return errorResult(QStringLiteral("Could not finish writing the optimized TIFF directory."));
     }
 
     output.close();

@@ -1,7 +1,7 @@
 # PDF image helpers
 
-These scripts are optional maintainer/user helpers; ScanTailor Advanced does
-not invoke external PDF tools.
+The application can launch these helpers from its PDF-to-images actions.
+They can also be run directly from a terminal or PowerShell.
 
 ## Extract embedded images
 

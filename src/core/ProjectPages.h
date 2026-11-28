@@ -56,6 +56,8 @@ class ProjectPages : public QObject {
 
   void setLayoutDirectionFor(const ImageId& imageId, Qt::LayoutDirection direction);
 
+  void setLayoutDirectionOverrideFor(const ImageId& imageId, Qt::LayoutDirection direction);
+
   int numLogicalPagesFor(const ImageId& imageId) const;
 
   /**

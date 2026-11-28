@@ -94,16 +94,32 @@ fi
 TEMP_DIR="$(mktemp -d "$OUTPUT_DIR/.${FILE_STEM}.render.XXXXXX")"
 MOVED_FILES=()
 COMMITTED=0
+CHILD_PID=""
+run_external() {
+  "$@" &
+  CHILD_PID=$!
+  local exit_code=0
+  wait "$CHILD_PID" || exit_code=$?
+  CHILD_PID=""
+  return "$exit_code"
+}
 cleanup() {
+  if [[ -n "$CHILD_PID" ]]; then
+    kill "$CHILD_PID" 2>/dev/null || true
+    wait "$CHILD_PID" 2>/dev/null || true
+    CHILD_PID=""
+  fi
   local moved_file
   if [[ "$COMMITTED" != "1" ]]; then
-    for moved_file in "${MOVED_FILES[@]}"; do
+    for moved_file in "${MOVED_FILES[@]-}"; do
+      [[ -n "$moved_file" ]] || continue
       rm -f -- "$moved_file"
     done
   fi
   rm -rf -- "$TEMP_DIR"
 }
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 PDFTOCAIRO_ARGS=(-tiff -tiffcompression lzw -r "$DPI")
 if [[ -n "$FIRST_PAGE" ]]; then
@@ -112,7 +128,7 @@ fi
 if [[ -n "$LAST_PAGE" ]]; then
   PDFTOCAIRO_ARGS+=(-l "$LAST_PAGE")
 fi
-"$PDFTOCAIRO_BIN" "${PDFTOCAIRO_ARGS[@]}" "$PDF_PATH" "$TEMP_DIR/$FILE_STEM"
+run_external "$PDFTOCAIRO_BIN" "${PDFTOCAIRO_ARGS[@]}" "$PDF_PATH" "$TEMP_DIR/$FILE_STEM"
 
 shopt -s nullglob
 IMAGE_FILES=("$TEMP_DIR/$FILE_STEM"-*.tif "$TEMP_DIR/$FILE_STEM"-*.tiff)
