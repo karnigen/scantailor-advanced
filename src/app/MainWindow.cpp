@@ -22,24 +22,28 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemModel>
+#include <QFont>
 #include <QFormLayout>
 #include <QFrame>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPalette>
-#include <QPlainTextEdit>
 #include <QProgressDialog>
 #include <QProcess>
 #include <QPushButton>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
+#include <QSpinBox>
+#include <QStyle>
 #include <QSortFilterProxyModel>
 #include <QStandardPaths>
 #include <QStackedLayout>
@@ -2768,10 +2772,8 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   }
 #endif
 
-  const QString initialDirectory
-      = m_initialDirectory.empty() ? QDir::homePath() : core::toQString(m_initialDirectory);
-  const QString pdfPath
-      = QFileDialog::getOpenFileName(this, operation, initialDirectory, tr("PDF files (*.pdf)"));
+  const QString initialDirectory = m_initialDirectory.empty() ? QDir::homePath() : core::toQString(m_initialDirectory);
+  const QString pdfPath = QFileDialog::getOpenFileName(this, operation, initialDirectory, tr("PDF files (*.pdf)"));
   if (pdfPath.isEmpty()) {
     return;
   }
@@ -2779,9 +2781,9 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   const QString outputDirectoryPath = QFileInfo(pdfPath).absolutePath();
   const QDir outputDirectory(outputDirectoryPath);
   if (!outputDirectory.isReadable()) {
-    QMessageBox::warning(this, tr("PDF Operation Failed"),
-                         tr("The output directory cannot be read:\n%1")
-                             .arg(QDir::toNativeSeparators(outputDirectoryPath)));
+    QMessageBox::warning(
+        this, tr("PDF Operation Failed"),
+        tr("The output directory cannot be read:\n%1").arg(QDir::toNativeSeparators(outputDirectoryPath)));
     return;
   }
 
@@ -2795,36 +2797,92 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   }
 
   QDialog confirmationDialog(this);
-  confirmationDialog.setWindowTitle(tr("Confirm PDF to Images"));
-  auto* confirmationLayout = new QVBoxLayout(&confirmationDialog);
-  auto* confirmationText = new QLabel(
-      tr("Do you want to continue with %1?\n\nSource PDF:\n%2\n\nOutput directory:\n%3\n\nExisting entries (%4):")
-          .arg(operation, QDir::toNativeSeparators(pdfPath),
-               QDir::toNativeSeparators(outputDirectoryPath))
-          .arg(existingEntries.size()),
-      &confirmationDialog);
-  confirmationText->setWordWrap(true);
-  confirmationLayout->addWidget(confirmationText);
+  confirmationDialog.setWindowTitle(tr("Review PDF Conversion"));
+  auto* dialogLayout = new QVBoxLayout(&confirmationDialog);
 
-  auto* contents = new QPlainTextEdit(&confirmationDialog);
-  contents->setReadOnly(true);
-  contents->setLineWrapMode(QPlainTextEdit::NoWrap);
-  contents->setPlainText(entryNames.isEmpty() ? tr("(Empty directory)") : entryNames.join(QLatin1Char('\n')));
-  confirmationLayout->addWidget(contents);
+  auto* headerLayout = new QHBoxLayout();
+  auto* headerIcon = new QLabel(&confirmationDialog);
+  headerIcon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxQuestion).pixmap(32, 32));
+  headerIcon->setAlignment(Qt::AlignTop);
+  headerLayout->addWidget(headerIcon, 0, Qt::AlignTop);
+
+  auto* headerTextLayout = new QVBoxLayout();
+  auto* heading = new QLabel(operation, &confirmationDialog);
+  QFont headingFont = heading->font();
+  headingFont.setBold(true);
+  headingFont.setPointSize(headingFont.pointSize() + 2);
+  heading->setFont(headingFont);
+  headerTextLayout->addWidget(heading);
+  auto* description = new QLabel(
+      tr("Review the output folder before continuing. Existing files will not be overwritten."), &confirmationDialog);
+  description->setWordWrap(true);
+  headerTextLayout->addWidget(description);
+  headerLayout->addLayout(headerTextLayout, 1);
+  dialogLayout->addLayout(headerLayout);
+
+  auto* fileGroup = new QGroupBox(tr("Conversion files"), &confirmationDialog);
+  auto* fileLayout = new QFormLayout(fileGroup);
+  auto* sourcePath = new QLabel(QDir::toNativeSeparators(pdfPath), fileGroup);
+  sourcePath->setWordWrap(true);
+  sourcePath->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  auto* destinationPath = new QLabel(QDir::toNativeSeparators(outputDirectoryPath), fileGroup);
+  destinationPath->setWordWrap(true);
+  destinationPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  fileLayout->addRow(tr("Source PDF:"), sourcePath);
+  fileLayout->addRow(tr("Output folder:"), destinationPath);
+  dialogLayout->addWidget(fileGroup);
+
+  QSpinBox* dpiSpinBox = nullptr;
+  if (renderPages) {
+    auto* settingsGroup = new QGroupBox(tr("Rendering settings"), &confirmationDialog);
+    auto* dpiLayout = new QHBoxLayout(settingsGroup);
+    dpiLayout->addWidget(new QLabel(tr("Resolution:"), settingsGroup));
+    dpiSpinBox = new QSpinBox(&confirmationDialog);
+    dpiSpinBox->setRange(1, 2400);
+    dpiSpinBox->setValue(300);
+    dpiSpinBox->setSuffix(tr(" DPI"));
+    dpiSpinBox->setToolTip(tr("Higher DPI creates larger images and takes longer to render."));
+    dpiLayout->addWidget(dpiSpinBox);
+    auto* dpiHint = new QLabel(tr("Higher resolution preserves more detail."), settingsGroup);
+    dpiLayout->addWidget(dpiHint);
+    dpiLayout->addStretch();
+    dialogLayout->addWidget(settingsGroup);
+  }
+
+  auto* contentsGroup
+      = new QGroupBox(tr("Output folder contents (%1)").arg(existingEntries.size()), &confirmationDialog);
+  auto* contentsLayout = new QVBoxLayout(contentsGroup);
+  auto* contents = new QListWidget(contentsGroup);
+  contents->setAlternatingRowColors(true);
+  contents->setSelectionMode(QAbstractItemView::NoSelection);
+  contents->setFocusPolicy(Qt::NoFocus);
+  contents->setUniformItemSizes(true);
+  contents->setIconSize(QSize(16, 16));
+  contents->setMinimumHeight(150);
+  for (const QFileInfo& entry : existingEntries) {
+    const QStyle::StandardPixmap iconType = entry.isDir() ? QStyle::SP_DirIcon : QStyle::SP_FileIcon;
+    new QListWidgetItem(style()->standardIcon(iconType), entry.fileName(), contents);
+  }
+  if (existingEntries.isEmpty()) {
+    new QListWidgetItem(tr("The folder is empty."), contents);
+  }
+  contentsLayout->addWidget(contents);
+  dialogLayout->addWidget(contentsGroup, 1);
 
   auto* confirmationButtons
-      = new QDialogButtonBox(QDialogButtonBox::Yes | QDialogButtonBox::No, &confirmationDialog);
-  confirmationButtons->button(QDialogButtonBox::Yes)->setText(tr("Convert"));
-  confirmationButtons->button(QDialogButtonBox::No)->setText(tr("Cancel"));
-  confirmationButtons->button(QDialogButtonBox::No)->setDefault(true);
+      = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &confirmationDialog);
+  confirmationButtons->button(QDialogButtonBox::Ok)->setText(tr("Convert"));
+  confirmationButtons->button(QDialogButtonBox::Cancel)->setDefault(true);
   connect(confirmationButtons, &QDialogButtonBox::accepted, &confirmationDialog, &QDialog::accept);
   connect(confirmationButtons, &QDialogButtonBox::rejected, &confirmationDialog, &QDialog::reject);
-  confirmationLayout->addWidget(confirmationButtons);
-  confirmationDialog.resize(640, 420);
+  dialogLayout->addWidget(confirmationButtons);
+  confirmationDialog.resize(720, 560);
+  confirmationDialog.setSizeGripEnabled(true);
   if (confirmationDialog.exec() != QDialog::Accepted) {
     return;
   }
 
+  const QString dpiArgument = renderPages ? QString::number(dpiSpinBox->value()) : QString();
   auto* process = new QProcess(this);
   m_pdfHelperProcess = process;
   auto* progressDialog = new QProgressDialog(
@@ -2838,23 +2896,21 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   progressDialog->setWindowFlag(Qt::WindowCloseButtonHint, false);
   m_pdfHelperProgressDialog = progressDialog;
 
-  connect(process, &QProcess::errorOccurred, this,
-          [this, process, operation](const QProcess::ProcessError error) {
-            if (error != QProcess::FailedToStart || m_pdfHelperProcess != process) {
-              return;
-            }
-            const QString errorMessage = process->errorString();
-            m_pdfHelperProcess = nullptr;
-            if (m_pdfHelperProgressDialog) {
-              m_pdfHelperProgressDialog->close();
-              m_pdfHelperProgressDialog->deleteLater();
-              m_pdfHelperProgressDialog = nullptr;
-            }
-            process->deleteLater();
-            updateProjectActions();
-            QMessageBox::warning(this, tr("PDF Operation Failed"),
-                                 tr("Could not start %1:\n%2").arg(operation, errorMessage));
-          });
+  connect(process, &QProcess::errorOccurred, this, [this, process, operation](const QProcess::ProcessError error) {
+    if (error != QProcess::FailedToStart || m_pdfHelperProcess != process) {
+      return;
+    }
+    const QString errorMessage = process->errorString();
+    m_pdfHelperProcess = nullptr;
+    if (m_pdfHelperProgressDialog) {
+      m_pdfHelperProgressDialog->close();
+      m_pdfHelperProgressDialog->deleteLater();
+      m_pdfHelperProgressDialog = nullptr;
+    }
+    process->deleteLater();
+    updateProjectActions();
+    QMessageBox::warning(this, tr("PDF Operation Failed"), tr("Could not start %1:\n%2").arg(operation, errorMessage));
+  });
   connect(process, &QProcess::finished, this,
           [this, process, operation](const int exitCode, const QProcess::ExitStatus exitStatus) {
             const QString output = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
@@ -2869,26 +2925,33 @@ void MainWindow::runPdfHelper(const bool renderPages) {
             updateProjectActions();
 
             if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-              const QString message
-                  = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
+              const QString message = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
               QMessageBox::information(this, operation, message);
               return;
             }
 
-            const QString detail = errorOutput.isEmpty()
-                                       ? tr("The helper exited with code %1.").arg(exitCode)
-                                       : errorOutput;
+            const QString detail
+                = errorOutput.isEmpty() ? tr("The helper exited with code %1.").arg(exitCode) : errorOutput;
             QMessageBox::warning(this, tr("PDF Operation Failed"), detail);
           });
 
   progressDialog->show();
 #if defined(Q_OS_WIN)
-  process->start(interpreter,
-                 {QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"),
-                  QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"), QStringLiteral("-File"), scriptPath,
-                  pdfPath});
+  QStringList arguments{
+      QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-ExecutionPolicy"),
+      QStringLiteral("Bypass"),     QStringLiteral("-File"),           scriptPath};
+  if (renderPages) {
+    arguments << QStringLiteral("-Dpi") << dpiArgument;
+  }
+  arguments << pdfPath;
+  process->start(interpreter, arguments);
 #else
-  process->start(scriptPath, {pdfPath});
+  QStringList arguments;
+  if (renderPages) {
+    arguments << QStringLiteral("--dpi") << dpiArgument;
+  }
+  arguments << pdfPath;
+  process->start(scriptPath, arguments);
 #endif
   updateProjectActions();
 }
