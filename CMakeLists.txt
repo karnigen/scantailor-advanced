@@ -283,7 +283,7 @@ option(INSTALL_FLATPAK_METAINFO "Install AppStream metadata for the Flatpak" OFF
 if (INSTALL_FLATPAK_METAINFO)
   string(TIMESTAMP FLATPAK_BUILD_DATE "%Y-%m-%d" UTC)
   configure_file(
-      "${CMAKE_SOURCE_DIR}/flatpak/org.scantailor.Advanced.metainfo.xml.in"
+      "${CMAKE_SOURCE_DIR}/scripts/build/flatpak/org.scantailor.Advanced.metainfo.xml.in"
       "${CMAKE_BINARY_DIR}/org.scantailor.Advanced.metainfo.xml"
       @ONLY)
   install(FILES "${CMAKE_BINARY_DIR}/org.scantailor.Advanced.metainfo.xml" DESTINATION "share/metainfo")

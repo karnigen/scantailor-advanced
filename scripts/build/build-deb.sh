@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Build ScanTailor Advanced and create a .deb package for Ubuntu/Debian.
-# Usage: ./build-deb.sh [options] [build_dir]
+# Usage: scripts/build/build-deb.sh [options] [build_dir]
 # The .deb will be created in the project root.
 
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./build-deb.sh [options] [build_dir]
+Usage: scripts/build/build-deb.sh [options] [build_dir]
 
 Build ScanTailor Advanced and create a Debian package.
 
@@ -21,7 +21,8 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 
 ASSUME_YES="OFF"
 BUILD_DIR="build"
@@ -83,7 +84,7 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 ARCH=$(dpkg --print-architecture 2>/dev/null || echo "amd64")
-PACKAGE_PATH="${SCRIPT_DIR}/scantailor-advanced_${VERSION}_${ARCH}.deb"
+PACKAGE_PATH="${REPO_ROOT}/scantailor-advanced_${VERSION}_${ARCH}.deb"
 
 cat <<EOF
 ScanTailor Advanced Debian package build plan:
@@ -169,7 +170,7 @@ POSTINST
 chmod 755 "${DEBIAN_DIR}/postinst"
 
 # Build the .deb
-cd "$SCRIPT_DIR"
+cd "$REPO_ROOT"
 dpkg-deb --root-owner-group --build "$PKG_DIR" "$PACKAGE_PATH"
 
 echo "Done: $PACKAGE_PATH"

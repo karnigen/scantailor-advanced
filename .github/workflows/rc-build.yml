@@ -261,7 +261,7 @@ jobs:
             exit 1
           fi
 
-          bash scripts/rename-release-assets.sh \
+          bash scripts/github/rename-release-assets.sh \
             --yes "$TAG" "$VERSION" "$ASSET_VERSION" prefer-target
           gh release upload "$TAG" release-assets/* --clobber
 

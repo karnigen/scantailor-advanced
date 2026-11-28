@@ -1,5 +1,7 @@
 CMakeLists.txt.user
 build/
+!scripts/build/
+!scripts/build/**
 build-*/
 cmake-build-*/
 out/
@@ -137,7 +139,7 @@ packaging/build/
 
 # flatpak-builder output (local smoke builds / CI)
 .flatpak-builder/
-flatpak/.flatpak-builder/
+scripts/build/flatpak/.flatpak-builder/
 repo/
 build-dir/
 
