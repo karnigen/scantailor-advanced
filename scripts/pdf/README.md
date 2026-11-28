@@ -61,8 +61,7 @@ Windows package uses the same relative directory and includes the PowerShell
 scripts. On macOS, the shell scripts are inside
 `ScanTailor Advanced.app/Contents/Resources/pdf-tools`.
 
-Poppler is not bundled. Install its command-line tools separately and make
+Poppler is bundled in the Flatpak package. On Linux packages, AppImages,
+Windows, and macOS, install Poppler's command-line tools separately and make
 `pdfimages` and `pdftocairo` available on `PATH`, or set `PDFIMAGES` and
-`PDFTOCAIRO` to their executable paths. The Flatpak package does not include
-these wrappers because its sandbox does not expose host-installed Poppler
-commands.
+`PDFTOCAIRO` to their executable paths.

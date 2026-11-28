@@ -1283,6 +1283,28 @@ void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
   QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
 }
 
+void TestMainWindowAsync::pdfToImagesMenuRequiresNoLoadedProject() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  MainWindow window;
+  QVERIFY(window.menuPdfToImages->isEnabled());
+
+  const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+  std::vector<ImageInfo> imageInfos;
+  imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)),
+                          1, false, false);
+  auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  QVERIFY(window.isProjectLoaded());
+  QVERIFY(!window.menuPdfToImages->isEnabled());
+}
+
 void TestMainWindowAsync::splitModeDialogOptionsFollowSelectedLayout() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());

@@ -21,6 +21,7 @@ class TestMainWindowAsync : public QObject {
   void compareFilesDetectsSameSizeChanges();
   void windowTitleShowsUnsavedProjectChanges();
   void supportedImageFormatsHelpShowsOutputAndCompression();
+  void pdfToImagesMenuRequiresNoLoadedProject();
   void splitModeDialogOptionsFollowSelectedLayout();
   void applyAlignmentCopiesSelectedSettingsIndependently();
   void applySourceDpiCopiesSelectedAxesIndependently();

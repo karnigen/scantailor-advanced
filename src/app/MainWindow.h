@@ -60,6 +60,8 @@ class ProcessingTaskQueue;
 class FixDpiDialog;
 class OutOfMemoryDialog;
 class QLineF;
+class QProcess;
+class QProgressDialog;
 class QRectF;
 class QLayout;
 
@@ -207,6 +209,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void exportPagesToPdf();
 
+  void extractPdfImages();
+
+  void renderPdfPages();
+
   void showCommandLineArguments();
 
   void showConfigurationDialog();
@@ -287,6 +293,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void removeImageWidget();
 
   void updateProjectActions();
+
+  void runPdfHelper(bool renderPages);
 
   bool isBatchProcessingInProgress() const;
 
@@ -375,6 +383,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QStackedLayout* m_optionsFrameLayout;
   QPointer<FilterOptionsWidget> m_optionsWidget;
   QPointer<FixDpiDialog> m_fixDpiDialog;
+  QPointer<QProcess> m_pdfHelperProcess;
+  QPointer<QProgressDialog> m_pdfHelperProgressDialog;
   std::unique_ptr<TabbedDebugImages> m_tabbedDebugImages;
   std::unique_ptr<ContentBoxPropagator> m_contentBoxPropagator;
   std::unique_ptr<PageOrientationPropagator> m_pageOrientationPropagator;

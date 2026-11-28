@@ -34,11 +34,13 @@
 #include <QPainter>
 #include <QPalette>
 #include <QProgressDialog>
+#include <QProcess>
 #include <QPushButton>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
 #include <QSortFilterProxyModel>
+#include <QStandardPaths>
 #include <QStackedLayout>
 #include <QStringList>
 #include <QTemporaryFile>
@@ -124,6 +126,32 @@
 using namespace core;
 
 namespace {
+
+QString findPdfHelperScript(const QString& fileName) {
+  QStringList applicationDirs{QCoreApplication::applicationDirPath()};
+  const QString executablePath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+  if (!executablePath.isEmpty()) {
+    const QString resolvedDir = QFileInfo(executablePath).absolutePath();
+    if (!applicationDirs.contains(resolvedDir)) {
+      applicationDirs.push_back(resolvedDir);
+    }
+  }
+
+  QStringList candidates;
+  for (const QString& applicationDirPath : applicationDirs) {
+    const QDir applicationDir(applicationDirPath);
+    candidates << applicationDir.filePath(QStringLiteral("share/scantailor-advanced/pdf-tools/%1").arg(fileName))
+               << applicationDir.filePath(QStringLiteral("../share/scantailor-advanced/pdf-tools/%1").arg(fileName))
+               << applicationDir.filePath(QStringLiteral("../Resources/pdf-tools/%1").arg(fileName));
+  }
+  for (const QString& candidate : candidates) {
+    const QFileInfo fileInfo(candidate);
+    if (fileInfo.isFile()) {
+      return fileInfo.absoluteFilePath();
+    }
+  }
+  return {};
+}
 
 QString menuTitleWithoutMnemonic(const QString& title, QChar* mnemonic = nullptr) {
   QString visibleTitle;
@@ -357,6 +385,8 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   connect(actionSupportedImageFormats, &QAction::triggered, this, &MainWindow::showSupportedImageFormats);
   connect(actionExportProcessedImages, &QAction::triggered, this, &MainWindow::exportProcessedImages);
   connect(actionExportPagesToPdf, &QAction::triggered, this, &MainWindow::exportPagesToPdf);
+  connect(actionExtractPdfImages, &QAction::triggered, this, &MainWindow::extractPdfImages);
+  connect(actionRenderPdfPages, &QAction::triggered, this, &MainWindow::renderPdfPages);
   connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
   connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
@@ -2685,6 +2715,7 @@ void MainWindow::disconnectFilterOptionsWidget() {
 void MainWindow::updateProjectActions() {
   const bool loaded = isProjectLoaded();
   const bool canExport = loaded && !isBatchProcessingInProgress();
+  menuPdfToImages->setEnabled(!loaded && m_pdfHelperProcess.isNull());
   actionReloadProject->setEnabled(loaded && !m_projectFile.empty() && !m_waitingForCancelledTasks
                                   && !isBatchProcessingInProgress());
   actionSaveProject->setEnabled(loaded);
@@ -2693,6 +2724,123 @@ void MainWindow::updateProjectActions() {
   actionExportPagesToPdf->setEnabled(canExport);
   actionFixDpi->setEnabled(loaded);
   actionRelinking->setEnabled(loaded);
+}
+
+void MainWindow::extractPdfImages() {
+  runPdfHelper(false);
+}
+
+void MainWindow::renderPdfPages() {
+  runPdfHelper(true);
+}
+
+void MainWindow::runPdfHelper(const bool renderPages) {
+  if (isProjectLoaded() || m_pdfHelperProcess) {
+    return;
+  }
+
+  const QString operation = renderPages ? tr("Render PDF Pages to TIFF") : tr("Extract Embedded Images");
+#if defined(Q_OS_WIN)
+  const QString helperName = renderPages ? QStringLiteral("render-pages.ps1") : QStringLiteral("extract-images.ps1");
+  const QString scriptPath = findPdfHelperScript(helperName);
+  if (scriptPath.isEmpty()) {
+    QMessageBox::warning(this, tr("PDF Tools Unavailable"),
+                         tr("The PDF helper scripts could not be found in the application installation."));
+    return;
+  }
+  QString interpreter = QStandardPaths::findExecutable(QStringLiteral("powershell.exe"));
+  if (interpreter.isEmpty()) {
+    interpreter = QStandardPaths::findExecutable(QStringLiteral("pwsh.exe"));
+  }
+  if (interpreter.isEmpty()) {
+    QMessageBox::warning(this, tr("PowerShell Unavailable"),
+                         tr("PowerShell is required to run the PDF helper scripts."));
+    return;
+  }
+#else
+  const QString helperName = renderPages ? QStringLiteral("render-pages.sh") : QStringLiteral("extract-images.sh");
+  const QString scriptPath = findPdfHelperScript(helperName);
+  if (scriptPath.isEmpty()) {
+    QMessageBox::warning(this, tr("PDF Tools Unavailable"),
+                         tr("The PDF helper scripts could not be found in the application installation."));
+    return;
+  }
+#endif
+
+  const QString initialDirectory
+      = m_initialDirectory.empty() ? QDir::homePath() : core::toQString(m_initialDirectory);
+  const QString pdfPath
+      = QFileDialog::getOpenFileName(this, operation, initialDirectory, tr("PDF files (*.pdf)"));
+  if (pdfPath.isEmpty()) {
+    return;
+  }
+
+  auto* process = new QProcess(this);
+  m_pdfHelperProcess = process;
+  auto* progressDialog = new QProgressDialog(
+      renderPages ? tr("Rendering PDF pages...") : tr("Extracting embedded images..."), QString(), 0, 0, this);
+  progressDialog->setWindowTitle(tr("PDF to Images"));
+  progressDialog->setWindowModality(Qt::WindowModal);
+  progressDialog->setCancelButton(nullptr);
+  progressDialog->setMinimumDuration(0);
+  progressDialog->setAutoClose(false);
+  progressDialog->setAutoReset(false);
+  progressDialog->setWindowFlag(Qt::WindowCloseButtonHint, false);
+  m_pdfHelperProgressDialog = progressDialog;
+
+  connect(process, &QProcess::errorOccurred, this,
+          [this, process, operation](const QProcess::ProcessError error) {
+            if (error != QProcess::FailedToStart || m_pdfHelperProcess != process) {
+              return;
+            }
+            const QString errorMessage = process->errorString();
+            m_pdfHelperProcess = nullptr;
+            if (m_pdfHelperProgressDialog) {
+              m_pdfHelperProgressDialog->close();
+              m_pdfHelperProgressDialog->deleteLater();
+              m_pdfHelperProgressDialog = nullptr;
+            }
+            process->deleteLater();
+            updateProjectActions();
+            QMessageBox::warning(this, tr("PDF Operation Failed"),
+                                 tr("Could not start %1:\n%2").arg(operation, errorMessage));
+          });
+  connect(process, &QProcess::finished, this,
+          [this, process, operation](const int exitCode, const QProcess::ExitStatus exitStatus) {
+            const QString output = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
+            const QString errorOutput = QString::fromLocal8Bit(process->readAllStandardError()).trimmed();
+            m_pdfHelperProcess = nullptr;
+            if (m_pdfHelperProgressDialog) {
+              m_pdfHelperProgressDialog->close();
+              m_pdfHelperProgressDialog->deleteLater();
+              m_pdfHelperProgressDialog = nullptr;
+            }
+            process->deleteLater();
+            updateProjectActions();
+
+            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+              const QString message
+                  = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
+              QMessageBox::information(this, operation, message);
+              return;
+            }
+
+            const QString detail = errorOutput.isEmpty()
+                                       ? tr("The helper exited with code %1.").arg(exitCode)
+                                       : errorOutput;
+            QMessageBox::warning(this, tr("PDF Operation Failed"), detail);
+          });
+
+  progressDialog->show();
+#if defined(Q_OS_WIN)
+  process->start(interpreter,
+                 {QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"),
+                  QStringLiteral("-ExecutionPolicy"), QStringLiteral("Bypass"), QStringLiteral("-File"), scriptPath,
+                  pdfPath});
+#else
+  process->start(scriptPath, {pdfPath});
+#endif
+  updateProjectActions();
 }
 
 bool MainWindow::isBatchProcessingInProgress() const {

@@ -273,6 +273,15 @@ string(REGEX REPLACE "[0-9]+\\.[0-9]+\\.([0-9]+)" "\\1" APPLICATION_VERSION_PATC
 
 set(SCANTAILOR_RESOURCES_DIR "${CMAKE_SOURCE_DIR}/src/resources")
 set(SCANTAILOR_TRANSLATIONS_DIR "${CMAKE_SOURCE_DIR}/src/translations")
+if (WIN32)
+  set(SCANTAILOR_PDF_HELPER_FILES
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.ps1"
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.ps1")
+else()
+  set(SCANTAILOR_PDF_HELPER_FILES
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.sh"
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.sh")
+endif()
 
 configure_file(
     "${SCANTAILOR_RESOURCES_DIR}/unix/${target_name}.desktop.in"
@@ -311,15 +320,11 @@ option(INSTALL_PDF_HELPERS "Install optional PDF helper scripts" ON)
 if (INSTALL_PDF_HELPERS)
   set(pdf_helpers_install_dir "share/${APPLICATION_NAME}/pdf-tools")
   if (WIN32)
-    install(FILES
-        "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.ps1"
-        "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.ps1"
+    install(FILES ${SCANTAILOR_PDF_HELPER_FILES}
         "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md"
         DESTINATION "${pdf_helpers_install_dir}")
   else()
-    install(PROGRAMS
-        "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.sh"
-        "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.sh"
+    install(PROGRAMS ${SCANTAILOR_PDF_HELPER_FILES}
         DESTINATION "${pdf_helpers_install_dir}")
     install(FILES "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md"
         DESTINATION "${pdf_helpers_install_dir}")

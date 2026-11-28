@@ -98,6 +98,15 @@
     <addaction name="actionExportProcessedImages"/>
     <addaction name="actionExportPagesToPdf"/>
     <addaction name="separator"/>
+    <widget class="QMenu" name="menuPdfToImages">
+     <property name="title">
+      <string>PDF to Images</string>
+     </property>
+     <addaction name="actionExtractPdfImages"/>
+     <addaction name="actionRenderPdfPages"/>
+    </widget>
+    <addaction name="menuPdfToImages"/>
+    <addaction name="separator"/>
     <addaction name="actionCloseProject"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
@@ -1152,6 +1161,22 @@ QToolButton:pressed {
    </property>
    <property name="toolTip">
     <string>Export all processed pages as one multi-page PDF.</string>
+   </property>
+  </action>
+  <action name="actionExtractPdfImages">
+   <property name="text">
+    <string>Extract Embedded Images ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Extract the original image streams embedded in a PDF.</string>
+   </property>
+  </action>
+  <action name="actionRenderPdfPages">
+   <property name="text">
+    <string>Render PDF Pages to TIFF ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Render complete PDF pages as TIFF images at 300 DPI.</string>
    </property>
   </action>
   <action name="actionNextPage">
