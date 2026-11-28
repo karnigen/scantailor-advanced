@@ -1246,6 +1246,34 @@ QToolButton:pressed {
     <string>Select the next page. Shortcut: W.</string>
    </property>
   </action>
+  <action name="actionPrevTenPagesA">
+   <property name="text">
+    <string>Previous 10 Pages</string>
+   </property>
+   <property name="shortcut">
+    <string notr="true">A</string>
+   </property>
+   <property name="autoRepeat">
+    <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the page 10 pages earlier. Shortcut: A.</string>
+   </property>
+  </action>
+  <action name="actionNextTenPagesS">
+   <property name="text">
+    <string>Next 10 Pages</string>
+   </property>
+   <property name="shortcut">
+    <string notr="true">S</string>
+   </property>
+   <property name="autoRepeat">
+    <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the page 10 pages later. Shortcut: S.</string>
+   </property>
+  </action>
   <action name="actionCloseProject">
    <property name="text">
     <string>Close Project</string>

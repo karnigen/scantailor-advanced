@@ -319,6 +319,8 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   addAction(actionPrevPage);
   addAction(actionPrevPageQ);
   addAction(actionNextPageW);
+  addAction(actionPrevTenPagesA);
+  addAction(actionNextTenPagesS);
   addAction(actionNextSelectedPage);
   addAction(actionPrevSelectedPage);
   addAction(actionNextSelectedPageW);
@@ -343,6 +345,8 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   connect(actionNextPage, SIGNAL(triggered(bool)), SLOT(goNextPage()));
   connect(actionPrevPageQ, SIGNAL(triggered(bool)), this, SLOT(goPrevPage()));
   connect(actionNextPageW, SIGNAL(triggered(bool)), this, SLOT(goNextPage()));
+  connect(actionPrevTenPagesA, SIGNAL(triggered(bool)), this, SLOT(goPrevTenPages()));
+  connect(actionNextTenPagesS, SIGNAL(triggered(bool)), this, SLOT(goNextTenPages()));
   connect(actionPrevSelectedPage, SIGNAL(triggered(bool)), SLOT(goPrevSelectedPage()));
   connect(actionNextSelectedPage, SIGNAL(triggered(bool)), SLOT(goNextSelectedPage()));
   connect(actionPrevSelectedPageQ, SIGNAL(triggered(bool)), this, SLOT(goPrevSelectedPage()));
@@ -686,23 +690,8 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
       wheelDeltaAccumulator += wheelDelta;
       const int pageSteps = wheelDeltaAccumulator / 120;
       wheelDeltaAccumulator %= 120;
-      if (pageSteps != 0 && !isBatchProcessingInProgress() && isProjectLoaded()) {
-        const PageInfo currentPage = m_thumbSequence->selectionLeader();
-        PageInfo targetPage = currentPage;
-        const bool moveBackward = pageSteps > 0;
-        const int pageStepSize = fastPageNavigation ? 10 : 1;
-        const int pagesToMove = std::abs(pageSteps) * pageStepSize;
-        for (int i = 0; i < pagesToMove && !targetPage.isNull(); ++i) {
-          const PageInfo nextPage
-              = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
-          if (nextPage.isNull()) {
-            break;
-          }
-          targetPage = nextPage;
-        }
-        if (!targetPage.isNull() && targetPage.id() != currentPage.id()) {
-          goToPage(targetPage.id());
-        }
+      if (pageSteps != 0) {
+        navigatePages(pageSteps, fastPageNavigation ? 10 : 1);
       }
       wheelEvent->accept();
       return true;
@@ -1218,6 +1207,36 @@ void MainWindow::goPrevPage() {
   const PageInfo prevPage(m_thumbSequence->prevPage(m_thumbSequence->selectionLeader().id()));
   if (!prevPage.isNull()) {
     goToPage(prevPage.id());
+  }
+}
+
+void MainWindow::goNextTenPages() {
+  navigatePages(-1, 10);
+}
+
+void MainWindow::goPrevTenPages() {
+  navigatePages(1, 10);
+}
+
+void MainWindow::navigatePages(const int pageSteps, const int pageStepSize) {
+  if (isBatchProcessingInProgress() || !isProjectLoaded()) {
+    return;
+  }
+
+  const PageInfo currentPage = m_thumbSequence->selectionLeader();
+  PageInfo targetPage = currentPage;
+  const bool moveBackward = pageSteps > 0;
+  const int pagesToMove = std::abs(pageSteps) * pageStepSize;
+  for (int i = 0; i < pagesToMove && !targetPage.isNull(); ++i) {
+    const PageInfo nextPage
+        = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
+    if (nextPage.isNull()) {
+      break;
+    }
+    targetPage = nextPage;
+  }
+  if (!targetPage.isNull() && targetPage.id() != currentPage.id()) {
+    goToPage(targetPage.id());
   }
 }
 

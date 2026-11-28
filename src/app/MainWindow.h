@@ -100,6 +100,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void warnAboutExternalImages();
 
+  void navigatePages(int pageSteps, int pageStepSize);
+
  private slots:
 
   void autoSaveProject();
@@ -111,6 +113,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void goNextPage();
 
   void goPrevPage();
+
+  void goNextTenPages();
+
+  void goPrevTenPages();
 
   void goNextSelectedPage();
 
