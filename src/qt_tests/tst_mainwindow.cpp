@@ -1295,8 +1295,8 @@ void TestMainWindowAsync::pdfToImagesMenuRequiresNoLoadedProject() {
   image.fill(Qt::white);
   QVERIFY(image.save(imagePath));
   std::vector<ImageInfo> imageInfos;
-  imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)),
-                          1, false, false);
+  imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)), 1,
+                          false, false);
   auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
   window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
   QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
