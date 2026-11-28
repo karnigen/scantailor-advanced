@@ -2773,71 +2773,68 @@ void MainWindow::runPdfHelper(const bool renderPages) {
 #endif
 
   const QString initialDirectory = m_initialDirectory.empty() ? QDir::homePath() : core::toQString(m_initialDirectory);
-  const QString pdfPath = QFileDialog::getOpenFileName(this, operation, initialDirectory, tr("PDF files (*.pdf)"));
-  if (pdfPath.isEmpty()) {
-    return;
-  }
-
-  const QString outputDirectoryPath = QFileInfo(pdfPath).absolutePath();
-  const QDir outputDirectory(outputDirectoryPath);
-  if (!outputDirectory.isReadable()) {
-    QMessageBox::warning(
-        this, tr("PDF Operation Failed"),
-        tr("The output directory cannot be read:\n%1").arg(QDir::toNativeSeparators(outputDirectoryPath)));
-    return;
-  }
-
-  const QFileInfoList existingEntries
-      = outputDirectory.entryInfoList(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
-                                      QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
-  QStringList entryNames;
-  entryNames.reserve(existingEntries.size());
-  for (const QFileInfo& entry : existingEntries) {
-    entryNames.append(entry.fileName());
-  }
-
-  QDialog confirmationDialog(this);
-  confirmationDialog.setWindowTitle(tr("Review PDF Conversion"));
-  auto* dialogLayout = new QVBoxLayout(&confirmationDialog);
+  QDialog setupDialog(this);
+  setupDialog.setWindowTitle(operation);
+  auto* dialogLayout = new QVBoxLayout(&setupDialog);
 
   auto* headerLayout = new QHBoxLayout();
-  auto* headerIcon = new QLabel(&confirmationDialog);
+  auto* headerIcon = new QLabel(&setupDialog);
   headerIcon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxQuestion).pixmap(32, 32));
   headerIcon->setAlignment(Qt::AlignTop);
   headerLayout->addWidget(headerIcon, 0, Qt::AlignTop);
 
   auto* headerTextLayout = new QVBoxLayout();
-  auto* heading = new QLabel(operation, &confirmationDialog);
+  auto* heading = new QLabel(operation, &setupDialog);
   QFont headingFont = heading->font();
   headingFont.setBold(true);
   headingFont.setPointSize(headingFont.pointSize() + 2);
   heading->setFont(headingFont);
   headerTextLayout->addWidget(heading);
-  auto* description = new QLabel(
-      tr("Review the output folder before continuing. Existing files will not be overwritten."), &confirmationDialog);
+  const QString descriptionText
+      = renderPages
+            ? tr("Creates one complete TIFF per PDF page, including text and vector graphics. The selected DPI "
+                 "controls output detail. TIFF uses lossless LZW compression; searchable PDF text is not retained.")
+            : tr("Extracts embedded images as separate files without composing complete pages. Original pixel "
+                 "dimensions and formats are preserved where possible. The image-info report maps each image to "
+                 "its PDF page and lists its effective DPI. Text and vector graphics are not included.");
+  auto* description = new QLabel(descriptionText, &setupDialog);
   description->setWordWrap(true);
   headerTextLayout->addWidget(description);
   headerLayout->addLayout(headerTextLayout, 1);
   dialogLayout->addLayout(headerLayout);
 
-  auto* fileGroup = new QGroupBox(tr("Conversion files"), &confirmationDialog);
+  auto* fileGroup = new QGroupBox(tr("Input and output"), &setupDialog);
   auto* fileLayout = new QFormLayout(fileGroup);
-  auto* sourcePath = new QLabel(QDir::toNativeSeparators(pdfPath), fileGroup);
-  sourcePath->setWordWrap(true);
-  sourcePath->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  auto* destinationPath = new QLabel(QDir::toNativeSeparators(outputDirectoryPath), fileGroup);
-  destinationPath->setWordWrap(true);
-  destinationPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
-  fileLayout->addRow(tr("Source PDF:"), sourcePath);
-  fileLayout->addRow(tr("Output folder:"), destinationPath);
+  auto* pdfPathEdit = new QLineEdit(fileGroup);
+  pdfPathEdit->setPlaceholderText(tr("Select a PDF file"));
+  pdfPathEdit->setClearButtonEnabled(true);
+  auto* pdfBrowseButton = new QPushButton(tr("Browse..."), fileGroup);
+  auto* pdfRow = new QWidget(fileGroup);
+  auto* pdfRowLayout = new QHBoxLayout(pdfRow);
+  pdfRowLayout->setContentsMargins(0, 0, 0, 0);
+  pdfRowLayout->addWidget(pdfPathEdit, 1);
+  pdfRowLayout->addWidget(pdfBrowseButton);
+  fileLayout->addRow(tr("PDF file:"), pdfRow);
+
+  auto* outputDirectoryEdit = new QLineEdit(fileGroup);
+  outputDirectoryEdit->setPlaceholderText(renderPages ? tr("Choose where to save the rendered TIFF pages")
+                                                      : tr("Choose where to save the extracted images"));
+  outputDirectoryEdit->setClearButtonEnabled(true);
+  auto* outputBrowseButton = new QPushButton(tr("Browse..."), fileGroup);
+  auto* outputRow = new QWidget(fileGroup);
+  auto* outputRowLayout = new QHBoxLayout(outputRow);
+  outputRowLayout->setContentsMargins(0, 0, 0, 0);
+  outputRowLayout->addWidget(outputDirectoryEdit, 1);
+  outputRowLayout->addWidget(outputBrowseButton);
+  fileLayout->addRow(tr("Output folder:"), outputRow);
   dialogLayout->addWidget(fileGroup);
 
   QSpinBox* dpiSpinBox = nullptr;
   if (renderPages) {
-    auto* settingsGroup = new QGroupBox(tr("Rendering settings"), &confirmationDialog);
+    auto* settingsGroup = new QGroupBox(tr("Rendering settings"), &setupDialog);
     auto* dpiLayout = new QHBoxLayout(settingsGroup);
     dpiLayout->addWidget(new QLabel(tr("Resolution:"), settingsGroup));
-    dpiSpinBox = new QSpinBox(&confirmationDialog);
+    dpiSpinBox = new QSpinBox(settingsGroup);
     dpiSpinBox->setRange(1, 2400);
     dpiSpinBox->setValue(300);
     dpiSpinBox->setSuffix(tr(" DPI"));
@@ -2849,8 +2846,7 @@ void MainWindow::runPdfHelper(const bool renderPages) {
     dialogLayout->addWidget(settingsGroup);
   }
 
-  auto* contentsGroup
-      = new QGroupBox(tr("Output folder contents (%1)").arg(existingEntries.size()), &confirmationDialog);
+  auto* contentsGroup = new QGroupBox(tr("Output folder contents"), &setupDialog);
   auto* contentsLayout = new QVBoxLayout(contentsGroup);
   auto* contents = new QListWidget(contentsGroup);
   contents->setAlternatingRowColors(true);
@@ -2859,29 +2855,95 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   contents->setUniformItemSizes(true);
   contents->setIconSize(QSize(16, 16));
   contents->setMinimumHeight(150);
-  for (const QFileInfo& entry : existingEntries) {
-    const QStyle::StandardPixmap iconType = entry.isDir() ? QStyle::SP_DirIcon : QStyle::SP_FileIcon;
-    new QListWidgetItem(style()->standardIcon(iconType), entry.fileName(), contents);
-  }
-  if (existingEntries.isEmpty()) {
-    new QListWidgetItem(tr("The folder is empty."), contents);
-  }
   contentsLayout->addWidget(contents);
   dialogLayout->addWidget(contentsGroup, 1);
 
-  auto* confirmationButtons
-      = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &confirmationDialog);
-  confirmationButtons->button(QDialogButtonBox::Ok)->setText(tr("Convert"));
-  confirmationButtons->button(QDialogButtonBox::Cancel)->setDefault(true);
-  connect(confirmationButtons, &QDialogButtonBox::accepted, &confirmationDialog, &QDialog::accept);
-  connect(confirmationButtons, &QDialogButtonBox::rejected, &confirmationDialog, &QDialog::reject);
-  dialogLayout->addWidget(confirmationButtons);
-  confirmationDialog.resize(720, 560);
-  confirmationDialog.setSizeGripEnabled(true);
-  if (confirmationDialog.exec() != QDialog::Accepted) {
+  auto* setupButtons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &setupDialog);
+  QPushButton* startButton = setupButtons->button(QDialogButtonBox::Ok);
+  startButton->setText(renderPages ? tr("Render TIFF") : tr("Extract Images"));
+  startButton->setEnabled(false);
+  setupButtons->button(QDialogButtonBox::Cancel)->setDefault(true);
+  connect(setupButtons, &QDialogButtonBox::accepted, &setupDialog, &QDialog::accept);
+  connect(setupButtons, &QDialogButtonBox::rejected, &setupDialog, &QDialog::reject);
+  dialogLayout->addWidget(setupButtons);
+
+  auto refreshOutputContents = [&]() {
+    contents->clear();
+    const QString outputPath = outputDirectoryEdit->text().trimmed();
+    const QDir outputDirectory(outputPath);
+    if (outputPath.isEmpty() || !outputDirectory.exists()) {
+      contentsGroup->setTitle(tr("Output folder contents"));
+      new QListWidgetItem(tr("Select an output folder to preview its contents."), contents);
+      return;
+    }
+    if (!outputDirectory.isReadable()) {
+      contentsGroup->setTitle(tr("Output folder contents"));
+      new QListWidgetItem(tr("The selected output folder cannot be read."), contents);
+      return;
+    }
+
+    const QFileInfoList entries
+        = outputDirectory.entryInfoList(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                                        QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
+    contentsGroup->setTitle(tr("Output folder contents (%1)").arg(entries.size()));
+    for (const QFileInfo& entry : entries) {
+      const QStyle::StandardPixmap iconType = entry.isDir() ? QStyle::SP_DirIcon : QStyle::SP_FileIcon;
+      new QListWidgetItem(style()->standardIcon(iconType), entry.fileName(), contents);
+    }
+    if (entries.isEmpty()) {
+      new QListWidgetItem(tr("The folder is empty."), contents);
+    }
+  };
+  auto updateStartButton = [&]() {
+    const QFileInfo pdfInfo(pdfPathEdit->text().trimmed());
+    const QFileInfo outputInfo(outputDirectoryEdit->text().trimmed());
+    startButton->setEnabled(pdfInfo.isFile() && pdfInfo.isReadable()
+                            && pdfInfo.suffix().compare(QStringLiteral("pdf"), Qt::CaseInsensitive) == 0
+                            && outputInfo.isDir() && outputInfo.isReadable() && outputInfo.isWritable());
+  };
+  bool outputDirectoryManuallySet = false;
+  connect(pdfPathEdit, &QLineEdit::textChanged, &setupDialog, [&](const QString& path) {
+    const QFileInfo pdfInfo(path.trimmed());
+    if (!outputDirectoryManuallySet && pdfInfo.isFile()) {
+      outputDirectoryEdit->setText(pdfInfo.absolutePath());
+    }
+    refreshOutputContents();
+    updateStartButton();
+  });
+  connect(outputDirectoryEdit, &QLineEdit::textEdited, &setupDialog,
+          [&outputDirectoryManuallySet](const QString&) { outputDirectoryManuallySet = true; });
+  connect(outputDirectoryEdit, &QLineEdit::textChanged, &setupDialog, [&](const QString&) {
+    refreshOutputContents();
+    updateStartButton();
+  });
+  connect(pdfBrowseButton, &QPushButton::clicked, &setupDialog, [&]() {
+    const QFileInfo currentPdf(pdfPathEdit->text().trimmed());
+    const QString dialogDirectory = currentPdf.isFile() ? currentPdf.absolutePath() : initialDirectory;
+    const QString selectedPath
+        = QFileDialog::getOpenFileName(&setupDialog, tr("Select PDF file"), dialogDirectory, tr("PDF files (*.pdf)"));
+    if (!selectedPath.isEmpty()) {
+      pdfPathEdit->setText(selectedPath);
+    }
+  });
+  connect(outputBrowseButton, &QPushButton::clicked, &setupDialog, [&]() {
+    const QString dialogDirectory
+        = outputDirectoryEdit->text().trimmed().isEmpty() ? initialDirectory : outputDirectoryEdit->text().trimmed();
+    const QString selectedPath = QFileDialog::getExistingDirectory(&setupDialog, tr("Select output folder"),
+                                                                   dialogDirectory, QFileDialog::ShowDirsOnly);
+    if (!selectedPath.isEmpty()) {
+      outputDirectoryManuallySet = true;
+      outputDirectoryEdit->setText(selectedPath);
+    }
+  });
+  refreshOutputContents();
+  setupDialog.resize(760, 600);
+  setupDialog.setSizeGripEnabled(true);
+  if (setupDialog.exec() != QDialog::Accepted) {
     return;
   }
 
+  const QString pdfPath = QFileInfo(pdfPathEdit->text().trimmed()).absoluteFilePath();
+  const QString outputDirectoryPath = QDir(outputDirectoryEdit->text().trimmed()).absolutePath();
   const QString dpiArgument = renderPages ? QString::number(dpiSpinBox->value()) : QString();
   auto* process = new QProcess(this);
   m_pdfHelperProcess = process;
@@ -2937,20 +2999,26 @@ void MainWindow::runPdfHelper(const bool renderPages) {
 
   progressDialog->show();
 #if defined(Q_OS_WIN)
-  QStringList arguments{
-      QStringLiteral("-NoProfile"), QStringLiteral("-NonInteractive"), QStringLiteral("-ExecutionPolicy"),
-      QStringLiteral("Bypass"),     QStringLiteral("-File"),           scriptPath};
+  QStringList arguments{QStringLiteral("-NoProfile"),
+                        QStringLiteral("-NonInteractive"),
+                        QStringLiteral("-ExecutionPolicy"),
+                        QStringLiteral("Bypass"),
+                        QStringLiteral("-File"),
+                        scriptPath,
+                        QStringLiteral("-PdfPath"),
+                        pdfPath,
+                        QStringLiteral("-OutputDirectory"),
+                        outputDirectoryPath};
   if (renderPages) {
     arguments << QStringLiteral("-Dpi") << dpiArgument;
   }
-  arguments << pdfPath;
   process->start(interpreter, arguments);
 #else
   QStringList arguments;
   if (renderPages) {
     arguments << QStringLiteral("--dpi") << dpiArgument;
   }
-  arguments << pdfPath;
+  arguments << pdfPath << outputDirectoryPath;
   process->start(scriptPath, arguments);
 #endif
   updateProjectActions();
