@@ -9,6 +9,8 @@
 #include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
+#include <DpiPresets.h>
+
 #include <QActionGroup>
 #include <QApplication>
 #include <QCheckBox>
@@ -28,6 +30,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImageReader>
+#include <QIntValidator>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -2833,17 +2836,21 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   fileLayout->addRow(tr("Output folder:"), outputRow);
   dialogLayout->addWidget(fileGroup);
 
-  QSpinBox* dpiSpinBox = nullptr;
+  QComboBox* dpiSelector = nullptr;
   if (renderPages) {
     auto* settingsGroup = new QGroupBox(tr("Rendering settings"), &setupDialog);
     auto* dpiLayout = new QHBoxLayout(settingsGroup);
     dpiLayout->addWidget(new QLabel(tr("Resolution:"), settingsGroup));
-    dpiSpinBox = new QSpinBox(settingsGroup);
-    dpiSpinBox->setRange(1, 2400);
-    dpiSpinBox->setValue(300);
-    dpiSpinBox->setSuffix(tr(" DPI"));
-    dpiSpinBox->setToolTip(tr("Higher DPI creates larger images and takes longer to render."));
-    dpiLayout->addWidget(dpiSpinBox);
+    dpiSelector = new QComboBox(settingsGroup);
+    for (const int dpi : constants::COMMON_DPI_PRESETS) {
+      dpiSelector->addItem(QString::number(dpi));
+    }
+    dpiSelector->setEditable(true);
+    dpiSelector->setInsertPolicy(QComboBox::NoInsert);
+    dpiSelector->setValidator(new QIntValidator(1, 2400, dpiSelector));
+    dpiSelector->setCurrentText(QStringLiteral("300"));
+    dpiSelector->setToolTip(tr("Choose a common DPI or enter a custom value from 1 to 2400."));
+    dpiLayout->addWidget(dpiSelector);
     auto* dpiHint = new QLabel(tr("Higher resolution preserves more detail."), settingsGroup);
     dpiLayout->addWidget(dpiHint);
     dpiLayout->addStretch();
@@ -2901,9 +2908,15 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   auto updateStartButton = [&]() {
     const QFileInfo pdfInfo(pdfPathEdit->text().trimmed());
     const QFileInfo outputInfo(outputDirectoryEdit->text().trimmed());
+    bool dpiIsValid = true;
+    if (dpiSelector) {
+      bool conversionSucceeded = false;
+      const int dpi = dpiSelector->currentText().toInt(&conversionSucceeded);
+      dpiIsValid = conversionSucceeded && dpi >= 1 && dpi <= 2400;
+    }
     startButton->setEnabled(pdfInfo.isFile() && pdfInfo.isReadable()
                             && pdfInfo.suffix().compare(QStringLiteral("pdf"), Qt::CaseInsensitive) == 0
-                            && outputInfo.isDir() && outputInfo.isReadable() && outputInfo.isWritable());
+                            && outputInfo.isDir() && outputInfo.isReadable() && outputInfo.isWritable() && dpiIsValid);
   };
   bool outputDirectoryManuallySet = false;
   connect(pdfPathEdit, &QLineEdit::textChanged, &setupDialog, [&](const QString& path) {
@@ -2920,6 +2933,9 @@ void MainWindow::runPdfHelper(const bool renderPages) {
     refreshOutputContents();
     updateStartButton();
   });
+  if (dpiSelector) {
+    connect(dpiSelector, &QComboBox::currentTextChanged, &setupDialog, [&](const QString&) { updateStartButton(); });
+  }
   connect(pdfBrowseButton, &QPushButton::clicked, &setupDialog, [&]() {
     const QFileInfo currentPdf(pdfPathEdit->text().trimmed());
     const QString dialogDirectory = currentPdf.isFile() ? currentPdf.absolutePath() : initialDirectory;
@@ -2948,8 +2964,8 @@ void MainWindow::runPdfHelper(const bool renderPages) {
 
   const QString pdfPath = QFileInfo(pdfPathEdit->text().trimmed()).absoluteFilePath();
   const QString outputDirectoryPath = QDir(outputDirectoryEdit->text().trimmed()).absolutePath();
-  const QString dpiArgument = renderPages ? QString::number(dpiSpinBox->value()) : QString();
-  const int renderDpi = renderPages ? dpiSpinBox->value() : 0;
+  const int renderDpi = renderPages ? dpiSelector->currentText().toInt() : 0;
+  const QString dpiArgument = renderPages ? QString::number(renderDpi) : QString();
   const QString pdfStem = QFileInfo(pdfPath).completeBaseName();
   QSet<QString> existingOutputFiles;
   for (const QString& fileName : QDir(outputDirectoryPath).entryList(QDir::Files | QDir::NoDotAndDotDot)) {
