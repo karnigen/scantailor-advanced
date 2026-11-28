@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
+set(APPLICATION_DISPLAY_NAME "ScanTailor Advanced")
 set(target_name scantailor-advanced)
 
 # Disable in-source builds.
@@ -14,7 +15,7 @@ if (POLICY CMP0071)
   cmake_policy(SET CMP0071 NEW)
 endif()
 
-project("ScanTailor Advanced")
+project("${APPLICATION_DISPLAY_NAME}")
 
 # Set compiler flags.
 set(CMAKE_CXX_STANDARD 17)

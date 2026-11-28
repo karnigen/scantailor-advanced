@@ -4,6 +4,8 @@
 
 #include "MainWindow.h"
 
+#include <config.h>
+
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
 #include <core/PathUtils.h>
@@ -270,6 +272,7 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   connect(&m_autoSaveTimer, SIGNAL(timeout()), SLOT(autoSaveProject()));
 
   setupUi(this);
+  actionQuit->setToolTip(tr("Exit %1. Shortcut: Ctrl+Q.").arg(QString::fromUtf8(APPLICATION_DISPLAY_NAME)));
   setupIcons();
   focusButton->setChecked(SettingsStore().boolValue("mainWindow/keepCurrentPageInView", true));
 
@@ -2666,6 +2669,10 @@ void MainWindow::showAboutDialog() {
   Ui::AboutDialog ui;
   auto* dialog = new QDialog(this);
   ui.setupUi(dialog);
+  const QString displayName = QString::fromUtf8(APPLICATION_DISPLAY_NAME);
+  dialog->setWindowTitle(displayName);
+  ui.label_3->setText(displayName);
+  ui.label_4->setText(ui.label_4->text().arg(displayName));
   ui.version->setText(QString(tr("version ")) + QString::fromUtf8(VERSION));
 
   QResource license(":/GPLv3.html");
@@ -3286,7 +3293,10 @@ void MainWindow::updateWindowTitle() {
     projectName = QFileInfo(core::toQString(m_projectFile)).completeBaseName();
   }
   const QString version(QString::fromUtf8(VERSION));
-  setWindowTitle(tr("[*] %2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
+  setWindowTitle(tr("[*] %2 - %3 [%1bit]")
+                     .arg(sizeof(void*) * 8)
+                     .arg(projectName)
+                     .arg(QString::fromUtf8(APPLICATION_DISPLAY_NAME)));
   setWindowModified(m_projectModified);
 }
 

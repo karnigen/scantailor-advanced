@@ -1,8 +1,6 @@
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-set(target_name scantailor-advanced)
-
 set(resource_files
     resources.qrc
     dark_scheme/dark_scheme.qrc

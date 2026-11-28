@@ -1324,7 +1324,7 @@ QToolButton:pressed {
     <bool>false</bool>
    </property>
    <property name="toolTip">
-    <string>Exit ScanTailor Advanced. Shortcut: Ctrl+Q.</string>
+    <string>Exit %1. Shortcut: Ctrl+Q.</string>
    </property>
   </action>
   <action name="actionSettings">
