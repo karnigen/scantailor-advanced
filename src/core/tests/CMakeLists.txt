@@ -19,6 +19,7 @@ set(sources
     TestProcessedPagesExporter.cpp
     TestProjectMigration.cpp
     TestSettingsStore.cpp
+    TestTiffWriter.cpp
     TestPageLayoutSettings.cpp
     TestPageLayoutCacheDrivenTask.cpp
     TestSelectContentApply.cpp

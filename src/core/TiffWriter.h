@@ -6,6 +6,7 @@
 
 #include <tiff.h>
 
+#include <QString>
 #include <cstddef>
 #include <cstdint>
 
@@ -16,6 +17,13 @@ class Dpm;
 
 class TiffWriter {
  public:
+  enum class RenderedPageColorMode { Bitonal, Grayscale, IndexedColor, FullColor, Unsupported, Error };
+
+  struct RenderedPageOptimizationResult {
+    RenderedPageColorMode mode;
+    QString errorMessage;
+  };
+
   /**
    * \brief Writes a QImage in TIFF format to a file.
    *
@@ -34,6 +42,15 @@ class TiffWriter {
    * \return True on success, false on failure.
    */
   static bool writeImage(QIODevice& device, const QImage& image);
+
+  /**
+   * \brief Losslessly reduces a rendered RGB TIFF's color depth when possible.
+   *
+   * Rewrites black-and-white pages as 1-bit TIFF, grayscale pages as 8-bit TIFF,
+   * and pages with at most 256 colors as indexed TIFF. Full-color pages are left
+   * unchanged. Rewritten pages use LZW compression and retain their resolution.
+   */
+  static RenderedPageOptimizationResult optimizeRenderedPdfPage(const QString& filePath, int fallbackDpi);
 
  private:
   class TiffHandle;

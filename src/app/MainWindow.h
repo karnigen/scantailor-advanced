@@ -47,6 +47,7 @@ class ImageInfo;
 class ImageViewBase;
 class PageInfo;
 class QStackedLayout;
+class QThread;
 class WorkerThreadPool;
 class ProjectReader;
 class DebugImages;
@@ -385,6 +386,7 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QPointer<FixDpiDialog> m_fixDpiDialog;
   QPointer<QProcess> m_pdfHelperProcess;
   QPointer<QProgressDialog> m_pdfHelperProgressDialog;
+  QPointer<QThread> m_pdfOptimizationThread;
   std::unique_ptr<TabbedDebugImages> m_tabbedDebugImages;
   std::unique_ptr<ContentBoxPropagator> m_contentBoxPropagator;
   std::unique_ptr<PageOrientationPropagator> m_pageOrientationPropagator;

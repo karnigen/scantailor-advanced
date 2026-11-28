@@ -36,18 +36,18 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPalette>
-#include <QProgressDialog>
 #include <QProcess>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
-#include <QSpinBox>
-#include <QStyle>
 #include <QSortFilterProxyModel>
-#include <QStandardPaths>
+#include <QSpinBox>
 #include <QStackedLayout>
+#include <QStandardPaths>
 #include <QStringList>
+#include <QStyle>
 #include <QTemporaryFile>
 #include <QTextBrowser>
 #include <QThread>
@@ -106,6 +106,7 @@
 #include "TabbedDebugImages.h"
 #include "ThumbnailFactory.h"
 #include "ThumbnailViewMode.h"
+#include "TiffWriter.h"
 #include "UnitsProvider.h"
 #include "Utils.h"
 #include "WorkerThreadPool.h"
@@ -511,6 +512,9 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
 }
 
 MainWindow::~MainWindow() {
+  if (m_pdfOptimizationThread) {
+    m_pdfOptimizationThread->wait();
+  }
   qApp->removeEventFilter(this);
   m_interactiveQueue->cancelAndClear();
   if (m_batchQueue) {
@@ -2945,6 +2949,22 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   const QString pdfPath = QFileInfo(pdfPathEdit->text().trimmed()).absoluteFilePath();
   const QString outputDirectoryPath = QDir(outputDirectoryEdit->text().trimmed()).absolutePath();
   const QString dpiArgument = renderPages ? QString::number(dpiSpinBox->value()) : QString();
+  const int renderDpi = renderPages ? dpiSpinBox->value() : 0;
+  const QString pdfStem = QFileInfo(pdfPath).completeBaseName();
+  QSet<QString> existingOutputFiles;
+  for (const QString& fileName : QDir(outputDirectoryPath).entryList(QDir::Files | QDir::NoDotAndDotDot)) {
+    existingOutputFiles.insert(fileName);
+  }
+
+  struct OptimizationSummary {
+    int bitonalPages = 0;
+    int grayscalePages = 0;
+    int indexedColorPages = 0;
+    int fullColorPages = 0;
+    int unchangedPages = 0;
+    QStringList errors;
+  };
+
   auto* process = new QProcess(this);
   m_pdfHelperProcess = process;
   auto* progressDialog = new QProgressDialog(
@@ -2973,29 +2993,123 @@ void MainWindow::runPdfHelper(const bool renderPages) {
     updateProjectActions();
     QMessageBox::warning(this, tr("PDF Operation Failed"), tr("Could not start %1:\n%2").arg(operation, errorMessage));
   });
-  connect(process, &QProcess::finished, this,
-          [this, process, operation](const int exitCode, const QProcess::ExitStatus exitStatus) {
-            const QString output = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
-            const QString errorOutput = QString::fromLocal8Bit(process->readAllStandardError()).trimmed();
-            m_pdfHelperProcess = nullptr;
-            if (m_pdfHelperProgressDialog) {
-              m_pdfHelperProgressDialog->close();
-              m_pdfHelperProgressDialog->deleteLater();
-              m_pdfHelperProgressDialog = nullptr;
-            }
-            process->deleteLater();
-            updateProjectActions();
+  const auto finishOperation = [this, process]() {
+    m_pdfHelperProcess = nullptr;
+    if (m_pdfHelperProgressDialog) {
+      m_pdfHelperProgressDialog->close();
+      m_pdfHelperProgressDialog->deleteLater();
+      m_pdfHelperProgressDialog = nullptr;
+    }
+    process->deleteLater();
+    updateProjectActions();
+  };
+  connect(
+      process, &QProcess::finished, this,
+      [this, process, operation, renderPages, renderDpi, pdfStem, outputDirectoryPath, existingOutputFiles,
+       finishOperation](const int exitCode, const QProcess::ExitStatus exitStatus) {
+        const QString output = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
+        const QString errorOutput = QString::fromLocal8Bit(process->readAllStandardError()).trimmed();
 
-            if (exitStatus == QProcess::NormalExit && exitCode == 0) {
-              const QString message = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
-              QMessageBox::information(this, operation, message);
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+          if (renderPages) {
+            QStringList renderedFiles;
+            const QString filePrefix = pdfStem + QLatin1Char('-');
+            const QDir outputDirectory(outputDirectoryPath);
+            for (const QFileInfo& entry : outputDirectory.entryInfoList(QDir::Files, QDir::Name)) {
+              if (existingOutputFiles.contains(entry.fileName())
+                  || !entry.fileName().startsWith(filePrefix, Qt::CaseSensitive)
+                  || (entry.suffix().compare(QStringLiteral("tif"), Qt::CaseInsensitive) != 0
+                      && entry.suffix().compare(QStringLiteral("tiff"), Qt::CaseInsensitive) != 0)) {
+                continue;
+              }
+              bool pageNumberIsValid = false;
+              const int pageNumber = entry.completeBaseName().mid(filePrefix.size()).toInt(&pageNumberIsValid);
+              if (pageNumberIsValid && pageNumber > 0) {
+                renderedFiles.append(entry.absoluteFilePath());
+              }
+            }
+
+            if (renderedFiles.isEmpty()) {
+              finishOperation();
+              QMessageBox::warning(
+                  this, tr("PDF Optimization Failed"),
+                  tr("The PDF renderer completed, but no newly created page TIFFs were found in the output folder."));
               return;
             }
 
-            const QString detail
-                = errorOutput.isEmpty() ? tr("The helper exited with code %1.").arg(exitCode) : errorOutput;
-            QMessageBox::warning(this, tr("PDF Operation Failed"), detail);
-          });
+            if (m_pdfHelperProgressDialog) {
+              m_pdfHelperProgressDialog->setLabelText(tr("Analyzing and optimizing rendered TIFF pages..."));
+            }
+            auto summary = std::make_shared<OptimizationSummary>();
+            auto* optimizationThread = QThread::create([renderedFiles, renderDpi, summary]() {
+              for (const QString& filePath : renderedFiles) {
+                const auto result = TiffWriter::optimizeRenderedPdfPage(filePath, renderDpi);
+                switch (result.mode) {
+                  case TiffWriter::RenderedPageColorMode::Bitonal:
+                    ++summary->bitonalPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::Grayscale:
+                    ++summary->grayscalePages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::IndexedColor:
+                    ++summary->indexedColorPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::FullColor:
+                    ++summary->fullColorPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::Unsupported:
+                    ++summary->unchangedPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::Error:
+                    summary->errors.append(QFileInfo(filePath).fileName() + QStringLiteral(": ") + result.errorMessage);
+                    break;
+                }
+              }
+            });
+            optimizationThread->setParent(this);
+            m_pdfOptimizationThread = optimizationThread;
+            connect(optimizationThread, &QThread::finished, this,
+                    [this, optimizationThread, summary, renderedFiles, output, operation, finishOperation]() {
+                      m_pdfOptimizationThread = nullptr;
+                      optimizationThread->deleteLater();
+                      finishOperation();
+
+                      QString message = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
+                      message += tr("\n\nPage storage: %1 bilevel, %2 grayscale, %3 indexed-color, "
+                                    "%4 full-color; %5 unchanged.")
+                                     .arg(summary->bitonalPages)
+                                     .arg(summary->grayscalePages)
+                                     .arg(summary->indexedColorPages)
+                                     .arg(summary->fullColorPages)
+                                     .arg(summary->unchangedPages);
+                      if (!summary->errors.isEmpty()) {
+                        message += tr("\n\nSome rendered pages could not be optimized:\n%1")
+                                       .arg(summary->errors.join(QLatin1Char('\n')));
+                        QMessageBox::warning(this, tr("PDF Optimization Incomplete"), message);
+                      } else if (summary->bitonalPages + summary->grayscalePages + summary->indexedColorPages
+                                     + summary->fullColorPages + summary->unchangedPages
+                                 != renderedFiles.size()) {
+                        message += tr("\nSome pages were not accounted for during optimization.");
+                        QMessageBox::warning(this, tr("PDF Optimization Incomplete"), message);
+                      } else {
+                        QMessageBox::information(this, operation, message);
+                      }
+                    });
+            optimizationThread->start();
+            return;
+          }
+
+          finishOperation();
+          const QString message = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
+          QMessageBox::information(this, operation, message);
+          return;
+        }
+
+        finishOperation();
+        const QString detail
+            = errorOutput.isEmpty() ? tr("The helper exited with code %1.").arg(exitCode) : errorOutput;
+        QMessageBox::warning(this, tr("PDF Operation Failed"), detail);
+      });
 
   progressDialog->show();
 #if defined(Q_OS_WIN)
