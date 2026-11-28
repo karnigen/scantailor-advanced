@@ -33,6 +33,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QProgressDialog>
 #include <QProcess>
 #include <QPushButton>
@@ -2772,6 +2773,55 @@ void MainWindow::runPdfHelper(const bool renderPages) {
   const QString pdfPath
       = QFileDialog::getOpenFileName(this, operation, initialDirectory, tr("PDF files (*.pdf)"));
   if (pdfPath.isEmpty()) {
+    return;
+  }
+
+  const QString outputDirectoryPath = QFileInfo(pdfPath).absolutePath();
+  const QDir outputDirectory(outputDirectoryPath);
+  if (!outputDirectory.isReadable()) {
+    QMessageBox::warning(this, tr("PDF Operation Failed"),
+                         tr("The output directory cannot be read:\n%1")
+                             .arg(QDir::toNativeSeparators(outputDirectoryPath)));
+    return;
+  }
+
+  const QFileInfoList existingEntries
+      = outputDirectory.entryInfoList(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                                      QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
+  QStringList entryNames;
+  entryNames.reserve(existingEntries.size());
+  for (const QFileInfo& entry : existingEntries) {
+    entryNames.append(entry.fileName());
+  }
+
+  QDialog confirmationDialog(this);
+  confirmationDialog.setWindowTitle(tr("Confirm PDF to Images"));
+  auto* confirmationLayout = new QVBoxLayout(&confirmationDialog);
+  auto* confirmationText = new QLabel(
+      tr("Do you want to continue with %1?\n\nSource PDF:\n%2\n\nOutput directory:\n%3\n\nExisting entries (%4):")
+          .arg(operation, QDir::toNativeSeparators(pdfPath),
+               QDir::toNativeSeparators(outputDirectoryPath))
+          .arg(existingEntries.size()),
+      &confirmationDialog);
+  confirmationText->setWordWrap(true);
+  confirmationLayout->addWidget(confirmationText);
+
+  auto* contents = new QPlainTextEdit(&confirmationDialog);
+  contents->setReadOnly(true);
+  contents->setLineWrapMode(QPlainTextEdit::NoWrap);
+  contents->setPlainText(entryNames.isEmpty() ? tr("(Empty directory)") : entryNames.join(QLatin1Char('\n')));
+  confirmationLayout->addWidget(contents);
+
+  auto* confirmationButtons
+      = new QDialogButtonBox(QDialogButtonBox::Yes | QDialogButtonBox::No, &confirmationDialog);
+  confirmationButtons->button(QDialogButtonBox::Yes)->setText(tr("Convert"));
+  confirmationButtons->button(QDialogButtonBox::No)->setText(tr("Cancel"));
+  confirmationButtons->button(QDialogButtonBox::No)->setDefault(true);
+  connect(confirmationButtons, &QDialogButtonBox::accepted, &confirmationDialog, &QDialog::accept);
+  connect(confirmationButtons, &QDialogButtonBox::rejected, &confirmationDialog, &QDialog::reject);
+  confirmationLayout->addWidget(confirmationButtons);
+  confirmationDialog.resize(640, 420);
+  if (confirmationDialog.exec() != QDialog::Accepted) {
     return;
   }
 
