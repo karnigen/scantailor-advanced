@@ -69,6 +69,14 @@ jobs:
             Copy-Item -LiteralPath $translation.FullName -Destination (Join-Path $translationDirectory $destinationName)
           }
 
+      - name: Add PDF helper scripts
+        shell: pwsh
+        run: |
+          $pdfToolsDirectory = 'build-windows/Release/share/scantailor-advanced/pdf-tools'
+          New-Item -ItemType Directory -Force -Path $pdfToolsDirectory | Out-Null
+          Copy-Item -Path 'scripts/pdf/*.ps1' -Destination $pdfToolsDirectory
+          Copy-Item -LiteralPath 'scripts/pdf/README.md' -Destination $pdfToolsDirectory
+
       - name: Upload portable Windows build
         uses: actions/upload-artifact@v5
         with:

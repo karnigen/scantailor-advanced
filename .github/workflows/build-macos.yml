@@ -82,6 +82,9 @@ jobs:
             name="${qm##*/}"
             cp "$qm" "$translations/scantailor_${name#scantailor-advanced_}"
           done
+          pdf_tools="$app/Contents/Resources/pdf-tools"
+          mkdir -p "$pdf_tools"
+          cp scripts/pdf/*.sh scripts/pdf/README.md "$pdf_tools/"
           "$QT_ROOT_DIR/bin/macdeployqt" "$app"
           test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
           codesign --verify --deep --strict "$app"

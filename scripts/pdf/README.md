@@ -52,3 +52,17 @@ The output directory defaults to the PDF's directory. Existing files are not
 overwritten. Set `PDFTOCAIRO` to use a specific `pdftocairo` executable.
 Rendering produces raster pages and does not preserve a searchable OCR text
 layer.
+
+## Installed application packages
+
+Linux packages and AppImages install the platform's shell scripts under
+`share/scantailor-advanced/pdf-tools` in the installation prefix. The portable
+Windows package uses the same relative directory and includes the PowerShell
+scripts. On macOS, the shell scripts are inside
+`ScanTailor Advanced.app/Contents/Resources/pdf-tools`.
+
+Poppler is not bundled. Install its command-line tools separately and make
+`pdfimages` and `pdftocairo` available on `PATH`, or set `PDFIMAGES` and
+`PDFTOCAIRO` to their executable paths. The Flatpak package does not include
+these wrappers because its sandbox does not expose host-installed Poppler
+commands.

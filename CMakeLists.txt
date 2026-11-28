@@ -306,6 +306,26 @@ else()
   install(FILES ${qm_files} DESTINATION "share/${APPLICATION_NAME}/translations")
 endif()
 
+# Install the optional PDF helper wrappers without bundling Poppler.
+option(INSTALL_PDF_HELPERS "Install optional PDF helper scripts" ON)
+if (INSTALL_PDF_HELPERS)
+  set(pdf_helpers_install_dir "share/${APPLICATION_NAME}/pdf-tools")
+  if (WIN32)
+    install(FILES
+        "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.ps1"
+        "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.ps1"
+        "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md"
+        DESTINATION "${pdf_helpers_install_dir}")
+  else()
+    install(PROGRAMS
+        "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.sh"
+        "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.sh"
+        DESTINATION "${pdf_helpers_install_dir}")
+    install(FILES "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md"
+        DESTINATION "${pdf_helpers_install_dir}")
+  endif()
+endif()
+
 # Install extra files.
 if (WIN32)
   macro (add_runtime_libs_to_install Configuration Libs)
