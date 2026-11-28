@@ -109,6 +109,7 @@ void ProjectPages::setLayoutDirectionFor(const ImageId& imageId, const Qt::Layou
       } else {
         image.layoutDirectionOverride = direction;
       }
+      image.layoutRevision = ++m_nextLayoutRevision;
       wasModified = true;
       break;
     }
@@ -136,6 +137,11 @@ void ProjectPages::setLayoutDirection(const Qt::LayoutDirection dir) {
     const QMutexLocker locker(&m_mutex);
     if (m_layoutDirection != dir) {
       initSubPagesInOrder(dir);
+      for (ImageDesc& image : m_images) {
+        if (!image.layoutDirectionOverride) {
+          image.layoutRevision = ++m_nextLayoutRevision;
+        }
+      }
       wasModified = true;
     }
   }

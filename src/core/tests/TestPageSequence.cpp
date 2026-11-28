@@ -135,6 +135,54 @@ TEST_CASE("ProjectPages / cached split rejects a newer layout even when page cou
   CHECK(pages.toPageSequence(PAGE_VIEW).numPages() == 2);
 }
 
+TEST_CASE("ProjectPages / per-image reading direction invalidates only its cached split") {
+  const ImageId firstId("/first.tif", 0);
+  const ImageId secondId("/second.tif", 0);
+  const ImageMetadata metadata(QSize(200, 100), Dpi(300, 300));
+  ProjectPages pages({ImageInfo(firstId, metadata, 2, false, false), ImageInfo(secondId, metadata, 2, false, false)},
+                     Qt::LeftToRight);
+  const PageSequence initial = pages.toPageSequence(PAGE_VIEW);
+  const auto firstRevision = pages.layoutRevision(initial.pageAt(0));
+  const auto secondRevision = pages.layoutRevision(initial.pageAt(2));
+  REQUIRE(firstRevision);
+  REQUIRE(secondRevision);
+
+  pages.setLayoutDirectionFor(firstId, Qt::RightToLeft);
+
+  CHECK_FALSE(pages.setLayoutTypeForIfUnchanged(firstId, ProjectPages::TWO_PAGE_LAYOUT, *firstRevision));
+  CHECK(pages.setLayoutTypeForIfUnchanged(secondId, ProjectPages::TWO_PAGE_LAYOUT, *secondRevision));
+  const PageSequence updated = pages.toPageSequence(PAGE_VIEW);
+  CHECK(updated.pageAt(0).id().subPage() == PageId::RIGHT_PAGE);
+  CHECK(updated.pageAt(1).id().subPage() == PageId::LEFT_PAGE);
+  CHECK(updated.pageAt(2).id().subPage() == PageId::LEFT_PAGE);
+  CHECK(updated.pageAt(3).id().subPage() == PageId::RIGHT_PAGE);
+}
+
+TEST_CASE("ProjectPages / project reading direction invalidates only images without overrides") {
+  const ImageId defaultDirectionId("/default.tif", 0);
+  const ImageId overrideDirectionId("/override.tif", 0);
+  const ImageMetadata metadata(QSize(200, 100), Dpi(300, 300));
+  ProjectPages pages({ImageInfo(defaultDirectionId, metadata, 2, false, false),
+                      ImageInfo(overrideDirectionId, metadata, 2, false, false)},
+                     Qt::LeftToRight);
+  pages.setLayoutDirectionFor(overrideDirectionId, Qt::RightToLeft);
+  const PageSequence initial = pages.toPageSequence(PAGE_VIEW);
+  const auto defaultRevision = pages.layoutRevision(initial.pageAt(0));
+  const auto overrideRevision = pages.layoutRevision(initial.pageAt(2));
+  REQUIRE(defaultRevision);
+  REQUIRE(overrideRevision);
+
+  pages.setLayoutDirection(Qt::RightToLeft);
+
+  CHECK_FALSE(pages.setLayoutTypeForIfUnchanged(defaultDirectionId, ProjectPages::TWO_PAGE_LAYOUT, *defaultRevision));
+  CHECK(pages.setLayoutTypeForIfUnchanged(overrideDirectionId, ProjectPages::TWO_PAGE_LAYOUT, *overrideRevision));
+  const PageSequence updated = pages.toPageSequence(PAGE_VIEW);
+  CHECK(updated.pageAt(0).id().subPage() == PageId::RIGHT_PAGE);
+  CHECK(updated.pageAt(1).id().subPage() == PageId::LEFT_PAGE);
+  CHECK(updated.pageAt(2).id().subPage() == PageId::RIGHT_PAGE);
+  CHECK(updated.pageAt(3).id().subPage() == PageId::LEFT_PAGE);
+}
+
 TEST_CASE("ProjectPages / another image does not invalidate a cached split") {
   const ImageId firstId("/first.tif", 0);
   const ImageId secondId("/second.tif", 0);
