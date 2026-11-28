@@ -102,6 +102,19 @@
          </widget>
         </item>
         <item>
+         <widget class="QCheckBox" name="reversePageOrderOption">
+          <property name="text">
+           <string>Reverse page order</string>
+          </property>
+          <property name="toolTip">
+           <string>Apply the reversed reading order to the selected two-page scans.</string>
+          </property>
+          <property name="visible">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>

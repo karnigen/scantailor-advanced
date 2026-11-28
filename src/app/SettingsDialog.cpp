@@ -11,6 +11,8 @@
 
 #include <QtCore/QDir>
 #include <QtWidgets/QMessageBox>
+#include <QStyle>
+#include <QTransform>
 #include <cmath>
 
 #include "Application.h"
@@ -53,6 +55,26 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
   ui.tiffCompressionColorBox->addItem(tr("Deflate"), COMPRESSION_DEFLATE);
   ui.tiffCompressionColorBox->addItem(tr("JPEG"), COMPRESSION_JPEG);
   ui.tiffCompressionColorBox->setCurrentIndex(ui.tiffCompressionColorBox->findData(settings.getTiffColorCompression()));
+
+  QPixmap restorePixmap = style()->standardIcon(QStyle::SP_BrowserReload).pixmap(QSize(16, 16));
+  QTransform reverseDirection;
+  reverseDirection.scale(-1.0, 1.0);
+  const QIcon restoreIcon(restorePixmap.transformed(reverseDirection));
+  ui.restoreTiffCompressionBWButton->setIcon(restoreIcon);
+  ui.restoreTiffCompressionBWButton->setToolTip(tr("CCITT G4: lossless and compact for 1-bit text and line art."));
+  ui.restoreTiffCompressionBWButton->setAccessibleName(tr("Restore recommended B&W compression"));
+  connect(ui.restoreTiffCompressionBWButton, &QToolButton::clicked, this, [this]() {
+    ui.tiffCompressionBWBox->setCurrentIndex(
+        ui.tiffCompressionBWBox->findData(ApplicationSettings::DEFAULT_TIFF_BW_COMPRESSION));
+  });
+
+  ui.restoreTiffCompressionColorButton->setIcon(restoreIcon);
+  ui.restoreTiffCompressionColorButton->setToolTip(tr("LZW: lossless compression for color images."));
+  ui.restoreTiffCompressionColorButton->setAccessibleName(tr("Restore recommended color compression"));
+  connect(ui.restoreTiffCompressionColorButton, &QToolButton::clicked, this, [this]() {
+    ui.tiffCompressionColorBox->setCurrentIndex(
+        ui.tiffCompressionColorBox->findData(ApplicationSettings::DEFAULT_TIFF_COLOR_COMPRESSION));
+  });
 
   {
     auto* app = static_cast<Application*>(qApp);

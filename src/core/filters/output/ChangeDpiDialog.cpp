@@ -7,6 +7,8 @@
 #include <QLineEdit>
 #include <QMessageBox>
 
+#include <DpiPresets.h>
+
 #include "PageSelectionAccessor.h"
 
 namespace output {
@@ -30,13 +32,11 @@ ChangeDpiDialog::ChangeDpiDialog(QWidget* parent,
 
   dpiSelector->setValidator(new QIntValidator(dpiSelector));
 
-  static const int common_dpis[] = {120, 150, 200, 300, 400, 600, 1200};
-
   const int requestedDpi = std::max(dpi.horizontal(), dpi.vertical());
   m_customDpiString = QString::number(requestedDpi);
 
   int selectedIndex = -1;
-  for (const int cdpi : common_dpis) {
+  for (const int cdpi : constants::COMMON_DPI_PRESETS) {
     if (cdpi == requestedDpi) {
       selectedIndex = dpiSelector->count();
     }

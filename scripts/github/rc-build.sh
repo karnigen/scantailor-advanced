@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/rc-build.sh [build selection] [-y|--yes]
+Usage: scripts/github/rc-build.sh [build selection] [-y|--yes]
 
 Create or reuse an RC tag for the current commit and its GitHub prerelease.
 Without build selections, show a menu when run in a terminal.
@@ -31,7 +31,7 @@ fail() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
 LINUX_PACKAGE="none"

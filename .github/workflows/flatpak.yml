@@ -39,13 +39,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .flatpak-builder
-          key: flatpak-builder-${{ hashFiles('flatpak/org.scantailor.Advanced.json') }}-${{ runner.os }}
+          key: flatpak-builder-${{ hashFiles('scripts/build/flatpak/org.scantailor.Advanced.json') }}-${{ runner.os }}
 
       - name: Build Flatpak
         run: |
           mkdir -p "$RUNNER_TEMP/flatpak-source"
           git archive HEAD | tar -x -C "$RUNNER_TEMP/flatpak-source"
-          flatpak-builder --user --repo=repo --force-clean build-dir "$RUNNER_TEMP/flatpak-source/flatpak/org.scantailor.Advanced.json" --install-deps-from=flathub
+          flatpak-builder --user --repo=repo --force-clean build-dir "$RUNNER_TEMP/flatpak-source/scripts/build/flatpak/org.scantailor.Advanced.json" --install-deps-from=flathub
 
       - name: Create single-file bundle
         run: |

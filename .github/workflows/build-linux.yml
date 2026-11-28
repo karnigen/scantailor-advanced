@@ -85,7 +85,7 @@ jobs:
       - name: Build DEB package
         if: ${{ inputs.package == 'deb' || inputs.package == 'all' }}
         run: |
-          ./build-deb.sh -y build
+          ./scripts/build/build-deb.sh -y build
           mv "scantailor-advanced_${{ steps.build-info.outputs.version }}_amd64.deb" "scantailor-advanced-${{ steps.build-info.outputs.id }}-linux-x86_64.deb"
 
       - name: Upload DEB artifact

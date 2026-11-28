@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
+// SPDX-FileCopyrightText: 2026 project contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
 #pragma once
@@ -14,12 +14,15 @@ class TestMainWindowAsync : public QObject {
   void deferredSavesPreserveOrder_data();
   void deferredSavesPreserveOrder();
   void keyboardShortcutsShowConciseStageNames();
+  void filterShortcutsUseCtrlNumberRow();
   void saveProjectPromptUsesActionButtons();
   void reloadProjectConfirmsDiscardWithoutOfferingSave();
   void closeProjectSaveCreatesHistoryBackup();
   void compareFilesDetectsSameSizeChanges();
   void windowTitleShowsUnsavedProjectChanges();
   void supportedImageFormatsHelpShowsOutputAndCompression();
+  void pdfToImagesMenuRequiresNoLoadedProject();
+  void splitModeDialogOptionsFollowSelectedLayout();
   void applyAlignmentCopiesSelectedSettingsIndependently();
   void applySourceDpiCopiesSelectedAxesIndependently();
   void filterDockWidthRestoresFromConfiguration();

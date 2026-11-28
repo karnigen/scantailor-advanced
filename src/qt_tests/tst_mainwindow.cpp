@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
+// SPDX-FileCopyrightText: 2026 project contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
 #include "tst_mainwindow.h"
@@ -31,6 +31,7 @@
 #include "RelinkingDialog.h"
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QColor>
@@ -1074,6 +1075,16 @@ void TestMainWindowAsync::keyboardShortcutsShowConciseStageNames() {
   QVERIFY(shortcutHelp.contains("Alt+D"));
 }
 
+void TestMainWindowAsync::filterShortcutsUseCtrlNumberRow() {
+  MainWindow window;
+  for (int i = 1; i <= 6; ++i) {
+    const QString actionName = QStringLiteral("actionSwitchFilter%1").arg(i);
+    QAction* action = window.findChild<QAction*>(actionName);
+    QVERIFY(action);
+    QCOMPARE(action->shortcut(), QKeySequence(QStringLiteral("Ctrl+%1").arg(i)));
+  }
+}
+
 void TestMainWindowAsync::saveProjectPromptUsesActionButtons() {
   MainWindow window;
   bool promptShown = false;
@@ -1270,6 +1281,126 @@ void TestMainWindowAsync::windowTitleShowsUnsavedProjectChanges() {
                            Qt::NoModifier);
   QApplication::sendEvent(&window, &mouseRelease);
   QTRY_VERIFY_WITH_TIMEOUT(window.isWindowModified(), 5000);
+}
+
+void TestMainWindowAsync::pdfToImagesMenuRequiresNoLoadedProject() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  MainWindow window;
+  QVERIFY(window.menuPdfToImages->isEnabled());
+
+  const QString imagePath = directory.filePath(QStringLiteral("page.png"));
+  QImage image(100, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  QVERIFY(image.save(imagePath));
+  std::vector<ImageInfo> imageInfos;
+  imageInfos.emplace_back(ImageId(core::toFileSystemPath(imagePath), 0), ImageMetadata(image.size(), Dpi(300, 300)), 1,
+                          false, false);
+  auto pages = std::make_shared<ProjectPages>(std::move(imageInfos), Qt::LeftToRight);
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  QVERIFY(window.isProjectLoaded());
+  QVERIFY(!window.menuPdfToImages->isEnabled());
+}
+
+void TestMainWindowAsync::splitModeDialogOptionsFollowSelectedLayout() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+
+  QImage image(200, 120, QImage::Format_RGB32);
+  image.fill(Qt::white);
+  const QString firstImagePath = directory.filePath("first.png");
+  const QString secondImagePath = directory.filePath("second.png");
+  QVERIFY(image.save(firstImagePath));
+  QVERIFY(image.save(secondImagePath));
+
+  const ImageId firstImageId(core::toFileSystemPath(firstImagePath), 0);
+  const ImageId secondImageId(core::toFileSystemPath(secondImagePath), 0);
+  const ImageMetadata metadata(image.size(), Dpi(300, 300));
+  const auto pages
+      = std::make_shared<ProjectPages>(std::vector<ImageInfo>{ImageInfo(firstImageId, metadata, 1, false, false),
+                                                              ImageInfo(secondImageId, metadata, 1, false, false)},
+                                       Qt::LeftToRight);
+  MainWindow window;
+  window.switchToNewProject(pages, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  const int pageSplitFilterIdx = window.m_stages->pageSplitFilterIdx();
+  window.filterList->selectRow(pageSplitFilterIdx);
+  QTRY_COMPARE_WITH_TIMEOUT(window.m_curFilter, pageSplitFilterIdx, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!window.m_optionsWidget.isNull(), 10000);
+  window.goToPage(PageId(firstImageId, PageId::SINGLE_PAGE));
+  QTRY_VERIFY_WITH_TIMEOUT(window.m_workerThreadPool->isIdle(), 10000);
+
+  auto* options = window.m_optionsWidget.data();
+  QVERIFY(options);
+  auto* uncutButton = options->findChild<QAbstractButton*>(QStringLiteral("singlePageUncutBtn"));
+  QVERIFY(uncutButton);
+  uncutButton->click();
+
+  auto* changeButton = options->findChild<QAbstractButton*>(QStringLiteral("changeBtn"));
+  QVERIFY(changeButton);
+  QVERIFY(changeButton->isEnabled());
+  changeButton->click();
+
+  auto* dialog = options->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+  auto* modeGroup = dialog->findChild<QWidget*>(QStringLiteral("groupBox"));
+  auto* optionsGroup = dialog->findChild<QWidget*>(QStringLiteral("optionsBox"));
+  QVERIFY(modeGroup);
+  QVERIFY(optionsGroup);
+  QVERIFY(modeGroup->isHidden());
+  QVERIFY(optionsGroup->isHidden());
+  auto* buttonBox = dialog->findChild<QDialogButtonBox*>(QStringLiteral("buttonBox"));
+  QVERIFY(buttonBox);
+  buttonBox->button(QDialogButtonBox::Cancel)->click();
+  QTRY_VERIFY(!options->findChild<QDialog*>());
+
+  const auto twoPageScans
+      = std::make_shared<ProjectPages>(std::vector<ImageInfo>{ImageInfo(firstImageId, metadata, 2, false, false),
+                                                              ImageInfo(secondImageId, metadata, 2, false, false)},
+                                       Qt::LeftToRight);
+  MainWindow twoPageWindow;
+  twoPageWindow.switchToNewProject(twoPageScans, core::toFileSystemPath(directory.path()));
+  QTRY_VERIFY_WITH_TIMEOUT(twoPageWindow.m_workerThreadPool->isIdle(), 10000);
+  twoPageWindow.filterList->selectRow(twoPageWindow.m_stages->pageSplitFilterIdx());
+  QTRY_COMPARE_WITH_TIMEOUT(twoPageWindow.m_curFilter, twoPageWindow.m_stages->pageSplitFilterIdx(), 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(!twoPageWindow.m_optionsWidget.isNull(), 10000);
+  twoPageWindow.goToPage(PageId(firstImageId, PageId::SINGLE_PAGE));
+  QTRY_VERIFY_WITH_TIMEOUT(twoPageWindow.m_workerThreadPool->isIdle(), 10000);
+
+  auto* twoPageOptions = twoPageWindow.m_optionsWidget.data();
+  QVERIFY(twoPageOptions);
+  auto* manualMode = twoPageOptions->findChild<QAbstractButton*>(QStringLiteral("manualBtn"));
+  QVERIFY(manualMode);
+  manualMode->click();
+  changeButton = twoPageOptions->findChild<QAbstractButton*>(QStringLiteral("changeBtn"));
+  QVERIFY(changeButton);
+  QVERIFY(changeButton->isEnabled());
+  changeButton->click();
+  dialog = twoPageOptions->findChild<QDialog*>();
+  QTRY_VERIFY(dialog);
+
+  modeGroup = dialog->findChild<QWidget*>(QStringLiteral("groupBox"));
+  optionsGroup = dialog->findChild<QWidget*>(QStringLiteral("optionsBox"));
+  auto* reversePageOrder = dialog->findChild<QCheckBox*>(QStringLiteral("reversePageOrderOption"));
+  auto* allPages = dialog->findChild<QRadioButton*>(QStringLiteral("allPagesRB"));
+  buttonBox = dialog->findChild<QDialogButtonBox*>(QStringLiteral("buttonBox"));
+  QVERIFY(modeGroup);
+  QVERIFY(optionsGroup);
+  QVERIFY(reversePageOrder);
+  QVERIFY(allPages);
+  QVERIFY(buttonBox);
+  QVERIFY(!modeGroup->isHidden());
+  QVERIFY(!optionsGroup->isHidden());
+  QVERIFY(!reversePageOrder->isHidden());
+  reversePageOrder->setChecked(true);
+  allPages->setChecked(true);
+  buttonBox->button(QDialogButtonBox::Ok)->click();
+
+  QTRY_COMPARE_WITH_TIMEOUT(twoPageScans->layoutDirectionFor(secondImageId), Qt::RightToLeft, 10000);
 }
 
 void TestMainWindowAsync::supportedImageFormatsHelpShowsOutputAndCompression() {

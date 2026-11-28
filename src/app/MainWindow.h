@@ -11,6 +11,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTimer>
+#include <atomic>
 #include <deque>
 #include <filesystem>
 #include <functional>
@@ -47,6 +48,7 @@ class ImageInfo;
 class ImageViewBase;
 class PageInfo;
 class QStackedLayout;
+class QThread;
 class WorkerThreadPool;
 class ProjectReader;
 class DebugImages;
@@ -60,6 +62,8 @@ class ProcessingTaskQueue;
 class FixDpiDialog;
 class OutOfMemoryDialog;
 class QLineF;
+class QProcess;
+class QProgressDialog;
 class QRectF;
 class QLayout;
 
@@ -100,6 +104,8 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
 
   void warnAboutExternalImages();
 
+  void navigatePages(int pageSteps, int pageStepSize);
+
  private slots:
 
   void autoSaveProject();
@@ -111,6 +117,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void goNextPage();
 
   void goPrevPage();
+
+  void goNextTenPages();
+
+  void goPrevTenPages();
 
   void goNextSelectedPage();
 
@@ -126,8 +136,6 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void pageContextMenuRequested(const PageInfo& pageInfo, const QPoint& screenPos, bool selected);
 
   void pastLastPageContextMenuRequested(const QPoint& screenPos);
-
-  void toggleTwoPageSpreadReadingOrder();
 
   void thumbViewFocusToggled(bool checked);
 
@@ -202,6 +210,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void exportProcessedImages();
 
   void exportPagesToPdf();
+
+  void extractPdfImages();
+
+  void renderPdfPages();
 
   void showCommandLineArguments();
 
@@ -283,6 +295,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   void removeImageWidget();
 
   void updateProjectActions();
+
+  void runPdfHelper(bool renderPages);
+
+  void cancelPdfOperation();
 
   bool isBatchProcessingInProgress() const;
 
@@ -371,6 +387,10 @@ class MainWindow : public QMainWindow, private FilterUiInterface, private Ui::Ma
   QStackedLayout* m_optionsFrameLayout;
   QPointer<FilterOptionsWidget> m_optionsWidget;
   QPointer<FixDpiDialog> m_fixDpiDialog;
+  QPointer<QProcess> m_pdfHelperProcess;
+  QPointer<QProgressDialog> m_pdfHelperProgressDialog;
+  QPointer<QThread> m_pdfOptimizationThread;
+  std::shared_ptr<std::atomic_bool> m_pdfCancellationRequested;
   std::unique_ptr<TabbedDebugImages> m_tabbedDebugImages;
   std::unique_ptr<ContentBoxPropagator> m_contentBoxPropagator;
   std::unique_ptr<PageOrientationPropagator> m_pageOrientationPropagator;

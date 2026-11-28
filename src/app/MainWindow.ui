@@ -75,7 +75,7 @@
     </widget>
     <addaction name="actionFixDpi"/>
     <addaction name="actionRelinking"/>
-    <addaction name="actionReverseTwoPageOrder"/>
+
     <addaction name="separator"/>
     <addaction name="actionDebug"/>
     <addaction name="separator"/>
@@ -97,6 +97,15 @@
     <addaction name="separator"/>
     <addaction name="actionExportProcessedImages"/>
     <addaction name="actionExportPagesToPdf"/>
+    <addaction name="separator"/>
+    <widget class="QMenu" name="menuPdfToImages">
+     <property name="title">
+      <string>PDF to Images</string>
+     </property>
+     <addaction name="actionExtractPdfImages"/>
+     <addaction name="actionRenderPdfPages"/>
+    </widget>
+    <addaction name="menuPdfToImages"/>
     <addaction name="separator"/>
     <addaction name="actionCloseProject"/>
     <addaction name="separator"/>
@@ -1154,6 +1163,22 @@ QToolButton:pressed {
     <string>Export all processed pages as one multi-page PDF.</string>
    </property>
   </action>
+  <action name="actionExtractPdfImages">
+   <property name="text">
+    <string>Extract Embedded Images ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Extract the original image streams embedded in a PDF.</string>
+   </property>
+  </action>
+  <action name="actionRenderPdfPages">
+   <property name="text">
+    <string>Render PDF Pages to TIFF ...</string>
+   </property>
+   <property name="toolTip">
+    <string>Render complete PDF pages as TIFF images at 300 DPI.</string>
+   </property>
+  </action>
   <action name="actionNextPage">
    <property name="text">
     <string>Next Page</string>
@@ -1246,6 +1271,34 @@ QToolButton:pressed {
     <string>Select the next page. Shortcut: W.</string>
    </property>
   </action>
+  <action name="actionPrevTenPagesA">
+   <property name="text">
+    <string>Previous 10 Pages</string>
+   </property>
+   <property name="shortcut">
+    <string notr="true">A</string>
+   </property>
+   <property name="autoRepeat">
+    <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the page 10 pages earlier. Shortcut: A.</string>
+   </property>
+  </action>
+  <action name="actionNextTenPagesS">
+   <property name="text">
+    <string>Next 10 Pages</string>
+   </property>
+   <property name="shortcut">
+    <string notr="true">S</string>
+   </property>
+   <property name="autoRepeat">
+    <bool>true</bool>
+   </property>
+   <property name="toolTip">
+    <string>Select the page 10 pages later. Shortcut: S.</string>
+   </property>
+  </action>
   <action name="actionCloseProject">
    <property name="text">
     <string>Close Project</string>
@@ -1271,7 +1324,7 @@ QToolButton:pressed {
     <bool>false</bool>
    </property>
    <property name="toolTip">
-    <string>Exit ScanTailor Advanced. Shortcut: Ctrl+Q.</string>
+    <string>Exit %1. Shortcut: Ctrl+Q.</string>
    </property>
   </action>
   <action name="actionSettings">
@@ -1390,32 +1443,18 @@ QToolButton:pressed {
     <string>Find missing source images for this project.</string>
    </property>
   </action>
-  <action name="actionReverseTwoPageOrder">
-   <property name="text">
-    <string>Reverse two-page spread order</string>
-   </property>
-   <property name="toolTip">
-    <string>Swap left/right page order for two-page scans (e.g. Japanese book reading order).</string>
-   </property>
-   <property name="shortcut">
-    <string notr="true"/>
-   </property>
-   <property name="autoRepeat">
-    <bool>false</bool>
-   </property>
-  </action>
   <action name="actionSwitchFilter1">
    <property name="text">
     <string>Switch filter to orientation</string>
    </property>
    <property name="shortcut">
-    <string notr="true">O</string>
+    <string notr="true">Ctrl+1</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
    </property>
    <property name="toolTip">
-    <string>Open the manual Fix Orientation stage. It does not automatically detect upside-down text. Shortcut: O.</string>
+    <string>Open the manual Fix Orientation stage. It does not automatically detect upside-down text. Shortcut: Ctrl+1.</string>
    </property>
   </action>
   <action name="actionSwitchFilter2">
@@ -1423,10 +1462,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to split pages</string>
+    <string>Switch filter to split pages. Shortcut: Ctrl+2.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">E</string>
+    <string notr="true">Ctrl+2</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1437,10 +1476,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to deskew</string>
+    <string>Switch filter to deskew. Shortcut: Ctrl+3.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">N</string>
+    <string notr="true">Ctrl+3</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1451,10 +1490,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to select content</string>
+    <string>Switch filter to select content. Shortcut: Ctrl+4.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">V</string>
+    <string notr="true">Ctrl+4</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1465,10 +1504,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to margins</string>
+    <string>Switch filter to margins. Shortcut: Ctrl+5.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">K</string>
+    <string notr="true">Ctrl+5</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>
@@ -1479,10 +1518,10 @@ QToolButton:pressed {
     <string>Switch filter to orientation</string>
    </property>
    <property name="toolTip">
-    <string>Switch filter to output</string>
+    <string>Switch filter to output. Shortcut: Ctrl+6.</string>
    </property>
    <property name="shortcut">
-    <string notr="true">P</string>
+    <string notr="true">Ctrl+6</string>
    </property>
    <property name="autoRepeat">
     <bool>false</bool>

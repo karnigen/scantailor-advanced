@@ -15,8 +15,8 @@
     </message>
     <message>
         <location filename="../app/AboutDialog.ui" line="33"/>
-        <source>Scan Tailor is an interactive post-processing tool for scanned pages. It performs operations such as page splitting, skew correction, adding/removing margins, and others. You give it raw scans, and you get pages ready to be printed or assembled into a PDF or DJVU file.  Scanning and optical character recognition is out of scope of this project.</source>
-        <translation>Scan Tailor é uma ferramenta de pós-processamento interativa para páginas digitalizadas. Executa operações como divisão de página, correção de inclinação, adição / remoção de margens e outras. Você carrega digitalizações e obterá as páginas prontas para imprimir ou criara um arquivo PDF ou DJVU. A digitalização e o reconhecimento óptico de caracteres (OCR) não fazem parte deste projeto.</translation>
+        <source>%1 is an interactive post-processing tool for scanned pages. It performs operations such as page splitting, skew correction, adding/removing margins, and others. You give it raw scans, and you get pages ready to be printed or assembled into a PDF or DJVU file.  Scanning and optical character recognition is out of scope of this project.</source>
+        <translation>%1 é uma ferramenta de pós-processamento interativa para páginas digitalizadas. Executa operações como divisão de página, correção de inclinação, adição / remoção de margens e outras. Você carrega digitalizações e obterá as páginas prontas para imprimir ou criara um arquivo PDF ou DJVU. A digitalização e o reconhecimento óptico de caracteres (OCR) não fazem parte deste projeto.</translation>
     </message>
     <message>
         <location filename="../app/AboutDialog.ui" line="110"/>

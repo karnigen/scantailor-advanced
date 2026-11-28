@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
+set(APPLICATION_DISPLAY_NAME "ScanTailor Advanced")
 set(target_name scantailor-advanced)
 
 # Disable in-source builds.
@@ -14,7 +15,7 @@ if (POLICY CMP0071)
   cmake_policy(SET CMP0071 NEW)
 endif()
 
-project("ScanTailor Advanced")
+project("${APPLICATION_DISPLAY_NAME}")
 
 # Set compiler flags.
 set(CMAKE_CXX_STANDARD 17)
@@ -273,6 +274,15 @@ string(REGEX REPLACE "[0-9]+\\.[0-9]+\\.([0-9]+)" "\\1" APPLICATION_VERSION_PATC
 
 set(SCANTAILOR_RESOURCES_DIR "${CMAKE_SOURCE_DIR}/src/resources")
 set(SCANTAILOR_TRANSLATIONS_DIR "${CMAKE_SOURCE_DIR}/src/translations")
+if (WIN32)
+  set(SCANTAILOR_PDF_HELPER_FILES
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.ps1"
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.ps1")
+else()
+  set(SCANTAILOR_PDF_HELPER_FILES
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/extract-images.sh"
+      "${CMAKE_SOURCE_DIR}/scripts/pdf/render-pages.sh")
+endif()
 
 configure_file(
     "${SCANTAILOR_RESOURCES_DIR}/unix/${target_name}.desktop.in"
@@ -283,7 +293,7 @@ option(INSTALL_FLATPAK_METAINFO "Install AppStream metadata for the Flatpak" OFF
 if (INSTALL_FLATPAK_METAINFO)
   string(TIMESTAMP FLATPAK_BUILD_DATE "%Y-%m-%d" UTC)
   configure_file(
-      "${CMAKE_SOURCE_DIR}/flatpak/org.scantailor.Advanced.metainfo.xml.in"
+      "${CMAKE_SOURCE_DIR}/scripts/build/flatpak/org.scantailor.Advanced.metainfo.xml.in"
       "${CMAKE_BINARY_DIR}/org.scantailor.Advanced.metainfo.xml"
       @ONLY)
   install(FILES "${CMAKE_BINARY_DIR}/org.scantailor.Advanced.metainfo.xml" DESTINATION "share/metainfo")
@@ -304,6 +314,22 @@ if (WIN32)
   install(FILES ${qm_files} DESTINATION "${CMAKE_INSTALL_BINDIR}/translations")
 else()
   install(FILES ${qm_files} DESTINATION "share/${APPLICATION_NAME}/translations")
+endif()
+
+# Install the optional PDF helper wrappers without bundling Poppler.
+option(INSTALL_PDF_HELPERS "Install optional PDF helper scripts" ON)
+if (INSTALL_PDF_HELPERS)
+  set(pdf_helpers_install_dir "share/${APPLICATION_NAME}/pdf-tools")
+  if (WIN32)
+    install(FILES ${SCANTAILOR_PDF_HELPER_FILES}
+        "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md"
+        DESTINATION "${pdf_helpers_install_dir}")
+  else()
+    install(PROGRAMS ${SCANTAILOR_PDF_HELPER_FILES}
+        DESTINATION "${pdf_helpers_install_dir}")
+    install(FILES "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md"
+        DESTINATION "${pdf_helpers_install_dir}")
+  endif()
 endif()
 
 # Install extra files.

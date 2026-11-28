@@ -15,6 +15,41 @@
   "cleanup": ["/include"],
   "modules": [
     {
+      "name": "poppler-tools",
+      "buildsystem": "cmake-ninja",
+      "builddir": true,
+      "config-opts": [
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_MANUAL_TESTS=OFF",
+        "-DBUILD_GTK_TESTS=OFF",
+        "-DBUILD_QT5_TESTS=OFF",
+        "-DBUILD_QT6_TESTS=OFF",
+        "-DBUILD_CPP_TESTS=OFF",
+        "-DENABLE_UTILS=ON",
+        "-DENABLE_CPP=OFF",
+        "-DENABLE_GLIB=OFF",
+        "-DENABLE_GOBJECT_INTROSPECTION=OFF",
+        "-DENABLE_GTK_DOC=OFF",
+        "-DENABLE_QT5=OFF",
+        "-DENABLE_QT6=OFF",
+        "-DENABLE_LIBCURL=OFF",
+        "-DENABLE_NSS3=OFF",
+        "-DENABLE_GPGME=OFF",
+        "-DENABLE_BOOST=OFF"
+      ],
+      "post-install": [
+        "test -x /app/bin/pdfimages",
+        "test -x /app/bin/pdftocairo"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://gitlab.freedesktop.org/poppler/poppler.git",
+          "commit": "82301134e41c86b4d65f652020c0059081211f38"
+        }
+      ]
+    },
+    {
       "name": "scantailor-advanced",
       "buildsystem": "cmake-ninja",
       "builddir": true,
@@ -32,7 +67,7 @@
       "sources": [
         {
           "type": "dir",
-          "path": "..",
+          "path": "../../..",
           "skip": [".git", ".flatpak-builder", "repo", "build-dir"]
         }
       ]

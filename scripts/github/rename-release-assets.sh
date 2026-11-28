@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/rename-release-assets.sh [-y|--yes] RELEASE_TAG SOURCE_VERSION TARGET_VERSION COLLISION_POLICY
+Usage: scripts/github/rename-release-assets.sh [-y|--yes] RELEASE_TAG SOURCE_VERSION TARGET_VERSION COLLISION_POLICY
 
 Rename versioned assets on an existing GitHub Release. This helper is shared by
 the RC build and stable release workflows:
@@ -31,11 +31,11 @@ change the release.
 
 Examples:
   # Rename stable asset names to RC names, then confirm interactively.
-  scripts/rename-release-assets.sh \
+  scripts/github/rename-release-assets.sh \
     v1.3.0-rc1 1.3.0 1.3.0-rc1 prefer-target
 
   # Restore stable names when promoting the RC; run without a prompt.
-  scripts/rename-release-assets.sh --yes \
+  scripts/github/rename-release-assets.sh --yes \
     v1.3.0-rc1 1.3.0-rc1 1.3.0 prefer-source
 EOF
 }

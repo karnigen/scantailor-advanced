@@ -26,13 +26,18 @@ class SplitModeDialog : public QDialog, private Ui::SplitModeDialog {
                   const PageId& curPage,
                   const PageSelectionAccessor& pageSelectionAccessor,
                   LayoutType layoutType,
-                  PageLayout::Type autoDetectedLayoutType);
+                  PageLayout::Type autoDetectedLayoutType,
+                  bool reversePageOrder);
 
   ~SplitModeDialog() override;
 
  signals:
 
-  void accepted(const std::set<PageId>& pages, LayoutType layoutType, bool applyCut);
+  void accepted(const std::set<PageId>& pages,
+                LayoutType layoutType,
+                bool applyCut,
+                bool applyPageOrder,
+                bool reversePageOrder);
 
  private slots:
 

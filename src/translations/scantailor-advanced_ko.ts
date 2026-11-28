@@ -13,8 +13,8 @@
         <translation>ScanTailor Advanced 정보</translation>
     </message>
     <message>
-        <source>Scan Tailor is an interactive post-processing tool for scanned pages. It performs operations such as page splitting, skew correction, adding/removing margins, and others. You give it raw scans, and you get pages ready to be printed or assembled into a PDF or DJVU file.  Scanning and optical character recognition is out of scope of this project.</source>
-        <translation>Scan Tailor는 스캔한 페이지를 처리하기 위한 상호 후처리 프로그램입니다. 페이지 분할, 기울기 보정, 여백 추가/제거 등과 같은 작업이 가능합니다. 막 스캔한 페이지를 이용해 PDF 또는 DJVU 파일로 인쇄 또는 저장할 수 있습니다. 스캔과 OCR에 관해서는 이 프로그램에서 다루지 않습니다. 한글패치 : mirusu400</translation>
+        <source>%1 is an interactive post-processing tool for scanned pages. It performs operations such as page splitting, skew correction, adding/removing margins, and others. You give it raw scans, and you get pages ready to be printed or assembled into a PDF or DJVU file.  Scanning and optical character recognition is out of scope of this project.</source>
+        <translation>%1은 스캔한 페이지를 처리하기 위한 상호 후처리 프로그램입니다. 페이지 분할, 기울기 보정, 여백 추가/제거 등과 같은 작업이 가능합니다. 막 스캔한 페이지를 이용해 PDF 또는 DJVU 파일로 인쇄 또는 저장할 수 있습니다. 스캔과 OCR에 관해서는 이 프로그램에서 다루지 않습니다. 한글패치 : mirusu400</translation>
     </message>
     <message>
         <source>Authors</source>

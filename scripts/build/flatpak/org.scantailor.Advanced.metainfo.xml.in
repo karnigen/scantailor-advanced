@@ -3,7 +3,7 @@
   <id>org.scantailor.Advanced</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-only</project_license>
-  <name>ScanTailor Advanced</name>
+  <name>@APPLICATION_DISPLAY_NAME@</name>
   <summary>Interactive post-processing tool for scanned pages</summary>
   <description>
     <p>Prepare scanned pages for printing or publishing by splitting, deskewing, and cleaning them.</p>

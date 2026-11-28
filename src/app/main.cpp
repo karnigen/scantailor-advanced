@@ -38,13 +38,14 @@ int main(int argc, char* argv[]) {
   QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
   Application app(argc, argv);
   Application::setApplicationName(APPLICATION_NAME);
+  Application::setApplicationDisplayName(APPLICATION_DISPLAY_NAME);
   Application::setOrganizationName(ORGANIZATION_NAME);
 
   QCommandLineParser parser;
   parser.setApplicationDescription(
-      QObject::tr("ScanTailor Advanced. Specify a project file or an existing directory to use as the initial "
-                  "input/output location. The default configuration directory is %1.")
-          .arg(core::toQString(SettingsStore::defaultConfigDirectory())));
+      QObject::tr("%1. Specify a project file or an existing directory to use as the initial "
+                  "input/output location. The default configuration directory is %2.")
+          .arg(QString::fromUtf8(APPLICATION_DISPLAY_NAME), core::toQString(SettingsStore::defaultConfigDirectory())));
   parser.addHelpOption();
   const QCommandLineOption configOption({"c", "config"},
                                         QObject::tr("Store settings in this directory (config.toml is created "

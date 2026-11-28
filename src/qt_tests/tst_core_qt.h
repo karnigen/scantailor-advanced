@@ -28,6 +28,7 @@ class TestCoreQt : public QObject {
   void testCancelledTasksFinishAsynchronously();
   void testContentBoxPropagationPersistsGeometry();
   void testCancelledContentUpdateIsPropagatedBeforeSave();
+  void testPerSpreadReadingDirectionPersistsAndAffectsOutputNames();
   void testImageViewResizePreservesZoomFocalPoint();
 };
 

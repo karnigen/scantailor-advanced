@@ -16,7 +16,8 @@ SplitModeDialog::SplitModeDialog(QWidget* const parent,
                                  const PageId& curPage,
                                  const PageSelectionAccessor& pageSelectionAccessor,
                                  const LayoutType layoutType,
-                                 const PageLayout::Type autoDetectedLayoutType)
+                                 const PageLayout::Type autoDetectedLayoutType,
+                                 const bool reversePageOrder)
     : QDialog(parent),
       m_pages(pageSelectionAccessor.allPages()),
       m_selectedPages(pageSelectionAccessor.selectedPages()),
@@ -48,6 +49,12 @@ SplitModeDialog::SplitModeDialog(QWidget* const parent,
     applyCutOption->setEnabled(true);
   }
 
+  const bool uncutPage = m_layoutType == SINGLE_PAGE_UNCUT;
+  groupBox->setVisible(!uncutPage);
+  optionsBox->setVisible(!uncutPage);
+  reversePageOrderOption->setVisible(combinedLayoutType() == TWO_PAGES);
+  reversePageOrderOption->setChecked(reversePageOrder);
+
   connect(modeAuto, SIGNAL(pressed()), this, SLOT(autoDetectionSelected()));
   connect(modeManual, SIGNAL(pressed()), this, SLOT(manualModeSelected()));
   connect(buttonBox, SIGNAL(accepted()), this, SLOT(onSubmit()));
@@ -68,10 +75,15 @@ void SplitModeDialog::manualModeSelected() {
 
 void SplitModeDialog::onSubmit() {
   LayoutType layoutType = AUTO_LAYOUT_TYPE;
-  if (modeManual->isChecked()) {
+  if (m_layoutType == SINGLE_PAGE_UNCUT) {
+    layoutType = SINGLE_PAGE_UNCUT;
+  } else if (modeManual->isChecked()) {
     layoutType = combinedLayoutType();
   }
 
+  const bool applyCut = applyCutOption->isVisible() && applyCutOption->isChecked();
+  const bool applyPageOrder = reversePageOrderOption->isVisible();
+  const bool reversePageOrder = reversePageOrderOption->isChecked();
   std::set<PageId> pages;
 
   if (thisPageRB->isChecked()) {
@@ -81,7 +93,7 @@ void SplitModeDialog::onSubmit() {
   } else if (thisPageAndFollowersRB->isChecked()) {
     m_pages.selectPagePlusFollowers(m_curPage).swap(pages);
   } else if (selectedPagesRB->isChecked()) {
-    emit accepted(m_selectedPages, layoutType, applyCutOption->isChecked());
+    emit accepted(m_selectedPages, layoutType, applyCut, applyPageOrder, reversePageOrder);
     accept();
     return;
   } else if (everyOtherRB->isChecked()) {
@@ -92,7 +104,7 @@ void SplitModeDialog::onSubmit() {
     m_pages.selectEveryOtherInSubsetFromPage(m_curPage, m_selectedPages).swap(pages);
   }
 
-  emit accepted(pages, layoutType, applyCutOption->isChecked());
+  emit accepted(pages, layoutType, applyCut, applyPageOrder, reversePageOrder);
   // We assume the default connection from accepted() to accept()
   // was removed.
   accept();

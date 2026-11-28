@@ -1,8 +1,6 @@
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-set(target_name scantailor-advanced)
-
 set(resource_files
     resources.qrc
     dark_scheme/dark_scheme.qrc
@@ -95,6 +93,22 @@ if (WIN32)
   )
   install(CODE "execute_process(COMMAND \"${QT_BINDIR}/windeployqt\" \"\$\{CMAKE_INSTALL_PREFIX\}\")")
 endif()
+
+if (APPLE AND CMAKE_MACOSX_BUNDLE)
+  set(pdf_helpers_build_dir "$<TARGET_FILE_DIR:${target_name}>/../Resources/pdf-tools")
+else()
+  set(pdf_helpers_build_dir "$<TARGET_FILE_DIR:${target_name}>/share/${APPLICATION_NAME}/pdf-tools")
+endif()
+add_custom_command(
+    TARGET ${target_name}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${pdf_helpers_build_dir}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SCANTAILOR_PDF_HELPER_FILES}
+            "${pdf_helpers_build_dir}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/scripts/pdf/README.md" "${pdf_helpers_build_dir}"
+    COMMENT "Copy PDF helper scripts beside the application"
+    VERBATIM)
 
 translation_sources(${target_name} ${gui_only_sources} ${gui_only_ui_files})
 

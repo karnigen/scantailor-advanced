@@ -10,8 +10,13 @@
 
 #include <QDebug>
 #include <QtCore/QFile>
+#include <QtCore/QSaveFile>
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <new>
+#include <unordered_map>
+#include <vector>
 
 #include "ApplicationSettings.h"
 #include "Dpm.h"
@@ -40,13 +45,16 @@ class TiffWriter::TiffHandle {
  public:
   explicit TiffHandle(TIFF* handle) : m_handle(handle) {}
 
-  ~TiffHandle() {
-    if (m_handle) {
-      TIFFClose(m_handle);
-    }
-  }
+  ~TiffHandle() { close(); }
 
   TIFF* handle() const { return m_handle; }
+
+  void close() {
+    if (m_handle) {
+      TIFFClose(m_handle);
+      m_handle = nullptr;
+    }
+  }
 
  private:
   TIFF* m_handle;
@@ -54,8 +62,8 @@ class TiffWriter::TiffHandle {
 
 
 static tsize_t deviceRead(thandle_t context, tdata_t data, tsize_t size) {
-  // Not implemented.
-  return 0;
+  auto* dev = (QIODevice*) context;
+  return static_cast<tsize_t>(dev->read(static_cast<char*>(data), size));
 }
 
 static tsize_t deviceWrite(thandle_t context, tdata_t data, tsize_t size) {
@@ -85,6 +93,10 @@ static toff_t deviceSeek(thandle_t context, toff_t offset, int whence) {
 static int deviceClose(thandle_t context) {
   auto* dev = (QIODevice*) context;
   dev->close();
+  return 0;
+}
+
+static int deviceCloseNoop(thandle_t) {
   return 0;
 }
 
@@ -159,6 +171,266 @@ bool TiffWriter::writeImage(QIODevice& device, const QImage& image) {
     return writeRGB32Image(tif, image.convertToFormat(QImage::Format_RGB32));
   }
 }  // TiffWriter::writeImage
+
+TiffWriter::RenderedPageOptimizationResult TiffWriter::optimizeRenderedPdfPage(const QString& filePath,
+                                                                               const int fallbackDpi) {
+  using Mode = RenderedPageColorMode;
+  using Result = RenderedPageOptimizationResult;
+  const auto errorResult = [](const QString& message) { return Result{Mode::Error, message}; };
+
+  try {
+    if (fallbackDpi <= 0) {
+      return errorResult(QStringLiteral("The fallback resolution must be positive."));
+    }
+
+    QFile inputDevice(filePath);
+    if (!inputDevice.open(QIODevice::ReadOnly)) {
+      return errorResult(inputDevice.errorString());
+    }
+
+    TiffHandle input(TIFFClientOpen("rendered-page", "r", &inputDevice, &deviceRead, &deviceWrite, &deviceSeek,
+                                    &deviceClose, &deviceSize, &deviceMap, &deviceUnmap));
+    if (!input.handle()) {
+      return errorResult(QStringLiteral("Could not read the rendered TIFF."));
+    }
+    if (!TIFFLastDirectory(input.handle())) {
+      return {Mode::Unsupported, {}};
+    }
+
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint16_t bitsPerSample = 0;
+    uint16_t samplesPerPixel = 0;
+    uint16_t photometric = 0;
+    uint16_t planarConfig = PLANARCONFIG_CONTIG;
+    uint16_t sampleFormat = SAMPLEFORMAT_UINT;
+    uint16_t compression = COMPRESSION_NONE;
+    uint16_t orientation = ORIENTATION_TOPLEFT;
+    if (!TIFFGetField(input.handle(), TIFFTAG_IMAGEWIDTH, &width)
+        || !TIFFGetField(input.handle(), TIFFTAG_IMAGELENGTH, &height)
+        || !TIFFGetField(input.handle(), TIFFTAG_BITSPERSAMPLE, &bitsPerSample)
+        || !TIFFGetField(input.handle(), TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel)
+        || !TIFFGetField(input.handle(), TIFFTAG_PHOTOMETRIC, &photometric)) {
+      return errorResult(QStringLiteral("The rendered TIFF is missing required image metadata."));
+    }
+    TIFFGetFieldDefaulted(input.handle(), TIFFTAG_PLANARCONFIG, &planarConfig);
+    TIFFGetFieldDefaulted(input.handle(), TIFFTAG_SAMPLEFORMAT, &sampleFormat);
+    TIFFGetFieldDefaulted(input.handle(), TIFFTAG_COMPRESSION, &compression);
+    TIFFGetFieldDefaulted(input.handle(), TIFFTAG_ORIENTATION, &orientation);
+
+    if (samplesPerPixel == 1 && sampleFormat == SAMPLEFORMAT_UINT && compression == COMPRESSION_LZW
+        && ((bitsPerSample == 1 && (photometric == PHOTOMETRIC_MINISBLACK || photometric == PHOTOMETRIC_MINISWHITE))
+            || (bitsPerSample == 8
+                && (photometric == PHOTOMETRIC_MINISBLACK || photometric == PHOTOMETRIC_MINISWHITE)))) {
+      return {bitsPerSample == 1 ? Mode::Bitonal : Mode::Grayscale, {}};
+    }
+
+    if (width == 0 || height == 0 || samplesPerPixel != 3 || bitsPerSample != 8 || photometric != PHOTOMETRIC_RGB
+        || planarConfig != PLANARCONFIG_CONTIG || sampleFormat != SAMPLEFORMAT_UINT) {
+      return {Mode::Unsupported, {}};
+    }
+
+    uint32_t iccProfileLength = 0;
+    void* iccProfile = nullptr;
+    if (TIFFGetField(input.handle(), TIFFTAG_ICCPROFILE, &iccProfileLength, &iccProfile)) {
+      return {Mode::Unsupported, {}};
+    }
+
+    const tmsize_t inputScanlineSize = TIFFScanlineSize(input.handle());
+    if (inputScanlineSize <= 0 || static_cast<uint64_t>(inputScanlineSize) < static_cast<uint64_t>(width) * 3) {
+      return errorResult(QStringLiteral("The rendered TIFF has an invalid scanline size."));
+    }
+
+    std::vector<uint8_t> inputScanline(static_cast<size_t>(inputScanlineSize));
+    std::unordered_map<uint32_t, uint8_t> paletteIndexes;
+    std::vector<uint32_t> palette;
+    paletteIndexes.reserve(256);
+    palette.reserve(256);
+    bool grayscale = true;
+    bool blackAndWhiteOnly = true;
+    bool hasBlack = false;
+    bool hasWhite = false;
+    bool paletteOverflow = false;
+
+    for (uint32_t y = 0; y < height; ++y) {
+      if (TIFFReadScanline(input.handle(), inputScanline.data(), y, 0) < 0) {
+        return errorResult(QStringLiteral("Could not analyze a rendered TIFF scanline."));
+      }
+
+      for (uint32_t x = 0; x < width; ++x) {
+        const size_t offset = static_cast<size_t>(x) * 3;
+        const uint8_t red = inputScanline[offset];
+        const uint8_t green = inputScanline[offset + 1];
+        const uint8_t blue = inputScanline[offset + 2];
+        grayscale = grayscale && red == green && green == blue;
+        blackAndWhiteOnly = blackAndWhiteOnly && (red == 0 || red == 255) && red == green && green == blue;
+        hasBlack = hasBlack || red == 0;
+        hasWhite = hasWhite || red == 255;
+
+        if (paletteOverflow) {
+          continue;
+        }
+        const uint32_t color = (static_cast<uint32_t>(red) << 16) | (static_cast<uint32_t>(green) << 8) | blue;
+        if (paletteIndexes.find(color) == paletteIndexes.end()) {
+          if (palette.size() == 256) {
+            paletteOverflow = true;
+            paletteIndexes.clear();
+            palette.clear();
+          } else {
+            const uint8_t index = static_cast<uint8_t>(palette.size());
+            paletteIndexes.emplace(color, index);
+            palette.push_back(color);
+          }
+        }
+      }
+    }
+
+    if (!grayscale && paletteOverflow) {
+      return {Mode::FullColor, {}};
+    }
+
+    const bool bitonal = grayscale && blackAndWhiteOnly && hasBlack && hasWhite;
+    const bool indexedColor = !grayscale;
+    const Mode outputMode = bitonal ? Mode::Bitonal : grayscale ? Mode::Grayscale : Mode::IndexedColor;
+    const uint16_t outputBitsPerSample = bitonal || (indexedColor && palette.size() == 2) ? 1 : 8;
+    const uint16_t outputPhotometric = indexedColor ? PHOTOMETRIC_PALETTE : PHOTOMETRIC_MINISBLACK;
+
+    float xResolution = static_cast<float>(fallbackDpi);
+    float yResolution = static_cast<float>(fallbackDpi);
+    uint16_t resolutionUnit = RESUNIT_INCH;
+    const bool hasXResolution = TIFFGetField(input.handle(), TIFFTAG_XRESOLUTION, &xResolution);
+    const bool hasYResolution = TIFFGetField(input.handle(), TIFFTAG_YRESOLUTION, &yResolution);
+    if (hasXResolution && hasYResolution) {
+      TIFFGetFieldDefaulted(input.handle(), TIFFTAG_RESOLUTIONUNIT, &resolutionUnit);
+    } else {
+      xResolution = static_cast<float>(fallbackDpi);
+      yResolution = static_cast<float>(fallbackDpi);
+      resolutionUnit = RESUNIT_INCH;
+    }
+
+    QSaveFile outputDevice(filePath);
+    if (!outputDevice.open(QIODevice::WriteOnly)) {
+      return errorResult(outputDevice.errorString());
+    }
+    TiffHandle output(TIFFClientOpen("optimized-page", "wBm", &outputDevice, &deviceRead, &deviceWrite, &deviceSeek,
+                                     &deviceCloseNoop, &deviceSize, &deviceMap, &deviceUnmap));
+    if (!output.handle()) {
+      outputDevice.cancelWriting();
+      return errorResult(QStringLiteral("Could not create an optimized TIFF."));
+    }
+
+    const bool fieldsWritten
+        = TIFFSetField(output.handle(), TIFFTAG_IMAGEWIDTH, width)
+          && TIFFSetField(output.handle(), TIFFTAG_IMAGELENGTH, height)
+          && TIFFSetField(output.handle(), TIFFTAG_SAMPLESPERPIXEL, uint16_t(1))
+          && TIFFSetField(output.handle(), TIFFTAG_BITSPERSAMPLE, outputBitsPerSample)
+          && TIFFSetField(output.handle(), TIFFTAG_SAMPLEFORMAT, uint16_t(SAMPLEFORMAT_UINT))
+          && TIFFSetField(output.handle(), TIFFTAG_PLANARCONFIG, uint16_t(PLANARCONFIG_CONTIG))
+          && TIFFSetField(output.handle(), TIFFTAG_PHOTOMETRIC, outputPhotometric)
+          && TIFFSetField(output.handle(), TIFFTAG_COMPRESSION, uint16_t(COMPRESSION_LZW))
+          && TIFFSetField(output.handle(), TIFFTAG_ORIENTATION, orientation)
+          && TIFFSetField(output.handle(), TIFFTAG_ROWSPERSTRIP, TIFFDefaultStripSize(output.handle(), 0))
+          && TIFFSetField(output.handle(), TIFFTAG_XRESOLUTION, xResolution)
+          && TIFFSetField(output.handle(), TIFFTAG_YRESOLUTION, yResolution)
+          && TIFFSetField(output.handle(), TIFFTAG_RESOLUTIONUNIT, resolutionUnit);
+    if (!fieldsWritten) {
+      output.close();
+      input.close();
+      outputDevice.cancelWriting();
+      return errorResult(QStringLiteral("Could not write optimized TIFF metadata."));
+    }
+
+    std::vector<uint16_t> redMap;
+    std::vector<uint16_t> greenMap;
+    std::vector<uint16_t> blueMap;
+    if (indexedColor) {
+      const size_t paletteSize = size_t(1) << outputBitsPerSample;
+      redMap.resize(paletteSize);
+      greenMap.resize(paletteSize);
+      blueMap.resize(paletteSize);
+      for (size_t i = 0; i < palette.size(); ++i) {
+        redMap[i] = static_cast<uint16_t>(((palette[i] >> 16) & 0xFF) * 257);
+        greenMap[i] = static_cast<uint16_t>(((palette[i] >> 8) & 0xFF) * 257);
+        blueMap[i] = static_cast<uint16_t>((palette[i] & 0xFF) * 257);
+      }
+      if (!TIFFSetField(output.handle(), TIFFTAG_COLORMAP, redMap.data(), greenMap.data(), blueMap.data())) {
+        output.close();
+        input.close();
+        outputDevice.cancelWriting();
+        return errorResult(QStringLiteral("Could not write the indexed TIFF color map."));
+      }
+    }
+
+    const tmsize_t outputScanlineSize = TIFFScanlineSize(output.handle());
+    if (outputScanlineSize <= 0) {
+      output.close();
+      input.close();
+      outputDevice.cancelWriting();
+      return errorResult(QStringLiteral("The optimized TIFF has an invalid scanline size."));
+    }
+    std::vector<uint8_t> outputScanline(static_cast<size_t>(outputScanlineSize), 0);
+    for (uint32_t y = 0; y < height; ++y) {
+      if (TIFFReadScanline(input.handle(), inputScanline.data(), y, 0) < 0) {
+        output.close();
+        input.close();
+        outputDevice.cancelWriting();
+        return errorResult(QStringLiteral("Could not read a rendered TIFF scanline."));
+      }
+      std::fill(outputScanline.begin(), outputScanline.end(), 0);
+      for (uint32_t x = 0; x < width; ++x) {
+        const size_t sourceOffset = static_cast<size_t>(x) * 3;
+        const uint8_t red = inputScanline[sourceOffset];
+        if (bitonal) {
+          if (red == 255) {
+            outputScanline[x / 8] |= static_cast<uint8_t>(0x80 >> (x % 8));
+          }
+        } else if (grayscale) {
+          outputScanline[x] = red;
+        } else {
+          const uint32_t color = (static_cast<uint32_t>(red) << 16)
+                                 | (static_cast<uint32_t>(inputScanline[sourceOffset + 1]) << 8)
+                                 | inputScanline[sourceOffset + 2];
+          const auto index = paletteIndexes.find(color);
+          if (index == paletteIndexes.end()) {
+            output.close();
+            input.close();
+            outputDevice.cancelWriting();
+            return errorResult(QStringLiteral("The rendered TIFF changed during color indexing."));
+          }
+          if (outputBitsPerSample == 1) {
+            if (index->second != 0) {
+              outputScanline[x / 8] |= static_cast<uint8_t>(0x80 >> (x % 8));
+            }
+          } else {
+            outputScanline[x] = index->second;
+          }
+        }
+      }
+      if (TIFFWriteScanline(output.handle(), outputScanline.data(), y, 0) < 0) {
+        output.close();
+        input.close();
+        outputDevice.cancelWriting();
+        return errorResult(QStringLiteral("Could not write an optimized TIFF scanline."));
+      }
+    }
+
+    if (!TIFFWriteDirectory(output.handle())) {
+      output.close();
+      input.close();
+      outputDevice.cancelWriting();
+      return errorResult(QStringLiteral("Could not finish writing the optimized TIFF directory."));
+    }
+
+    output.close();
+    input.close();
+    if (!outputDevice.commit()) {
+      return errorResult(outputDevice.errorString());
+    }
+    return {outputMode, {}};
+  } catch (const std::bad_alloc&) {
+    return errorResult(QStringLiteral("Not enough memory to optimize the rendered TIFF."));
+  }
+}
 
 /**
  * Set the physical resolution, if it's defined.

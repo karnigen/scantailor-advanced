@@ -4,13 +4,19 @@
 
 #include "MainWindow.h"
 
+#include <config.h>
+
 #include <core/ApplicationSettings.h>
 #include <core/IconProvider.h>
 #include <core/PathUtils.h>
 #include <core/SettingsStore.h>
 
+#include <DpiPresets.h>
+
 #include <QActionGroup>
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDialog>
@@ -20,21 +26,34 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemModel>
+#include <QFont>
+#include <QFormLayout>
 #include <QFrame>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QImageReader>
+#include <QIntValidator>
 #include <QKeySequence>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPalette>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QResource>
 #include <QScrollBar>
 #include <QSet>
 #include <QSortFilterProxyModel>
+#include <QSpinBox>
 #include <QStackedLayout>
+#include <QStandardPaths>
 #include <QStringList>
+#include <QStyle>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTextBrowser>
 #include <QThread>
@@ -45,6 +64,7 @@
 #include <atomic>
 #include <cmath>
 #include <exception>
+#include <limits>
 #include <memory>
 
 #include "AbstractRelinker.h"
@@ -92,6 +112,7 @@
 #include "TabbedDebugImages.h"
 #include "ThumbnailFactory.h"
 #include "ThumbnailViewMode.h"
+#include "TiffWriter.h"
 #include "UnitsProvider.h"
 #include "Utils.h"
 #include "WorkerThreadPool.h"
@@ -117,6 +138,32 @@
 using namespace core;
 
 namespace {
+
+QString findPdfHelperScript(const QString& fileName) {
+  QStringList applicationDirs{QCoreApplication::applicationDirPath()};
+  const QString executablePath = QFileInfo(QCoreApplication::applicationFilePath()).canonicalFilePath();
+  if (!executablePath.isEmpty()) {
+    const QString resolvedDir = QFileInfo(executablePath).absolutePath();
+    if (!applicationDirs.contains(resolvedDir)) {
+      applicationDirs.push_back(resolvedDir);
+    }
+  }
+
+  QStringList candidates;
+  for (const QString& applicationDirPath : applicationDirs) {
+    const QDir applicationDir(applicationDirPath);
+    candidates << applicationDir.filePath(QStringLiteral("share/scantailor-advanced/pdf-tools/%1").arg(fileName))
+               << applicationDir.filePath(QStringLiteral("../share/scantailor-advanced/pdf-tools/%1").arg(fileName))
+               << applicationDir.filePath(QStringLiteral("../Resources/pdf-tools/%1").arg(fileName));
+  }
+  for (const QString& candidate : candidates) {
+    const QFileInfo fileInfo(candidate);
+    if (fileInfo.isFile()) {
+      return fileInfo.absoluteFilePath();
+    }
+  }
+  return {};
+}
 
 QString menuTitleWithoutMnemonic(const QString& title, QChar* mnemonic = nullptr) {
   QString visibleTitle;
@@ -226,6 +273,7 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   connect(&m_autoSaveTimer, SIGNAL(timeout()), SLOT(autoSaveProject()));
 
   setupUi(this);
+  actionQuit->setToolTip(tr("Exit %1. Shortcut: Ctrl+Q.").arg(QString::fromUtf8(APPLICATION_DISPLAY_NAME)));
   setupIcons();
   focusButton->setChecked(SettingsStore().boolValue("mainWindow/keepCurrentPageInView", true));
 
@@ -312,6 +360,8 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   addAction(actionPrevPage);
   addAction(actionPrevPageQ);
   addAction(actionNextPageW);
+  addAction(actionPrevTenPagesA);
+  addAction(actionNextTenPagesS);
   addAction(actionNextSelectedPage);
   addAction(actionPrevSelectedPage);
   addAction(actionNextSelectedPageW);
@@ -336,6 +386,8 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   connect(actionNextPage, SIGNAL(triggered(bool)), SLOT(goNextPage()));
   connect(actionPrevPageQ, SIGNAL(triggered(bool)), this, SLOT(goPrevPage()));
   connect(actionNextPageW, SIGNAL(triggered(bool)), this, SLOT(goNextPage()));
+  connect(actionPrevTenPagesA, SIGNAL(triggered(bool)), this, SLOT(goPrevTenPages()));
+  connect(actionNextTenPagesS, SIGNAL(triggered(bool)), this, SLOT(goNextTenPages()));
   connect(actionPrevSelectedPage, SIGNAL(triggered(bool)), SLOT(goPrevSelectedPage()));
   connect(actionNextSelectedPage, SIGNAL(triggered(bool)), SLOT(goNextSelectedPage()));
   connect(actionPrevSelectedPageQ, SIGNAL(triggered(bool)), this, SLOT(goPrevSelectedPage()));
@@ -346,6 +398,8 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   connect(actionSupportedImageFormats, &QAction::triggered, this, &MainWindow::showSupportedImageFormats);
   connect(actionExportProcessedImages, &QAction::triggered, this, &MainWindow::exportProcessedImages);
   connect(actionExportPagesToPdf, &QAction::triggered, this, &MainWindow::exportPagesToPdf);
+  connect(actionExtractPdfImages, &QAction::triggered, this, &MainWindow::extractPdfImages);
+  connect(actionRenderPdfPages, &QAction::triggered, this, &MainWindow::renderPdfPages);
   connect(actionCommandLineArguments, &QAction::triggered, this, &MainWindow::showCommandLineArguments);
   connect(actionConfiguration, &QAction::triggered, this, &MainWindow::showConfigurationDialog);
   connect(&OutOfMemoryHandler::instance(), SIGNAL(outOfMemory()), SLOT(handleOutOfMemorySituation()));
@@ -420,7 +474,6 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
   });
 
   connect(actionFixDpi, SIGNAL(triggered(bool)), SLOT(fixDpiDialogRequested()));
-  connect(actionReverseTwoPageOrder, SIGNAL(triggered(bool)), SLOT(toggleTwoPageSpreadReadingOrder()));
   connect(actionRelinking, SIGNAL(triggered(bool)), SLOT(showRelinkingDialog()));
 #ifdef ENABLE_DEBUG_FEATURES
   connect(actionDebug, SIGNAL(toggled(bool)), SLOT(debugToggled(bool)));
@@ -466,6 +519,17 @@ MainWindow::MainWindow(std::filesystem::path initialDirectory)
 }
 
 MainWindow::~MainWindow() {
+  cancelPdfOperation();
+  if (m_pdfHelperProcess && m_pdfHelperProcess->state() != QProcess::NotRunning) {
+    if (!m_pdfHelperProcess->waitForFinished(3000)) {
+      m_pdfHelperProcess->kill();
+      m_pdfHelperProcess->waitForFinished();
+    }
+  }
+  if (m_pdfOptimizationThread) {
+    m_pdfOptimizationThread->requestInterruption();
+    m_pdfOptimizationThread->wait();
+  }
   qApp->removeEventFilter(this);
   m_interactiveQueue->cancelAndClear();
   if (m_batchQueue) {
@@ -514,7 +578,7 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
     disambiguator.reset(new FileNameDisambiguator);
   }
 
-  m_outFileNameGen = OutputFileNameGenerator(disambiguator, outDir, pages->layoutDirection());
+  m_outFileNameGen = OutputFileNameGenerator(disambiguator, outDir, pages->layoutDirection(), pages);
   // These two need to go in this order.
   updateDisambiguationRecords(pages->toPageSequence(IMAGE_VIEW));
 
@@ -568,6 +632,11 @@ void MainWindow::switchToNewProject(const std::shared_ptr<ProjectPages>& pages,
     if (isProjectLoaded()) {
       m_projectModifiedTimer.start(300);
     }
+  });
+  connect(m_pages.get(), &ProjectPages::pageOrderChanged, this, [this]() {
+    resetThumbSequence(currentPageOrderProvider(), ThumbnailSequence::KEEP_SELECTION);
+    m_thumbSequence->invalidateAllThumbnails();
+    updateMainArea();
   });
 }  // MainWindow::switchToNewProject
 
@@ -675,23 +744,8 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
       wheelDeltaAccumulator += wheelDelta;
       const int pageSteps = wheelDeltaAccumulator / 120;
       wheelDeltaAccumulator %= 120;
-      if (pageSteps != 0 && !isBatchProcessingInProgress() && isProjectLoaded()) {
-        const PageInfo currentPage = m_thumbSequence->selectionLeader();
-        PageInfo targetPage = currentPage;
-        const bool moveBackward = pageSteps > 0;
-        const int pageStepSize = fastPageNavigation ? 10 : 1;
-        const int pagesToMove = std::abs(pageSteps) * pageStepSize;
-        for (int i = 0; i < pagesToMove && !targetPage.isNull(); ++i) {
-          const PageInfo nextPage
-              = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
-          if (nextPage.isNull()) {
-            break;
-          }
-          targetPage = nextPage;
-        }
-        if (!targetPage.isNull() && targetPage.id() != currentPage.id()) {
-          goToPage(targetPage.id());
-        }
+      if (pageSteps != 0) {
+        navigatePages(pageSteps, fastPageNavigation ? 10 : 1);
       }
       wheelEvent->accept();
       return true;
@@ -1210,6 +1264,36 @@ void MainWindow::goPrevPage() {
   }
 }
 
+void MainWindow::goNextTenPages() {
+  navigatePages(-1, 10);
+}
+
+void MainWindow::goPrevTenPages() {
+  navigatePages(1, 10);
+}
+
+void MainWindow::navigatePages(const int pageSteps, const int pageStepSize) {
+  if (isBatchProcessingInProgress() || !isProjectLoaded()) {
+    return;
+  }
+
+  const PageInfo currentPage = m_thumbSequence->selectionLeader();
+  PageInfo targetPage = currentPage;
+  const bool moveBackward = pageSteps > 0;
+  const int pagesToMove = std::abs(pageSteps) * pageStepSize;
+  for (int i = 0; i < pagesToMove && !targetPage.isNull(); ++i) {
+    const PageInfo nextPage
+        = moveBackward ? m_thumbSequence->prevPage(targetPage.id()) : m_thumbSequence->nextPage(targetPage.id());
+    if (nextPage.isNull()) {
+      break;
+    }
+    targetPage = nextPage;
+  }
+  if (!targetPage.isNull() && targetPage.id() != currentPage.id()) {
+    goToPage(targetPage.id());
+  }
+}
+
 void MainWindow::goNextSelectedPage() {
   if (isBatchProcessingInProgress() || !isProjectLoaded()) {
     return;
@@ -1322,18 +1406,6 @@ void MainWindow::pageContextMenuRequested(const PageInfo& pageInfo_, const QPoin
   }
 }  // MainWindow::pageContextMenuRequested
 
-void MainWindow::toggleTwoPageSpreadReadingOrder() {
-  if (!isProjectLoaded() || !m_pages) {
-    return;
-  }
-  const Qt::LayoutDirection nextDir
-      = (m_pages->layoutDirection() == Qt::LeftToRight) ? Qt::RightToLeft : Qt::LeftToRight;
-  m_pages->setLayoutDirection(nextDir);
-  m_outFileNameGen.setLayoutDirection(nextDir);
-  resetThumbSequence(currentPageOrderProvider(), ThumbnailSequence::KEEP_SELECTION);
-  invalidateAllThumbnails();
-}
-
 void MainWindow::pastLastPageContextMenuRequested(const QPoint& screenPos) {
   if (!isProjectLoaded()) {
     return;
@@ -1440,7 +1512,6 @@ void MainWindow::waitForCancelledTasks() {
     removeFilterOptionsWidget();
     actionFixDpi->setEnabled(false);
     actionRelinking->setEnabled(false);
-    actionReverseTwoPageOrder->setEnabled(false);
     if (m_fixDpiDialog) {
       m_fixDpiDialog->setEnabled(false);
     }
@@ -2259,21 +2330,116 @@ void MainWindow::exportProcessedImages() {
   }
 
   const QStringList formats = ProcessedPagesExporter::supportedImageFormats();
-  bool formatAccepted = false;
-  const int webpIndex = formats.indexOf(QStringLiteral("webp"));
-  const QString format = QInputDialog::getItem(this, tr("Export Processed Pages"), tr("Image format:"), formats,
-                                               qMax(0, webpIndex), false, &formatAccepted);
-  if (!formatAccepted || format.isEmpty()) {
-    return;
-  }
-
-  const QString outputDirectory = QFileDialog::getExistingDirectory(
-      this, tr("Select Export Directory"), core::toQString(m_outFileNameGen.outDir()), QFileDialog::ShowDirsOnly);
-  if (outputDirectory.isEmpty()) {
-    return;
-  }
+  const QString defaultFormat = formats.contains(QStringLiteral("webp")) ? QStringLiteral("webp") : formats.value(0);
+  const QString lastFormat = SettingsStore().stringValue(QStringLiteral("settings/image_export_format"), defaultFormat);
+  const int savedFormatIndex = formats.indexOf(lastFormat.toLower());
 
   const PageSequence pages = m_thumbSequence->toPageSequence();
+  int minimumDpi = 150;
+  if (pages.numPages() > 0) {
+    minimumDpi = std::numeric_limits<int>::max();
+    const auto& outputFilter = m_stages->outputFilter();
+    for (const PageInfo& page : pages) {
+      const Dpi dpi(outputFilter->outputDpi(page.id()));
+      minimumDpi = std::min({minimumDpi, dpi.horizontal(), dpi.vertical()});
+    }
+  }
+
+  const QString defaultBaseDirectory = core::toQString(m_outFileNameGen.outDir());
+  QDialog exportDialog(this);
+  exportDialog.setWindowTitle(tr("Export Processed Pages as Images"));
+  auto* exportLayout = new QVBoxLayout(&exportDialog);
+  auto* formLayout = new QFormLayout;
+  exportLayout->addLayout(formLayout);
+
+  auto* formatCombo = new QComboBox(&exportDialog);
+  formatCombo->addItems(formats);
+  formatCombo->setCurrentIndex(savedFormatIndex >= 0 ? savedFormatIndex : 0);
+  formLayout->addRow(tr("Image format:"), formatCombo);
+
+  auto* baseDirectoryRowWidget = new QWidget(&exportDialog);
+  auto* baseDirectoryRow = new QHBoxLayout(baseDirectoryRowWidget);
+  baseDirectoryRow->setContentsMargins(0, 0, 0, 0);
+  auto* baseDirectoryEdit = new QLineEdit(defaultBaseDirectory, &exportDialog);
+  auto* browseButton = new QPushButton(tr("Browse..."), &exportDialog);
+  baseDirectoryRow->addWidget(baseDirectoryEdit, 1);
+  baseDirectoryRow->addWidget(browseButton);
+  formLayout->addRow(tr("Export path:"), baseDirectoryRowWidget);
+
+  auto* createSubdirectoryCheck = new QCheckBox(tr("Create subdirectory:"), &exportDialog);
+  createSubdirectoryCheck->setChecked(true);
+  auto* subdirectoryEdit
+      = new QLineEdit(QStringLiteral("%1_%2").arg(formatCombo->currentText()).arg(minimumDpi), &exportDialog);
+  formLayout->addRow(createSubdirectoryCheck, subdirectoryEdit);
+
+  bool subdirectoryNameEdited = false;
+  connect(subdirectoryEdit, &QLineEdit::textEdited, &exportDialog,
+          [&subdirectoryNameEdited]() { subdirectoryNameEdited = true; });
+  connect(formatCombo, &QComboBox::currentTextChanged, &exportDialog,
+          [subdirectoryEdit, &subdirectoryNameEdited, minimumDpi](const QString& format) {
+            if (!subdirectoryNameEdited) {
+              subdirectoryEdit->setText(QStringLiteral("%1_%2").arg(format).arg(minimumDpi));
+            }
+          });
+  connect(createSubdirectoryCheck, &QCheckBox::toggled, subdirectoryEdit, &QLineEdit::setEnabled);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &exportDialog);
+  buttonBox->button(QDialogButtonBox::Save)->setText(tr("Export"));
+  exportLayout->addWidget(buttonBox);
+  exportDialog.setMinimumWidth(600);
+  exportDialog.resize(640, exportDialog.sizeHint().height());
+
+  connect(browseButton, &QPushButton::clicked, &exportDialog, [&]() {
+    const QFileInfo currentPath(baseDirectoryEdit->text().trimmed());
+    const QString initialDirectory = currentPath.isDir() ? currentPath.absoluteFilePath() : currentPath.absolutePath();
+    const QString parentDirectory = QFileDialog::getExistingDirectory(&exportDialog, tr("Select Export Path"),
+                                                                      initialDirectory, QFileDialog::ShowDirsOnly);
+    if (!parentDirectory.isEmpty()) {
+      baseDirectoryEdit->setText(parentDirectory);
+    }
+  });
+  connect(buttonBox, &QDialogButtonBox::accepted, &exportDialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &exportDialog, &QDialog::reject);
+  if (exportDialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  const QString format = formatCombo->currentText();
+  if (format.isEmpty()) {
+    QMessageBox::warning(this, tr("Image Export Failed"), tr("Please select an image format."));
+    return;
+  }
+
+  const QString baseDirectoryText = baseDirectoryEdit->text().trimmed();
+  if (baseDirectoryText.isEmpty()) {
+    QMessageBox::warning(this, tr("Image Export Failed"), tr("Please specify an export path."));
+    return;
+  }
+  const QString baseDirectory = QFileInfo(baseDirectoryText).absoluteFilePath();
+  const QString subdirectoryName = subdirectoryEdit->text().trimmed();
+  const bool createSubdirectory = createSubdirectoryCheck->isChecked();
+  if (createSubdirectory && subdirectoryName.isEmpty()) {
+    QMessageBox::warning(this, tr("Image Export Failed"), tr("Please specify a subdirectory name."));
+    return;
+  }
+  const bool useSubdirectory = createSubdirectory;
+  if (useSubdirectory
+      && (QDir::isAbsolutePath(subdirectoryName) || subdirectoryName == QStringLiteral(".")
+          || subdirectoryName == QStringLiteral("..") || subdirectoryName.contains(QLatin1Char('/'))
+          || subdirectoryName.contains(QLatin1Char('\\')))) {
+    QMessageBox::warning(this, tr("Image Export Failed"),
+                         tr("Enter a single subdirectory name without path separators."));
+    return;
+  }
+  const QString outputDirectory = useSubdirectory ? QDir(baseDirectory).filePath(subdirectoryName) : baseDirectory;
+  if (!QDir().mkpath(outputDirectory)) {
+    QMessageBox::warning(this, tr("Image Export Failed"),
+                         tr("Could not create the export directory: %1").arg(outputDirectory));
+    return;
+  }
+
+  SettingsStore().setValue(QStringLiteral("settings/image_export_format"), format);
+
   QProgressDialog progress(tr("Exporting processed pages..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()),
                            this);
   progress.setWindowModality(Qt::WindowModal);
@@ -2302,9 +2468,23 @@ void MainWindow::exportPagesToPdf() {
     return;
   }
 
+  const PageSequence pages = m_thumbSequence->toPageSequence();
+  int minimumDpi = 150;
+  if (pages.numPages() > 0) {
+    minimumDpi = std::numeric_limits<int>::max();
+    const auto& outputFilter = m_stages->outputFilter();
+    for (const PageInfo& page : pages) {
+      const Dpi dpi(outputFilter->outputDpi(page.id()));
+      minimumDpi = std::min({minimumDpi, dpi.horizontal(), dpi.vertical()});
+    }
+  }
+
+  const QString projectName = m_projectFile.empty() ? QStringLiteral("Unnamed")
+                                                    : QFileInfo(core::toQString(m_projectFile)).completeBaseName();
+  const QString defaultFileName = QStringLiteral("%1_%2.pdf").arg(projectName).arg(minimumDpi);
   QString outputFilePath = QFileDialog::getSaveFileName(
       this, tr("Export Processed Pages as PDF"),
-      QDir(core::toQString(m_outFileNameGen.outDir())).filePath(QStringLiteral("output.pdf")), tr("PDF files (*.pdf)"));
+      QDir(core::toQString(m_outFileNameGen.outDir())).filePath(defaultFileName), tr("PDF files (*.pdf)"));
   if (outputFilePath.isEmpty()) {
     return;
   }
@@ -2312,7 +2492,6 @@ void MainWindow::exportPagesToPdf() {
     outputFilePath += QStringLiteral(".pdf");
   }
 
-  const PageSequence pages = m_thumbSequence->toPageSequence();
   QProgressDialog progress(tr("Creating multi-page PDF..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()), this);
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(0);
@@ -2504,6 +2683,10 @@ void MainWindow::showAboutDialog() {
   Ui::AboutDialog ui;
   auto* dialog = new QDialog(this);
   ui.setupUi(dialog);
+  const QString displayName = QString::fromUtf8(APPLICATION_DISPLAY_NAME);
+  dialog->setWindowTitle(displayName);
+  ui.label_3->setText(displayName);
+  ui.label_4->setText(ui.label_4->text().arg(displayName));
   ui.version->setText(QString(tr("version ")) + QString::fromUtf8(VERSION));
 
   QResource license(":/GPLv3.html");
@@ -2565,6 +2748,7 @@ void MainWindow::disconnectFilterOptionsWidget() {
 void MainWindow::updateProjectActions() {
   const bool loaded = isProjectLoaded();
   const bool canExport = loaded && !isBatchProcessingInProgress();
+  menuPdfToImages->setEnabled(!loaded && m_pdfHelperProcess.isNull());
   actionReloadProject->setEnabled(loaded && !m_projectFile.empty() && !m_waitingForCancelledTasks
                                   && !isBatchProcessingInProgress());
   actionSaveProject->setEnabled(loaded);
@@ -2573,7 +2757,523 @@ void MainWindow::updateProjectActions() {
   actionExportPagesToPdf->setEnabled(canExport);
   actionFixDpi->setEnabled(loaded);
   actionRelinking->setEnabled(loaded);
-  actionReverseTwoPageOrder->setEnabled(loaded);
+}
+
+void MainWindow::extractPdfImages() {
+  runPdfHelper(false);
+}
+
+void MainWindow::renderPdfPages() {
+  runPdfHelper(true);
+}
+
+void MainWindow::cancelPdfOperation() {
+  if (!m_pdfCancellationRequested) {
+    return;
+  }
+
+  const bool wasAlreadyCancelled = m_pdfCancellationRequested->exchange(true);
+  if (!wasAlreadyCancelled && m_pdfHelperProgressDialog) {
+    m_pdfHelperProgressDialog->setLabelText(tr("Cancelling PDF operation..."));
+    m_pdfHelperProgressDialog->setCancelButtonText(tr("Cancelling..."));
+  }
+
+  if (m_pdfOptimizationThread) {
+    m_pdfOptimizationThread->requestInterruption();
+    return;
+  }
+
+  if (!m_pdfHelperProcess || m_pdfHelperProcess->state() == QProcess::NotRunning) {
+    return;
+  }
+
+#if defined(Q_OS_WIN)
+  QProcess::execute(QStringLiteral("taskkill"),
+                    {QStringLiteral("/PID"), QString::number(m_pdfHelperProcess->processId()), QStringLiteral("/T"),
+                     QStringLiteral("/F")});
+  if (m_pdfHelperProcess && m_pdfHelperProcess->state() != QProcess::NotRunning) {
+    m_pdfHelperProcess->kill();
+  }
+#else
+  QPointer<QProcess> process = m_pdfHelperProcess;
+  process->terminate();
+  QTimer::singleShot(3000, this, [process]() {
+    if (process && process->state() != QProcess::NotRunning) {
+      process->kill();
+    }
+  });
+#endif
+}
+
+void MainWindow::runPdfHelper(const bool renderPages) {
+  if (isProjectLoaded() || m_pdfHelperProcess) {
+    return;
+  }
+
+  const QString operation = renderPages ? tr("Render PDF Pages to TIFF") : tr("Extract Embedded Images");
+#if defined(Q_OS_WIN)
+  const QString helperName = renderPages ? QStringLiteral("render-pages.ps1") : QStringLiteral("extract-images.ps1");
+  const QString scriptPath = findPdfHelperScript(helperName);
+  if (scriptPath.isEmpty()) {
+    QMessageBox::warning(this, tr("PDF Tools Unavailable"),
+                         tr("The PDF helper scripts could not be found in the application installation."));
+    return;
+  }
+  QString interpreter = QStandardPaths::findExecutable(QStringLiteral("powershell.exe"));
+  if (interpreter.isEmpty()) {
+    interpreter = QStandardPaths::findExecutable(QStringLiteral("pwsh.exe"));
+  }
+  if (interpreter.isEmpty()) {
+    QMessageBox::warning(this, tr("PowerShell Unavailable"),
+                         tr("PowerShell is required to run the PDF helper scripts."));
+    return;
+  }
+#else
+  const QString helperName = renderPages ? QStringLiteral("render-pages.sh") : QStringLiteral("extract-images.sh");
+  const QString scriptPath = findPdfHelperScript(helperName);
+  if (scriptPath.isEmpty()) {
+    QMessageBox::warning(this, tr("PDF Tools Unavailable"),
+                         tr("The PDF helper scripts could not be found in the application installation."));
+    return;
+  }
+#endif
+
+  const QString initialDirectory = m_initialDirectory.empty() ? QDir::homePath() : core::toQString(m_initialDirectory);
+  QDialog setupDialog(this);
+  setupDialog.setWindowTitle(operation);
+  auto* dialogLayout = new QVBoxLayout(&setupDialog);
+
+  auto* headerLayout = new QHBoxLayout();
+  auto* headerIcon = new QLabel(&setupDialog);
+  headerIcon->setPixmap(style()->standardIcon(QStyle::SP_MessageBoxQuestion).pixmap(32, 32));
+  headerIcon->setAlignment(Qt::AlignTop);
+  headerLayout->addWidget(headerIcon, 0, Qt::AlignTop);
+
+  auto* headerTextLayout = new QVBoxLayout();
+  auto* heading = new QLabel(operation, &setupDialog);
+  QFont headingFont = heading->font();
+  headingFont.setBold(true);
+  headingFont.setPointSize(headingFont.pointSize() + 2);
+  heading->setFont(headingFont);
+  headerTextLayout->addWidget(heading);
+  const QString descriptionText
+      = renderPages
+            ? tr("Creates one complete TIFF per PDF page, including text and vector graphics. The selected DPI "
+                 "controls output detail. TIFF uses lossless LZW compression; searchable PDF text is not retained.")
+            : tr("Extracts embedded images as separate files without composing complete pages. Original pixel "
+                 "dimensions and formats are preserved where possible. The image-info report maps each image to "
+                 "its PDF page and lists its effective DPI. Text and vector graphics are not included.");
+  auto* description = new QLabel(descriptionText, &setupDialog);
+  description->setWordWrap(true);
+  headerTextLayout->addWidget(description);
+  headerLayout->addLayout(headerTextLayout, 1);
+  dialogLayout->addLayout(headerLayout);
+
+  auto* fileGroup = new QGroupBox(tr("Input and output"), &setupDialog);
+  auto* fileLayout = new QFormLayout(fileGroup);
+  auto* pdfPathEdit = new QLineEdit(fileGroup);
+  pdfPathEdit->setPlaceholderText(tr("Select a PDF file"));
+  pdfPathEdit->setClearButtonEnabled(true);
+  auto* pdfBrowseButton = new QPushButton(tr("Browse..."), fileGroup);
+  auto* pdfRow = new QWidget(fileGroup);
+  auto* pdfRowLayout = new QHBoxLayout(pdfRow);
+  pdfRowLayout->setContentsMargins(0, 0, 0, 0);
+  pdfRowLayout->addWidget(pdfPathEdit, 1);
+  pdfRowLayout->addWidget(pdfBrowseButton);
+  fileLayout->addRow(tr("PDF file:"), pdfRow);
+
+  auto* outputDirectoryEdit = new QLineEdit(fileGroup);
+  outputDirectoryEdit->setPlaceholderText(renderPages ? tr("Choose where to save the rendered TIFF pages")
+                                                      : tr("Choose where to save the extracted images"));
+  outputDirectoryEdit->setClearButtonEnabled(true);
+  auto* outputBrowseButton = new QPushButton(tr("Browse..."), fileGroup);
+  auto* outputRow = new QWidget(fileGroup);
+  auto* outputRowLayout = new QHBoxLayout(outputRow);
+  outputRowLayout->setContentsMargins(0, 0, 0, 0);
+  outputRowLayout->addWidget(outputDirectoryEdit, 1);
+  outputRowLayout->addWidget(outputBrowseButton);
+  fileLayout->addRow(tr("Output folder:"), outputRow);
+  dialogLayout->addWidget(fileGroup);
+
+  QComboBox* dpiSelector = nullptr;
+  if (renderPages) {
+    auto* settingsGroup = new QGroupBox(tr("Rendering settings"), &setupDialog);
+    auto* dpiLayout = new QHBoxLayout(settingsGroup);
+    dpiLayout->addWidget(new QLabel(tr("Resolution:"), settingsGroup));
+    dpiSelector = new QComboBox(settingsGroup);
+    for (const int dpi : constants::COMMON_DPI_PRESETS) {
+      dpiSelector->addItem(QString::number(dpi));
+    }
+    dpiSelector->setEditable(true);
+    dpiSelector->setInsertPolicy(QComboBox::NoInsert);
+    dpiSelector->setValidator(new QIntValidator(1, 2400, dpiSelector));
+    dpiSelector->setCurrentText(QStringLiteral("300"));
+    dpiSelector->setToolTip(tr("Choose a common DPI or enter a custom value from 1 to 2400."));
+    dpiLayout->addWidget(dpiSelector);
+    auto* dpiHint = new QLabel(tr("Higher resolution preserves more detail."), settingsGroup);
+    dpiLayout->addWidget(dpiHint);
+    dpiLayout->addStretch();
+    dialogLayout->addWidget(settingsGroup);
+  }
+  const QValidator* dpiValidator = dpiSelector ? dpiSelector->lineEdit()->validator() : nullptr;
+  const auto parseDpi = [dpiSelector, dpiValidator](bool* conversionSucceeded) {
+    if (!dpiSelector || !dpiValidator) {
+      *conversionSucceeded = false;
+      return 0;
+    }
+    return dpiValidator->locale().toInt(dpiSelector->currentText(), conversionSucceeded);
+  };
+
+  auto* contentsGroup = new QGroupBox(tr("Output folder contents"), &setupDialog);
+  auto* contentsLayout = new QVBoxLayout(contentsGroup);
+  auto* contents = new QListWidget(contentsGroup);
+  contents->setAlternatingRowColors(true);
+  contents->setSelectionMode(QAbstractItemView::NoSelection);
+  contents->setFocusPolicy(Qt::NoFocus);
+  contents->setUniformItemSizes(true);
+  contents->setIconSize(QSize(16, 16));
+  contents->setMinimumHeight(150);
+  contentsLayout->addWidget(contents);
+  dialogLayout->addWidget(contentsGroup, 1);
+
+  auto* setupButtons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &setupDialog);
+  QPushButton* startButton = setupButtons->button(QDialogButtonBox::Ok);
+  startButton->setText(renderPages ? tr("Render TIFF") : tr("Extract Images"));
+  startButton->setEnabled(false);
+  setupButtons->button(QDialogButtonBox::Cancel)->setDefault(true);
+  connect(setupButtons, &QDialogButtonBox::accepted, &setupDialog, &QDialog::accept);
+  connect(setupButtons, &QDialogButtonBox::rejected, &setupDialog, &QDialog::reject);
+  dialogLayout->addWidget(setupButtons);
+
+  auto refreshOutputContents = [&]() {
+    contents->clear();
+    const QString outputPath = outputDirectoryEdit->text().trimmed();
+    const QDir outputDirectory(outputPath);
+    if (outputPath.isEmpty() || !outputDirectory.exists()) {
+      contentsGroup->setTitle(tr("Output folder contents"));
+      new QListWidgetItem(tr("Select an output folder to preview its contents."), contents);
+      return;
+    }
+    if (!outputDirectory.isReadable()) {
+      contentsGroup->setTitle(tr("Output folder contents"));
+      new QListWidgetItem(tr("The selected output folder cannot be read."), contents);
+      return;
+    }
+
+    const QFileInfoList entries
+        = outputDirectory.entryInfoList(QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                                        QDir::DirsFirst | QDir::Name | QDir::IgnoreCase);
+    contentsGroup->setTitle(tr("Output folder contents (%1)").arg(entries.size()));
+    for (const QFileInfo& entry : entries) {
+      const QStyle::StandardPixmap iconType = entry.isDir() ? QStyle::SP_DirIcon : QStyle::SP_FileIcon;
+      new QListWidgetItem(style()->standardIcon(iconType), entry.fileName(), contents);
+    }
+    if (entries.isEmpty()) {
+      new QListWidgetItem(tr("The folder is empty."), contents);
+    }
+  };
+  auto updateStartButton = [&]() {
+    const QFileInfo pdfInfo(pdfPathEdit->text().trimmed());
+    const QFileInfo outputInfo(outputDirectoryEdit->text().trimmed());
+    bool dpiIsValid = true;
+    if (dpiSelector) {
+      bool conversionSucceeded = false;
+      const int dpi = parseDpi(&conversionSucceeded);
+      dpiIsValid = conversionSucceeded && dpi >= 1 && dpi <= 2400;
+    }
+    startButton->setEnabled(pdfInfo.isFile() && pdfInfo.isReadable()
+                            && pdfInfo.suffix().compare(QStringLiteral("pdf"), Qt::CaseInsensitive) == 0
+                            && outputInfo.isDir() && outputInfo.isReadable() && outputInfo.isWritable() && dpiIsValid);
+  };
+  bool outputDirectoryManuallySet = false;
+  connect(pdfPathEdit, &QLineEdit::textChanged, &setupDialog, [&](const QString& path) {
+    const QFileInfo pdfInfo(path.trimmed());
+    if (!outputDirectoryManuallySet && pdfInfo.isFile()) {
+      outputDirectoryEdit->setText(pdfInfo.absolutePath());
+    }
+    refreshOutputContents();
+    updateStartButton();
+  });
+  connect(outputDirectoryEdit, &QLineEdit::textEdited, &setupDialog,
+          [&outputDirectoryManuallySet](const QString&) { outputDirectoryManuallySet = true; });
+  connect(outputDirectoryEdit, &QLineEdit::textChanged, &setupDialog, [&](const QString&) {
+    refreshOutputContents();
+    updateStartButton();
+  });
+  if (dpiSelector) {
+    connect(dpiSelector, &QComboBox::currentTextChanged, &setupDialog, [&](const QString&) { updateStartButton(); });
+  }
+  connect(pdfBrowseButton, &QPushButton::clicked, &setupDialog, [&]() {
+    const QFileInfo currentPdf(pdfPathEdit->text().trimmed());
+    const QString dialogDirectory = currentPdf.isFile() ? currentPdf.absolutePath() : initialDirectory;
+    const QString selectedPath
+        = QFileDialog::getOpenFileName(&setupDialog, tr("Select PDF file"), dialogDirectory, tr("PDF files (*.pdf)"));
+    if (!selectedPath.isEmpty()) {
+      pdfPathEdit->setText(selectedPath);
+    }
+  });
+  connect(outputBrowseButton, &QPushButton::clicked, &setupDialog, [&]() {
+    const QString dialogDirectory
+        = outputDirectoryEdit->text().trimmed().isEmpty() ? initialDirectory : outputDirectoryEdit->text().trimmed();
+    const QString selectedPath = QFileDialog::getExistingDirectory(&setupDialog, tr("Select output folder"),
+                                                                   dialogDirectory, QFileDialog::ShowDirsOnly);
+    if (!selectedPath.isEmpty()) {
+      outputDirectoryManuallySet = true;
+      outputDirectoryEdit->setText(selectedPath);
+    }
+  });
+  refreshOutputContents();
+  setupDialog.resize(760, 600);
+  setupDialog.setSizeGripEnabled(true);
+  if (setupDialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  const QString pdfPath = QFileInfo(pdfPathEdit->text().trimmed()).absoluteFilePath();
+  const QString outputDirectoryPath = QDir(outputDirectoryEdit->text().trimmed()).absolutePath();
+  bool renderDpiIsValid = false;
+  const int renderDpi = renderPages ? parseDpi(&renderDpiIsValid) : 0;
+  if (renderPages && (!renderDpiIsValid || renderDpi < 1 || renderDpi > 2400)) {
+    QMessageBox::warning(this, tr("PDF Operation Failed"), tr("Enter a valid rendering resolution."));
+    return;
+  }
+  const QString dpiArgument = renderPages ? QString::number(renderDpi) : QString();
+  std::shared_ptr<QTemporaryDir> renderStagingDirectory;
+  if (renderPages) {
+    renderStagingDirectory = std::make_shared<QTemporaryDir>(
+        QDir(outputDirectoryPath).filePath(QStringLiteral(".scantailor-render-XXXXXX")));
+    if (!renderStagingDirectory->isValid()) {
+      QMessageBox::warning(this, tr("PDF Operation Failed"),
+                           tr("Could not create a temporary render folder in %1.").arg(outputDirectoryPath));
+      return;
+    }
+  }
+  const QString helperOutputDirectoryPath
+      = renderStagingDirectory ? renderStagingDirectory->path() : outputDirectoryPath;
+  const auto cancellationRequested = std::make_shared<std::atomic_bool>(false);
+  m_pdfCancellationRequested = cancellationRequested;
+
+  struct OptimizationSummary {
+    int bitonalPages = 0;
+    int grayscalePages = 0;
+    int indexedColorPages = 0;
+    int fullColorPages = 0;
+    int unchangedPages = 0;
+    QStringList errors;
+  };
+
+  auto* process = new QProcess(this);
+  m_pdfHelperProcess = process;
+  auto* progressDialog = new QProgressDialog(
+      renderPages ? tr("Rendering PDF pages...") : tr("Extracting embedded images..."), tr("Cancel"), 0, 0, this);
+  progressDialog->setWindowTitle(tr("PDF to Images"));
+  progressDialog->setWindowModality(Qt::WindowModal);
+  progressDialog->setMinimumDuration(0);
+  progressDialog->setAutoClose(false);
+  progressDialog->setAutoReset(false);
+  progressDialog->setWindowFlag(Qt::WindowCloseButtonHint, false);
+  m_pdfHelperProgressDialog = progressDialog;
+
+  connect(progressDialog, &QProgressDialog::canceled, this, &MainWindow::cancelPdfOperation);
+  const auto finishOperation = [this, process]() {
+    if (m_pdfHelperProcess == process) {
+      m_pdfHelperProcess = nullptr;
+      m_pdfCancellationRequested.reset();
+      if (m_pdfHelperProgressDialog) {
+        m_pdfHelperProgressDialog->close();
+        m_pdfHelperProgressDialog->deleteLater();
+        m_pdfHelperProgressDialog = nullptr;
+      }
+      updateProjectActions();
+    }
+    process->deleteLater();
+  };
+  connect(process, &QProcess::errorOccurred, this,
+          [this, process, operation, cancellationRequested, finishOperation](const QProcess::ProcessError error) {
+            if (error != QProcess::FailedToStart || m_pdfHelperProcess != process) {
+              return;
+            }
+            const QString errorMessage = process->errorString();
+            const bool wasCancelled = cancellationRequested->load();
+            finishOperation();
+            if (!wasCancelled) {
+              QMessageBox::warning(this, tr("PDF Operation Failed"),
+                                   tr("Could not start %1:\n%2").arg(operation, errorMessage));
+            }
+          });
+  connect(
+      process, &QProcess::finished, this,
+      [this, process, operation, renderPages, renderDpi, outputDirectoryPath, helperOutputDirectoryPath,
+       renderStagingDirectory, cancellationRequested,
+       finishOperation](const int exitCode, const QProcess::ExitStatus exitStatus) {
+        const QString output = QString::fromLocal8Bit(process->readAllStandardOutput()).trimmed();
+        const QString errorOutput = QString::fromLocal8Bit(process->readAllStandardError()).trimmed();
+
+        if (cancellationRequested->load()) {
+          finishOperation();
+          return;
+        }
+
+        if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+          if (renderPages) {
+            QStringList renderedFiles;
+            const QDir stagingDirectory(helperOutputDirectoryPath);
+            for (const QFileInfo& entry :
+                 stagingDirectory.entryInfoList(QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDir::Name)) {
+              if (entry.suffix().compare(QStringLiteral("tif"), Qt::CaseInsensitive) != 0
+                  && entry.suffix().compare(QStringLiteral("tiff"), Qt::CaseInsensitive) != 0) {
+                continue;
+              }
+              renderedFiles.append(entry.absoluteFilePath());
+            }
+
+            if (renderedFiles.isEmpty()) {
+              finishOperation();
+              QMessageBox::warning(
+                  this, tr("PDF Optimization Failed"),
+                  tr("The PDF renderer completed, but no newly created page TIFFs were found in the output folder."));
+              return;
+            }
+
+            if (m_pdfHelperProgressDialog) {
+              m_pdfHelperProgressDialog->setLabelText(tr("Analyzing and optimizing rendered TIFF pages..."));
+            }
+            auto summary = std::make_shared<OptimizationSummary>();
+            auto* optimizationThread = QThread::create([renderedFiles, renderDpi, summary, cancellationRequested]() {
+              for (const QString& filePath : renderedFiles) {
+                if (cancellationRequested->load()) {
+                  break;
+                }
+                const auto result = TiffWriter::optimizeRenderedPdfPage(filePath, renderDpi);
+                switch (result.mode) {
+                  case TiffWriter::RenderedPageColorMode::Bitonal:
+                    ++summary->bitonalPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::Grayscale:
+                    ++summary->grayscalePages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::IndexedColor:
+                    ++summary->indexedColorPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::FullColor:
+                    ++summary->fullColorPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::Unsupported:
+                    ++summary->unchangedPages;
+                    break;
+                  case TiffWriter::RenderedPageColorMode::Error:
+                    summary->errors.append(QFileInfo(filePath).fileName() + QStringLiteral(": ") + result.errorMessage);
+                    break;
+                }
+              }
+            });
+            optimizationThread->setParent(this);
+            m_pdfOptimizationThread = optimizationThread;
+            connect(optimizationThread, &QThread::finished, this,
+                    [this, optimizationThread, summary, renderedFiles, output, operation, outputDirectoryPath,
+                     renderStagingDirectory, cancellationRequested, finishOperation]() {
+                      m_pdfOptimizationThread = nullptr;
+                      optimizationThread->deleteLater();
+
+                      if (cancellationRequested->load()) {
+                        finishOperation();
+                        return;
+                      }
+
+                      QStringList publishedFiles;
+                      QString publishError;
+                      for (const QString& filePath : renderedFiles) {
+                        const QString destination = QDir(outputDirectoryPath).filePath(QFileInfo(filePath).fileName());
+                        if (QFileInfo::exists(destination) || !QFile::rename(filePath, destination)) {
+                          publishError = tr("Could not publish rendered page without overwriting an existing file: %1")
+                                             .arg(destination);
+                          break;
+                        }
+                        publishedFiles.append(destination);
+                      }
+                      if (!publishError.isEmpty()) {
+                        QStringList rollbackFailures;
+                        for (const QString& publishedFile : publishedFiles) {
+                          if (!QFile::remove(publishedFile) && QFileInfo::exists(publishedFile)) {
+                            rollbackFailures.append(publishedFile);
+                          }
+                        }
+                        if (!rollbackFailures.isEmpty()) {
+                          publishError += tr("\nCould not remove partially published files: %1")
+                                              .arg(rollbackFailures.join(QLatin1Char('\n')));
+                        }
+                        finishOperation();
+                        QMessageBox::warning(this, tr("PDF Operation Failed"), publishError);
+                        return;
+                      }
+
+                      finishOperation();
+
+                      QString message = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
+                      if (renderStagingDirectory) {
+                        message.replace(renderStagingDirectory->path(), outputDirectoryPath);
+                      }
+                      message += tr("\n\nPage storage: %1 bilevel, %2 grayscale, %3 indexed-color, "
+                                    "%4 full-color; %5 unchanged.")
+                                     .arg(summary->bitonalPages)
+                                     .arg(summary->grayscalePages)
+                                     .arg(summary->indexedColorPages)
+                                     .arg(summary->fullColorPages)
+                                     .arg(summary->unchangedPages);
+                      if (!summary->errors.isEmpty()) {
+                        message += tr("\n\nSome rendered pages could not be optimized:\n%1")
+                                       .arg(summary->errors.join(QLatin1Char('\n')));
+                        QMessageBox::warning(this, tr("PDF Optimization Incomplete"), message);
+                      } else if (summary->bitonalPages + summary->grayscalePages + summary->indexedColorPages
+                                     + summary->fullColorPages + summary->unchangedPages
+                                 != renderedFiles.size()) {
+                        message += tr("\nSome pages were not accounted for during optimization.");
+                        QMessageBox::warning(this, tr("PDF Optimization Incomplete"), message);
+                      } else {
+                        QMessageBox::information(this, operation, message);
+                      }
+                    });
+            optimizationThread->start();
+            return;
+          }
+
+          finishOperation();
+          const QString message = output.isEmpty() ? tr("The PDF operation completed successfully.") : output;
+          QMessageBox::information(this, operation, message);
+          return;
+        }
+
+        finishOperation();
+        const QString detail
+            = errorOutput.isEmpty() ? tr("The helper exited with code %1.").arg(exitCode) : errorOutput;
+        QMessageBox::warning(this, tr("PDF Operation Failed"), detail);
+      });
+
+  progressDialog->show();
+#if defined(Q_OS_WIN)
+  QStringList arguments{QStringLiteral("-NoProfile"),
+                        QStringLiteral("-NonInteractive"),
+                        QStringLiteral("-ExecutionPolicy"),
+                        QStringLiteral("Bypass"),
+                        QStringLiteral("-File"),
+                        scriptPath,
+                        QStringLiteral("-PdfPath"),
+                        pdfPath,
+                        QStringLiteral("-OutputDirectory"),
+                        helperOutputDirectoryPath};
+  if (renderPages) {
+    arguments << QStringLiteral("-Dpi") << dpiArgument;
+  }
+  process->start(interpreter, arguments);
+#else
+  QStringList arguments;
+  if (renderPages) {
+    arguments << QStringLiteral("--dpi") << dpiArgument;
+  }
+  arguments << pdfPath << helperOutputDirectoryPath;
+  process->start(scriptPath, arguments);
+#endif
+  updateProjectActions();
 }
 
 bool MainWindow::isBatchProcessingInProgress() const {
@@ -2708,7 +3408,10 @@ void MainWindow::updateWindowTitle() {
     projectName = QFileInfo(core::toQString(m_projectFile)).completeBaseName();
   }
   const QString version(QString::fromUtf8(VERSION));
-  setWindowTitle(tr("[*] %2 - ScanTailor Advanced [%1bit]").arg(sizeof(void*) * 8).arg(projectName));
+  setWindowTitle(tr("[*] %2 - %3 [%1bit]")
+                     .arg(sizeof(void*) * 8)
+                     .arg(projectName)
+                     .arg(QString::fromUtf8(APPLICATION_DISPLAY_NAME)));
   setWindowModified(m_projectModified);
 }
 
@@ -3204,6 +3907,7 @@ void MainWindow::changeEvent(QEvent* event) {
     switch (event->type()) {
       case QEvent::LanguageChange:
         retranslateUi(this);
+        actionQuit->setToolTip(tr("Exit %1. Shortcut: Ctrl+Q.").arg(QString::fromUtf8(APPLICATION_DISPLAY_NAME)));
         applyMenuMnemonics();
         updateWindowTitle();
         break;

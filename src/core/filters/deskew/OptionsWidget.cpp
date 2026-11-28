@@ -41,6 +41,9 @@ OptionsWidget::OptionsWidget(std::shared_ptr<Settings> settings, const PageSelec
       m_pageSelectionAccessor(pageSelectionAccessor),
       m_connectionManager(std::bind(&OptionsWidget::setupUiConnections, this)) {
   setupUi(this);
+  m_rotationReloadTimer.setSingleShot(true);
+  m_rotationReloadTimer.setInterval(500);
+  connect(&m_rotationReloadTimer, &QTimer::timeout, this, &OptionsWidget::reloadAfterRotation);
   auto* rotationModeGroup = new QButtonGroup(this);
   rotationModeGroup->setExclusive(true);
   rotationModeGroup->addButton(autoBtn);
@@ -118,10 +121,7 @@ void OptionsWidget::manualDeskewAngleSetExternally(const double degrees) {
   m_settings->cancelRecomputeRequest(m_pageId);
   commitCurrentParams();
 
-  if (m_uiData.obliqueMode() == MODE_AUTO) {
-    m_settings->requestRecompute(m_pageId, false, true);
-  }
-  emit reloadRequested();
+  scheduleRotationReload();
 }
 
 void OptionsWidget::manualObliqueAngleSetExternally(const double degrees) {
@@ -129,6 +129,7 @@ void OptionsWidget::manualObliqueAngleSetExternally(const double degrees) {
     return;
   }
 
+  m_rotationReloadTimer.stop();
   auto block = m_connectionManager.getScopedBlock();
 
   m_settings->cancelRecomputeRequest(m_pageId);
@@ -144,6 +145,11 @@ void OptionsWidget::manualObliqueAngleSetExternally(const double degrees) {
 void OptionsWidget::preUpdateUI(const PageId& pageId) {
   auto block = m_connectionManager.getScopedBlock();
 
+  const bool rotationReloadPending = m_rotationReloadTimer.isActive();
+  m_rotationReloadTimer.stop();
+  if (rotationReloadPending && m_uiData.obliqueMode() == MODE_AUTO) {
+    m_settings->requestRecompute(m_pageId, false, true);
+  }
   m_pageId = pageId;
   setSpinBoxUnknownState();
   autoBtn->setEnabled(false);
@@ -179,13 +185,11 @@ void OptionsWidget::spinBoxValueChanged(const double value) {
   commitCurrentParams();
 
   emit manualDeskewAngleSet(degrees);
-  if (m_uiData.obliqueMode() == MODE_AUTO) {
-    m_settings->requestRecompute(m_pageId, false, true);
-  }
-  emit reloadRequested();
+  scheduleRotationReload();
 }
 
 void OptionsWidget::modeChanged(const bool autoMode) {
+  m_rotationReloadTimer.stop();
   if (autoMode) {
     m_uiData.setMode(MODE_AUTO);
     updateModeIndication(MODE_AUTO);
@@ -203,6 +207,7 @@ void OptionsWidget::modeChanged(const bool autoMode) {
 
 void OptionsWidget::obliqueModeChanged(const AutoManualMode mode) {
   auto block = m_connectionManager.getScopedBlock();
+  m_rotationReloadTimer.stop();
 
   m_uiData.setObliqueMode(mode);
   updateObliqueModeIndication(mode);
@@ -304,6 +309,7 @@ void OptionsWidget::topEdgeToggled(bool checked) {
   const bool recomputeDeskew = autoBtn->isChecked();
   const bool recomputeOblique = obliqueAutoBtn->isChecked();
   if (recomputeDeskew || recomputeOblique) {
+    m_rotationReloadTimer.stop();
     m_settings->requestRecompute(m_pageId, recomputeDeskew, recomputeOblique);
     emit reloadRequested();
   }
@@ -311,6 +317,7 @@ void OptionsWidget::topEdgeToggled(bool checked) {
 
 void OptionsWidget::obliqueSpinBoxValueChanged(double value) {
   auto block = m_connectionManager.getScopedBlock();
+  m_rotationReloadTimer.stop();
 
   m_settings->cancelRecomputeRequest(m_pageId);
   m_uiData.setEffectiveObliqueAngle(value);
@@ -319,6 +326,17 @@ void OptionsWidget::obliqueSpinBoxValueChanged(double value) {
   commitCurrentParams();
   emit manualObliqueAngleSet(value);
   emit invalidateThumbnail(m_pageId);
+  emit reloadRequested();
+}
+
+void OptionsWidget::scheduleRotationReload() {
+  m_rotationReloadTimer.start();
+}
+
+void OptionsWidget::reloadAfterRotation() {
+  if (m_uiData.obliqueMode() == MODE_AUTO) {
+    m_settings->requestRecompute(m_pageId, false, true);
+  }
   emit reloadRequested();
 }
 

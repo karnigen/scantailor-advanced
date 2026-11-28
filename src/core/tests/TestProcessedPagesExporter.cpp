@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
+// SPDX-FileCopyrightText: 2026 project contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,8 +33,8 @@ struct ExportFixture {
     REQUIRE(QDir().mkpath(outputDirectory));
   }
 
-  PageInfo addPage(const QString& sourcePath, const int color) {
-    const QImage image(QSize(20, 30), QImage::Format_RGB32);
+  PageInfo addPage(const QString& sourcePath, const int color, const QSize size = QSize(20, 30)) {
+    const QImage image(size, QImage::Format_RGB32);
     QImage processedImage(image);
     processedImage.fill(color);
     processedImage.setDotsPerMeterX(qRound(150.0 / 0.0254));
@@ -140,6 +140,41 @@ TEST_CASE("Processed pages can be exported as a multi-page PDF", "[processed-pag
   const QByteArray pdf = exported.readAll();
   CHECK(pdf.left(5) == QByteArrayLiteral("%PDF-"));
   CHECK(exported.size() > 500);
+
+  const QByteArray mediaBoxMarker = QByteArrayLiteral("/MediaBox [");
+  REQUIRE(pdf.count(mediaBoxMarker) == 2);
+  const qsizetype firstMediaBox = pdf.indexOf(mediaBoxMarker);
+  const qsizetype secondMediaBox = pdf.indexOf(mediaBoxMarker, firstMediaBox + mediaBoxMarker.size());
+  const qsizetype firstMediaBoxEnd = pdf.indexOf(']', firstMediaBox);
+  const qsizetype secondMediaBoxEnd = pdf.indexOf(']', secondMediaBox);
+  REQUIRE(firstMediaBoxEnd >= 0);
+  REQUIRE(secondMediaBoxEnd >= 0);
+  CHECK(pdf.mid(firstMediaBox, firstMediaBoxEnd - firstMediaBox)
+        == pdf.mid(secondMediaBox, secondMediaBoxEnd - secondMediaBox));
+}
+
+TEST_CASE("PDF export preserves different page dimensions", "[processed-pages-export]") {
+  ExportFixture fixture;
+  fixture.addPage(QStringLiteral("/input/page1.tif"), qRgb(40, 100, 160), QSize(20, 30));
+  fixture.addPage(QStringLiteral("/input/page2.tif"), qRgb(160, 100, 40), QSize(20, 40));
+  const QString pdfPath = QDir(fixture.tempDir.path()).filePath(QStringLiteral("different-sizes.pdf"));
+  QString errorMessage;
+
+  REQUIRE(ProcessedPagesExporter::exportPdf(fixture.pages, fixture.generator, pdfPath, {}, &errorMessage));
+
+  QFile exported(pdfPath);
+  REQUIRE(exported.open(QIODevice::ReadOnly));
+  const QByteArray pdf = exported.readAll();
+  const QByteArray mediaBoxMarker = QByteArrayLiteral("/MediaBox [");
+  REQUIRE(pdf.count(mediaBoxMarker) == 2);
+  const qsizetype firstMediaBox = pdf.indexOf(mediaBoxMarker);
+  const qsizetype secondMediaBox = pdf.indexOf(mediaBoxMarker, firstMediaBox + mediaBoxMarker.size());
+  const qsizetype firstMediaBoxEnd = pdf.indexOf(']', firstMediaBox);
+  const qsizetype secondMediaBoxEnd = pdf.indexOf(']', secondMediaBox);
+  REQUIRE(firstMediaBoxEnd >= 0);
+  REQUIRE(secondMediaBoxEnd >= 0);
+  CHECK(pdf.mid(firstMediaBox, firstMediaBoxEnd - firstMediaBox)
+        != pdf.mid(secondMediaBox, secondMediaBoxEnd - secondMediaBox));
 }
 
 TEST_CASE("New output pages default to a smaller resolution", "[processed-pages-export]") {

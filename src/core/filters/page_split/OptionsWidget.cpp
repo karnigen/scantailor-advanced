@@ -41,6 +41,7 @@ void OptionsWidget::preUpdateUI(const PageId& pageId) {
   auto block = m_connectionManager.getScopedBlock();
 
   m_pageId = pageId;
+  updateReadingOrderControl();
   const Settings::Record record(m_settings->getPageRecord(pageId.imageId()));
   const LayoutType layoutType(record.combinedLayoutType());
 
@@ -88,6 +89,7 @@ void OptionsWidget::postUpdateUI(const UiData& uiData) {
   auto block = m_connectionManager.getScopedBlock();
 
   m_uiData = uiData;
+  updateReadingOrderControl();
 
   changeBtn->setEnabled(true);
   autoBtn->setEnabled(true);
@@ -126,6 +128,7 @@ void OptionsWidget::pageLayoutSetExternally(const PageLayout& pageLayout) {
   m_uiData.setPageLayout(pageLayout);
   m_uiData.setSplitLineMode(MODE_MANUAL);
   commitCurrentParams();
+  updateReadingOrderControl();
 
   manualBtn->setChecked(true);
 
@@ -158,6 +161,7 @@ void OptionsWidget::layoutTypeButtonToggled(const bool checked) {
   scopeLabel->setText(tr("Set manually"));
 
   m_pages->setLayoutTypeFor(m_pageId.imageId(), plt);
+  updateReadingOrderControl();
 
   if ((lt == PAGE_PLUS_OFFCUT) || ((lt != SINGLE_PAGE_UNCUT) && (m_uiData.splitLineMode() == MODE_AUTO))) {
     m_settings->updatePage(m_pageId.imageId(), update);
@@ -193,19 +197,33 @@ void OptionsWidget::showChangeDialog() {
   }
 
   auto* dialog = new SplitModeDialog(this, m_pageId, m_pageSelectionAccessor, record.combinedLayoutType(),
-                                     params->pageLayout().type());
+                                     params->pageLayout().type(),
+                                     m_pages->layoutDirectionFor(m_pageId.imageId()) != m_pages->layoutDirection());
   dialog->setAttribute(Qt::WA_DeleteOnClose);
-  connect(dialog, SIGNAL(accepted(const std::set<PageId>&, LayoutType, bool)), this,
-          SLOT(layoutTypeSet(const std::set<PageId>&, LayoutType, bool)));
+  connect(dialog, SIGNAL(accepted(const std::set<PageId>&, LayoutType, bool, bool, bool)), this,
+          SLOT(layoutTypeSet(const std::set<PageId>&, LayoutType, bool, bool, bool)));
   dialog->show();
 }
 
-void OptionsWidget::layoutTypeSet(const std::set<PageId>& pages, const LayoutType layoutType, bool applyCut) {
+void OptionsWidget::layoutTypeSet(const std::set<PageId>& pages,
+                                  const LayoutType layoutType,
+                                  const bool applyCut,
+                                  const bool applyPageOrder,
+                                  const bool reversePageOrder) {
   if (pages.empty()) {
     return;
   }
 
   const Params params = *(m_settings->getPageRecord(m_pageId.imageId()).params());
+  const Qt::LayoutDirection projectDirection = m_pages->layoutDirection();
+  const Qt::LayoutDirection pageDirection
+      = reversePageOrder ? (projectDirection == Qt::LeftToRight ? Qt::RightToLeft : Qt::LeftToRight) : projectDirection;
+
+  if (applyPageOrder) {
+    for (const PageId& pageId : pages) {
+      m_pages->setLayoutDirectionFor(pageId.imageId(), pageDirection);
+    }
+  }
 
   if (layoutType != AUTO_LAYOUT_TYPE) {
     for (const PageId& pageId : pages) {
@@ -266,6 +284,10 @@ void OptionsWidget::splitLineModeChanged(const bool autoMode) {
   }
 }
 
+void OptionsWidget::readingDirectionToggled(const bool rightToLeft) {
+  m_pages->setLayoutDirectionFor(m_pageId.imageId(), rightToLeft ? Qt::RightToLeft : Qt::LeftToRight);
+}
+
 void OptionsWidget::commitCurrentParams() {
   const Params params(m_uiData.pageLayout(), m_uiData.dependencies(), m_uiData.splitLineMode());
   Settings::UpdateAction update;
@@ -279,8 +301,16 @@ void OptionsWidget::setupUiConnections() {
   CONNECT(singlePageUncutBtn, SIGNAL(toggled(bool)), this, SLOT(layoutTypeButtonToggled(bool)));
   CONNECT(pagePlusOffcutBtn, SIGNAL(toggled(bool)), this, SLOT(layoutTypeButtonToggled(bool)));
   CONNECT(twoPagesBtn, SIGNAL(toggled(bool)), this, SLOT(layoutTypeButtonToggled(bool)));
+  CONNECT(rightToLeftOrderCB, SIGNAL(toggled(bool)), this, SLOT(readingDirectionToggled(bool)));
   CONNECT(changeBtn, SIGNAL(clicked()), this, SLOT(showChangeDialog()));
   CONNECT(autoBtn, SIGNAL(toggled(bool)), this, SLOT(splitLineModeChanged(bool)));
+}
+
+void OptionsWidget::updateReadingOrderControl() {
+  auto block = m_connectionManager.getScopedBlock();
+  const ImageId& imageId = m_pageId.imageId();
+  rightToLeftOrderCB->setVisible(m_pages->numLogicalPagesFor(imageId) == 2);
+  rightToLeftOrderCB->setChecked(m_pages->layoutDirectionFor(imageId) == Qt::RightToLeft);
 }
 
 #undef CONNECT

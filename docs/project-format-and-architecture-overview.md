@@ -20,8 +20,7 @@ The project file is written by `ProjectWriter` and read by `ProjectReader`. The 
 images, pages, file-name disambiguation settings, and filter settings.
 
 The format version is stored in `<project version="...">` and is defined by `PROJECT_VERSION`
-in `version.h.in`. Both the available source copy and the upstream-style source copy currently
-define it as version 4.
+in `version.h.in`. This working tree currently writes format 5.
 
 Historical source tags confirm the version numbering:
 
@@ -31,6 +30,9 @@ Historical source tags confirm the version numbering:
 
 Therefore, project files written by releases 1.0.19 and 1.1.1 can be treated as format 3.
 The tag search confirms the transition to format 4 at 1.2.0, rather than at 1.1.1.
+Format 5 adds an optional per-image `readingDirection` attribute (`LTR` or `RTL`) to page-split
+settings. If omitted, the project-level layout direction remains the default. Older readers reject
+format 5 rather than opening and potentially discarding this setting when saving.
 
 One format-3 implementation change appears between `v1.0.19` and `v1.1.1`: the 1.1.1 writer
 stores paths relative to the project-file directory when possible, and the reader resolves those
@@ -39,8 +41,8 @@ original path representation. This is a relevant compatibility characteristic ev
 versions retain project format number 3.
 
 The current reader accepts versions from `MIN_READABLE_PROJECT_VERSION` through `PROJECT_VERSION`
-(currently 3 through 4). Opening a v3 project does not modify it: the UI reports known defaults
-and compatibility changes, and saving upgrades it to format 4 after preserving the original in a
+(currently 3 through 5). Opening a v3 project does not modify it: the UI reports known defaults
+and compatibility changes, and saving upgrades it to format 5 after preserving the original in a
 unique backup. Default-parameter profiles use the same readable version range; newly written
 profiles use the current version.
 

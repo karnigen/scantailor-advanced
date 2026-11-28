@@ -81,9 +81,15 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
 
   void layoutTypeButtonToggled(bool checked);
 
+  void readingDirectionToggled(bool rightToLeft);
+
   void showChangeDialog();
 
-  void layoutTypeSet(const std::set<PageId>& pages, LayoutType layoutType, bool applyCut);
+  void layoutTypeSet(const std::set<PageId>& pages,
+                     LayoutType layoutType,
+                     bool applyCut,
+                     bool applyPageOrder,
+                     bool reversePageOrder);
 
   void splitLineModeChanged(bool autoMode);
 
@@ -93,6 +99,8 @@ class OptionsWidget : public FilterOptionsWidget, private Ui::OptionsWidget {
   void setupUiConnections();
 
   void setupIcons();
+
+  void updateReadingOrderControl();
 
   std::shared_ptr<Settings> m_settings;
   std::shared_ptr<ProjectPages> m_pages;
