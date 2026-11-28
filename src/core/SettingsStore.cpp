@@ -974,6 +974,7 @@ bool validateTomlValues(TomlBackend& settings) {
       QStringLiteral("settings/language"),
       QStringLiteral("settings/units"),
       QStringLiteral("settings/current_profile"),
+      QStringLiteral("settings/image_export_format"),
       QStringLiteral("main_window/external_alarm_cmd"),
       QStringLiteral("project/lastDir"),
       QStringLiteral("lastInputDir"),

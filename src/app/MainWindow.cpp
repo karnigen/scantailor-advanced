@@ -11,6 +11,8 @@
 
 #include <QActionGroup>
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDialog>
@@ -20,9 +22,13 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemModel>
+#include <QFormLayout>
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QImageReader>
 #include <QKeySequence>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
@@ -2251,21 +2257,111 @@ void MainWindow::exportProcessedImages() {
   }
 
   const QStringList formats = ProcessedPagesExporter::supportedImageFormats();
-  bool formatAccepted = false;
-  const int webpIndex = formats.indexOf(QStringLiteral("webp"));
-  const QString format = QInputDialog::getItem(this, tr("Export Processed Pages"), tr("Image format:"), formats,
-                                               qMax(0, webpIndex), false, &formatAccepted);
-  if (!formatAccepted || format.isEmpty()) {
-    return;
-  }
-
-  const QString outputDirectory = QFileDialog::getExistingDirectory(
-      this, tr("Select Export Directory"), core::toQString(m_outFileNameGen.outDir()), QFileDialog::ShowDirsOnly);
-  if (outputDirectory.isEmpty()) {
-    return;
-  }
+  const QString defaultFormat = formats.contains(QStringLiteral("webp")) ? QStringLiteral("webp") : formats.value(0);
+  const QString lastFormat = SettingsStore().stringValue(QStringLiteral("settings/image_export_format"), defaultFormat);
+  const int savedFormatIndex = formats.indexOf(lastFormat, 0, Qt::CaseInsensitive);
 
   const PageSequence pages = m_thumbSequence->toPageSequence();
+  int minimumDpi = 150;
+  if (pages.numPages() > 0) {
+    minimumDpi = std::numeric_limits<int>::max();
+    const auto& outputFilter = m_stages->outputFilter();
+    for (const PageInfo& page : pages) {
+      const Dpi dpi(outputFilter->outputDpi(page.id()));
+      minimumDpi = std::min({minimumDpi, dpi.horizontal(), dpi.vertical()});
+    }
+  }
+
+  const QString defaultBaseDirectory = core::toQString(m_outFileNameGen.outDir());
+  QDialog exportDialog(this);
+  exportDialog.setWindowTitle(tr("Export Processed Pages as Images"));
+  auto* exportLayout = new QVBoxLayout(&exportDialog);
+  auto* formLayout = new QFormLayout;
+  exportLayout->addLayout(formLayout);
+
+  auto* formatCombo = new QComboBox(&exportDialog);
+  formatCombo->addItems(formats);
+  formatCombo->setCurrentIndex(savedFormatIndex >= 0 ? savedFormatIndex : 0);
+  formLayout->addRow(tr("Image format:"), formatCombo);
+
+  auto* baseDirectoryRowWidget = new QWidget(&exportDialog);
+  auto* baseDirectoryRow = new QHBoxLayout(baseDirectoryRowWidget);
+  baseDirectoryRow->setContentsMargins(0, 0, 0, 0);
+  auto* baseDirectoryEdit = new QLineEdit(defaultBaseDirectory, &exportDialog);
+  auto* browseButton = new QPushButton(tr("Browse..."), &exportDialog);
+  baseDirectoryRow->addWidget(baseDirectoryEdit, 1);
+  baseDirectoryRow->addWidget(browseButton);
+  formLayout->addRow(tr("Export path:"), baseDirectoryRowWidget);
+
+  auto* createSubdirectoryCheck = new QCheckBox(tr("Create subdirectory:"), &exportDialog);
+  createSubdirectoryCheck->setChecked(true);
+  auto* subdirectoryEdit
+      = new QLineEdit(QStringLiteral("%1_%2").arg(formatCombo->currentText()).arg(minimumDpi), &exportDialog);
+  formLayout->addRow(createSubdirectoryCheck, subdirectoryEdit);
+
+  bool subdirectoryNameEdited = false;
+  connect(subdirectoryEdit, &QLineEdit::textEdited, &exportDialog,
+          [&subdirectoryNameEdited]() { subdirectoryNameEdited = true; });
+  connect(formatCombo, &QComboBox::currentTextChanged, &exportDialog,
+          [subdirectoryEdit, &subdirectoryNameEdited, minimumDpi](const QString& format) {
+            if (!subdirectoryNameEdited) {
+              subdirectoryEdit->setText(QStringLiteral("%1_%2").arg(format).arg(minimumDpi));
+            }
+          });
+  connect(createSubdirectoryCheck, &QCheckBox::toggled, subdirectoryEdit, &QLineEdit::setEnabled);
+
+  auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &exportDialog);
+  buttonBox->button(QDialogButtonBox::Save)->setText(tr("Export"));
+  exportLayout->addWidget(buttonBox);
+  exportDialog.setMinimumWidth(600);
+  exportDialog.resize(640, exportDialog.sizeHint().height());
+
+  connect(browseButton, &QPushButton::clicked, &exportDialog, [&]() {
+    const QFileInfo currentPath(baseDirectoryEdit->text().trimmed());
+    const QString initialDirectory = currentPath.isDir() ? currentPath.absoluteFilePath() : currentPath.absolutePath();
+    const QString parentDirectory = QFileDialog::getExistingDirectory(&exportDialog, tr("Select Export Path"),
+                                                                      initialDirectory, QFileDialog::ShowDirsOnly);
+    if (!parentDirectory.isEmpty()) {
+      baseDirectoryEdit->setText(parentDirectory);
+    }
+  });
+  connect(buttonBox, &QDialogButtonBox::accepted, &exportDialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &exportDialog, &QDialog::reject);
+  if (exportDialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  const QString format = formatCombo->currentText();
+  if (format.isEmpty()) {
+    QMessageBox::warning(this, tr("Image Export Failed"), tr("Please select an image format."));
+    return;
+  }
+
+  const QString baseDirectoryText = baseDirectoryEdit->text().trimmed();
+  if (baseDirectoryText.isEmpty()) {
+    QMessageBox::warning(this, tr("Image Export Failed"), tr("Please specify an export path."));
+    return;
+  }
+  const QString baseDirectory = QFileInfo(baseDirectoryText).absoluteFilePath();
+  const QString subdirectoryName = subdirectoryEdit->text().trimmed();
+  const bool useSubdirectory = createSubdirectoryCheck->isChecked() && !subdirectoryName.isEmpty();
+  if (useSubdirectory
+      && (QDir::isAbsolutePath(subdirectoryName) || subdirectoryName == QStringLiteral(".")
+          || subdirectoryName == QStringLiteral("..") || subdirectoryName.contains(QLatin1Char('/'))
+          || subdirectoryName.contains(QLatin1Char('\\')))) {
+    QMessageBox::warning(this, tr("Image Export Failed"),
+                         tr("Enter a single subdirectory name without path separators."));
+    return;
+  }
+  const QString outputDirectory = useSubdirectory ? QDir(baseDirectory).filePath(subdirectoryName) : baseDirectory;
+  if (!QDir().mkpath(outputDirectory)) {
+    QMessageBox::warning(this, tr("Image Export Failed"),
+                         tr("Could not create the export directory: %1").arg(outputDirectory));
+    return;
+  }
+
+  SettingsStore().setValue(QStringLiteral("settings/image_export_format"), format);
+
   QProgressDialog progress(tr("Exporting processed pages..."), tr("Cancel"), 0, static_cast<int>(pages.numPages()),
                            this);
   progress.setWindowModality(Qt::WindowModal);
