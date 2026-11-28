@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 ScanTailor Advanced contributors
+// SPDX-FileCopyrightText: 2026 project contributors
 // SPDX-License-Identifier: GPL-3.0-only
 
 #include <Dpi.h>
